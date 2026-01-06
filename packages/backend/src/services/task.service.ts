@@ -1,5 +1,5 @@
-import { PrismaClient, UserRole, TaskStatus } from '@prisma/client';
-import { Task, CreateTaskRequest, UpdateTaskRequest, GetTasksQuery } from '@business-app/shared';
+import { PrismaClient, UserRole as PrismaUserRole, TaskStatus as PrismaTaskStatus } from '@prisma/client';
+import { Task, CreateTaskRequest, UpdateTaskRequest, GetTasksQuery, TaskStatus, TaskPriority, UserRole } from '@business-app/shared';
 
 const prisma = new PrismaClient();
 
@@ -39,8 +39,8 @@ export class TaskService {
     }
 
     if (query.isClaimable !== undefined) {
-      whereClause.isClaimable = query.isClaimable === 'true';
-      whereClause.status = TaskStatus.OPEN;
+      whereClause.isClaimable = query.isClaimable;
+      whereClause.status = PrismaTaskStatus.OPEN;
       whereClause.assignedTo = null;
     }
 
@@ -76,8 +76,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status,
-      priority: task.priority,
+      status: task.status as TaskStatus,
+      priority: task.priority as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -159,8 +159,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status,
-      priority: task.priority,
+      status: task.status as TaskStatus,
+      priority: task.priority as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -200,7 +200,7 @@ export class TaskService {
     }
 
     // Only task creator, assignee, or owner can update
-    const isOwner = membership.role === UserRole.OWNER;
+    const isOwner = membership.role === PrismaUserRole.OWNER;
     const isCreator = existingTask.createdBy === userId;
     const isAssignee = existingTask.assignedTo === userId;
 
@@ -213,7 +213,7 @@ export class TaskService {
     if (taskData.description !== undefined) updateData.description = taskData.description;
     if (taskData.status !== undefined) {
       updateData.status = taskData.status;
-      if (taskData.status === TaskStatus.COMPLETED) {
+      if (taskData.status === TaskStatus.COMPLETED || taskData.status === 'COMPLETED') {
         updateData.completedAt = new Date();
       }
     }
@@ -258,8 +258,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status,
-      priority: task.priority,
+      status: task.status as TaskStatus,
+      priority: task.priority as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -287,7 +287,7 @@ export class TaskService {
       throw new Error('Task is already assigned');
     }
 
-    if (existingTask.status !== TaskStatus.OPEN) {
+    if (existingTask.status !== PrismaTaskStatus.OPEN) {
       throw new Error('Only open tasks can be claimed');
     }
 
@@ -309,7 +309,7 @@ export class TaskService {
       where: { id: taskId },
       data: {
         assignedTo: userId,
-        status: TaskStatus.IN_PROGRESS
+        status: PrismaTaskStatus.IN_PROGRESS
       },
       include: {
         creator: {
@@ -336,8 +336,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status,
-      priority: task.priority,
+      status: task.status as TaskStatus,
+      priority: task.priority as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -371,7 +371,7 @@ export class TaskService {
       throw new Error('Not authorized');
     }
 
-    const isOwner = membership.role === UserRole.OWNER;
+    const isOwner = membership.role === PrismaUserRole.OWNER;
     const isAssignee = existingTask.assignedTo === userId;
 
     if (!isOwner && !isAssignee) {
@@ -381,7 +381,7 @@ export class TaskService {
     const task = await prisma.task.update({
       where: { id: taskId },
       data: {
-        status: TaskStatus.COMPLETED,
+        status: PrismaTaskStatus.COMPLETED,
         completedAt: new Date()
       },
       include: {
@@ -409,8 +409,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status,
-      priority: task.priority,
+      status: task.status as TaskStatus,
+      priority: task.priority as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -467,8 +467,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status,
-      priority: task.priority,
+      status: task.status as TaskStatus,
+      priority: task.priority as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -502,7 +502,7 @@ export class TaskService {
       throw new Error('Not authorized');
     }
 
-    const isOwner = membership.role === UserRole.OWNER;
+    const isOwner = membership.role === PrismaUserRole.OWNER;
     const isCreator = existingTask.createdBy === userId;
 
     if (!isOwner && !isCreator) {
