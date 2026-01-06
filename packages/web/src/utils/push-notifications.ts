@@ -77,11 +77,11 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     // Get service worker registration
     let registration = await navigator.serviceWorker.getRegistration();
     if (!registration) {
-      registration = await registerServiceWorker();
-    }
-
-    if (!registration) {
-      throw new Error('Service worker registration failed');
+      const newReg = await registerServiceWorker();
+      if (!newReg) {
+        throw new Error('Service worker registration failed');
+      }
+      registration = newReg;
     }
 
     // Get VAPID public key from backend
@@ -95,7 +95,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     // Subscribe to push notifications
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: convertedVapidKey
+      applicationServerKey: convertedVapidKey as BufferSource
     });
 
     console.log('✅ Push subscription created:', subscription);

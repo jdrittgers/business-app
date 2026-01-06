@@ -22,7 +22,7 @@ export default function TaskModal({
   const { user } = useAuthStore();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
+  const [priority, setPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [dueDate, setDueDate] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [isClaimable, setIsClaimable] = useState(false);
@@ -43,7 +43,7 @@ export default function TaskModal({
     } else {
       setTitle('');
       setDescription('');
-      setPriority('MEDIUM');
+      setPriority(TaskPriority.MEDIUM);
       setDueDate('');
       setAssignedTo('');
       setIsClaimable(false);

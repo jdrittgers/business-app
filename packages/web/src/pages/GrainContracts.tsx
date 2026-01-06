@@ -179,10 +179,10 @@ export default function GrainContracts() {
     setEditingContract(null);
     setFormData({
       grainEntityId: entities[0]?.id || '',
-      contractType: 'CASH',
-      cropYear: 'NEW_CROP',
+      contractType: ContractType.CASH,
+      cropYear: CropYear.NEW_CROP,
       year: 2026,
-      commodityType: 'CORN',
+      commodityType: CommodityType.CORN,
       contractNumber: '',
       buyer: '',
       totalBushels: '',

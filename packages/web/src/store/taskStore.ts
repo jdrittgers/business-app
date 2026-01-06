@@ -19,7 +19,7 @@ interface TaskState {
   initializeSocketListeners: () => void;
 }
 
-export const useTaskStore = create<TaskState>((set, get) => ({
+export const useTaskStore = create<TaskState>((set) => ({
   tasks: [],
   isLoading: false,
   error: null,
@@ -31,7 +31,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       const tasks = await tasksApi.getBusinessTasks(businessId, {
         status,
         assignedTo,
-        isClaimable: isClaimable ? 'true' : undefined
+        isClaimable
       });
       set({ tasks, isLoading: false });
     } catch (error: any) {
