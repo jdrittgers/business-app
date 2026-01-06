@@ -16,7 +16,8 @@
     "prisma:studio": "prisma studio --schema=src/prisma/schema.prisma",
     "prisma:seed": "tsx src/prisma/seed.ts",
     "seed:prod": "tsx src/prisma/seed-production.ts",
-    "seed:grain": "tsx src/prisma/seed-grain-entities.ts"
+    "seed:grain": "tsx src/prisma/seed-grain-entities.ts",
+    "seed:grain-data": "tsx src/prisma/seed-grain-data.ts"
   },
   "dependencies": {
     "@business-app/shared": "*",
