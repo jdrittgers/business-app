@@ -81,7 +81,7 @@ export default function Dashboard() {
                       </button>
 
                       {/* Show Grain features only for Rittgers Farm */}
-                      {membership.business.name === 'Rittgers Farm' && (
+                      {(membership.business.name === 'Rittgers Farm' || membership.business.name === 'Rittgers Farms') && (
                         <>
                           <button
                             onClick={() => navigate('/grain-contracts/dashboard')}

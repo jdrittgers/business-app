@@ -15,7 +15,8 @@
     "prisma:migrate": "prisma migrate dev --schema=src/prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema=src/prisma/schema.prisma",
     "prisma:seed": "tsx src/prisma/seed.ts",
-    "seed:prod": "tsx src/prisma/seed-production.ts"
+    "seed:prod": "tsx src/prisma/seed-production.ts",
+    "seed:grain": "tsx src/prisma/seed-grain-entities.ts"
   },
   "dependencies": {
     "@business-app/shared": "*",
