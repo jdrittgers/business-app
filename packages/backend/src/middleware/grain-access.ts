@@ -10,9 +10,14 @@ export async function requireGrainAccess(req: AuthRequest, res: Response, next: 
       return;
     }
 
-    // Check if user is a member of Rittgers Farm
+    // Check if user is a member of Rittgers Farm or Rittgers Farms
     const rittgersFarm = await prisma.business.findFirst({
-      where: { name: 'Rittgers Farm' }
+      where: {
+        OR: [
+          { name: 'Rittgers Farm' },
+          { name: 'Rittgers Farms' }
+        ]
+      }
     });
 
     if (!rittgersFarm) {
