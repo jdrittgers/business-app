@@ -40,7 +40,7 @@ export class AuthService {
     const tokenPayload: AuthTokenPayload = {
       userId: user.id,
       email: user.email,
-      role: user.role as UserRole
+      role: user.role as any as UserRole
     };
 
     const accessToken = generateAccessToken(tokenPayload);
@@ -61,14 +61,14 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role as UserRole,
+      role: user.role as any as UserRole,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       businessMemberships: user.businessMemberships.map(bm => ({
         id: bm.id,
         userId: bm.userId,
         businessId: bm.businessId,
-        role: bm.role as UserRole,
+        role: bm.role as any as UserRole,
         business: bm.business
       }))
     };
@@ -150,14 +150,14 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role as UserRole,
+      role: user.role as any as UserRole,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       businessMemberships: user.businessMemberships.map(bm => ({
         id: bm.id,
         userId: bm.userId,
         businessId: bm.businessId,
-        role: bm.role as UserRole,
+        role: bm.role as any as UserRole,
         business: bm.business
       }))
     };

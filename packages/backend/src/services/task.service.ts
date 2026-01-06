@@ -76,8 +76,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status as TaskStatus,
-      priority: task.priority as TaskPriority,
+      status: task.status as any as TaskStatus,
+      priority: task.priority as any as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -159,8 +159,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status as TaskStatus,
-      priority: task.priority as TaskPriority,
+      status: task.status as any as TaskStatus,
+      priority: task.priority as any as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -213,7 +213,7 @@ export class TaskService {
     if (taskData.description !== undefined) updateData.description = taskData.description;
     if (taskData.status !== undefined) {
       updateData.status = taskData.status;
-      if (taskData.status === TaskStatus.COMPLETED || taskData.status === 'COMPLETED') {
+      if (taskData.status === TaskStatus.COMPLETED) {
         updateData.completedAt = new Date();
       }
     }
@@ -258,8 +258,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status as TaskStatus,
-      priority: task.priority as TaskPriority,
+      status: task.status as any as TaskStatus,
+      priority: task.priority as any as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -336,8 +336,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status as TaskStatus,
-      priority: task.priority as TaskPriority,
+      status: task.status as any as TaskStatus,
+      priority: task.priority as any as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -409,8 +409,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status as TaskStatus,
-      priority: task.priority as TaskPriority,
+      status: task.status as any as TaskStatus,
+      priority: task.priority as any as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,
@@ -467,8 +467,8 @@ export class TaskService {
       assignedTo: task.assignedTo || undefined,
       title: task.title,
       description: task.description || undefined,
-      status: task.status as TaskStatus,
-      priority: task.priority as TaskPriority,
+      status: task.status as any as TaskStatus,
+      priority: task.priority as any as TaskPriority,
       dueDate: task.dueDate || undefined,
       completedAt: task.completedAt || undefined,
       isClaimable: task.isClaimable,

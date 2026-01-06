@@ -3,19 +3,19 @@ import { AuthTokenPayload } from '@business-app/shared';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'default-access-secret';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret';
-const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
-const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const ACCESS_EXPIRES_IN: string | number = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+const REFRESH_EXPIRES_IN: string | number = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 export function generateAccessToken(payload: AuthTokenPayload): string {
   return jwt.sign(payload, ACCESS_SECRET, {
-    expiresIn: ACCESS_EXPIRES_IN as string
-  });
+    expiresIn: ACCESS_EXPIRES_IN
+  } as any);
 }
 
 export function generateRefreshToken(payload: AuthTokenPayload): string {
   return jwt.sign(payload, REFRESH_SECRET, {
-    expiresIn: REFRESH_EXPIRES_IN as string
-  });
+    expiresIn: REFRESH_EXPIRES_IN
+  } as any);
 }
 
 export function verifyAccessToken(token: string): AuthTokenPayload {
@@ -27,7 +27,7 @@ export function verifyRefreshToken(token: string): AuthTokenPayload {
 }
 
 export function getRefreshTokenExpirationDate(): Date {
-  const expiresIn = REFRESH_EXPIRES_IN;
+  const expiresIn = String(REFRESH_EXPIRES_IN);
   const match = expiresIn.match(/^(\d+)([dhm])$/);
 
   if (!match) {
