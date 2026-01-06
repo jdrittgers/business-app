@@ -11,5 +11,13 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  optimizeDeps: {
+    include: ['@business-app/shared']
+  },
+  build: {
+    commonjsOptions: {
+      include: [/@business-app\/shared/, /node_modules/]
+    }
   }
 });
