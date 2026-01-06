@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
+import { hashPassword } from '../utils/password';
 
 const prisma = new PrismaClient();
 
@@ -7,7 +7,7 @@ async function main() {
   console.log('🌱 Seeding production database...');
 
   // Hash password
-  const passwordHash = await bcrypt.hash('rittgers123', 10);
+  const passwordHash = await hashPassword('rittgers123');
 
   // Create user
   const user = await prisma.user.upsert({
@@ -25,12 +25,13 @@ async function main() {
   console.log('✅ Created user:', user.email);
 
   // Create business
-  const business = await prisma.business.upsert({
-    where: { name: 'Rittgers Farms' },
-    update: {},
-    create: {
-      name: 'Rittgers Farms',
-      ownerId: user.id
+  const existingBusiness = await prisma.business.findFirst({
+    where: { name: 'Rittgers Farms' }
+  });
+
+  const business = existingBusiness || await prisma.business.create({
+    data: {
+      name: 'Rittgers Farms'
     }
   });
 
