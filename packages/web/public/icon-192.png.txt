@@ -1,0 +1,5 @@
+Note: For production, add actual PNG icons at:
+- /public/icon-192.png (192x192 px)
+- /public/badge-72.png (72x72 px)
+
+For now, the browser will use default icons.

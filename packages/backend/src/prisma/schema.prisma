@@ -1,0 +1,351 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  EMPLOYEE
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CropYear {
+  NEW_CROP
+  OLD_CROP
+}
+
+enum ContractType {
+  CASH
+  BASIS
+  HTA
+  ACCUMULATOR
+}
+
+enum CommodityType {
+  CORN
+  SOYBEANS
+  WHEAT
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  firstName     String   @map("first_name")
+  lastName      String   @map("last_name")
+  role          UserRole
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  businessMemberships BusinessMember[]
+  calendarEvents      CalendarEvent[]
+  createdTasks        Task[]          @relation("TaskCreator")
+  assignedTasks       Task[]          @relation("TaskAssignee")
+  taskComments        TaskComment[]
+  refreshTokens       RefreshToken[]
+  pushSubscriptions   PushSubscription[]
+  grainContracts      GrainContract[]
+  priceAlerts         PriceAlert[]
+
+  @@map("users")
+}
+
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members        BusinessMember[]
+  calendarEvents CalendarEvent[]
+  tasks          Task[]
+  grainEntities  GrainEntity[]
+  priceAlerts    PriceAlert[]
+
+  @@map("businesses")
+}
+
+model BusinessMember {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  businessId String   @map("business_id")
+  role       UserRole
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([userId])
+  @@index([businessId])
+  @@map("business_members")
+}
+
+model CalendarEvent {
+  id          String   @id @default(uuid())
+  businessId  String   @map("business_id")
+  userId      String   @map("user_id")
+  title       String
+  description String?
+  startTime   DateTime @map("start_time")
+  endTime     DateTime @map("end_time")
+  allDay      Boolean  @default(false) @map("all_day")
+  color       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, startTime])
+  @@index([userId, startTime])
+  @@map("calendar_events")
+}
+
+model Task {
+  id           String       @id @default(uuid())
+  businessId   String       @map("business_id")
+  createdBy    String       @map("created_by")
+  assignedTo   String?      @map("assigned_to")
+  title        String
+  description  String?
+  status       TaskStatus   @default(OPEN)
+  priority     TaskPriority @default(MEDIUM)
+  dueDate      DateTime?    @map("due_date")
+  completedAt  DateTime?    @map("completed_at")
+  isClaimable  Boolean      @default(false) @map("is_claimable")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator  User          @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  assignee User?         @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  comments TaskComment[]
+
+  @@index([businessId, status])
+  @@index([assignedTo, status])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_comments")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  endpoint   String   @unique
+  p256dh     String   // Public key for encryption
+  auth       String   // Authentication secret
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model GrainEntity {
+  id         String   @id @default(uuid())
+  businessId String   @map("business_id")
+  name       String   // Rittgers Grain, Rittgers Farm, JDR AG, JVR AG, JKC Farms
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  contracts   GrainContract[]
+  productions CropYearProduction[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@map("grain_entities")
+}
+
+model GrainContract {
+  id                 String         @id @default(uuid())
+  grainEntityId      String         @map("grain_entity_id")
+  createdBy          String         @map("created_by")
+  contractType       ContractType   @map("contract_type")
+  cropYear           CropYear       @map("crop_year")
+  year               Int            @default(2025) // Actual year: 2024, 2025, 2026, etc.
+  commodityType      CommodityType  @map("commodity_type")
+  contractNumber     String?        @map("contract_number")
+  buyer              String         // Elevator/Buyer name
+  totalBushels       Decimal        @map("total_bushels") @db.Decimal(12, 2)
+  deliveryStartDate  DateTime?      @map("delivery_start_date")
+  deliveryEndDate    DateTime?      @map("delivery_end_date")
+
+  // Pricing fields
+  cashPrice          Decimal?       @map("cash_price") @db.Decimal(10, 4)
+  basisPrice         Decimal?       @map("basis_price") @db.Decimal(10, 4)
+  futuresMonth       String?        @map("futures_month") // e.g., "Dec 2024"
+  futuresPrice       Decimal?       @map("futures_price") @db.Decimal(10, 4)
+
+  // Status
+  bushelsDelivered   Decimal        @default(0) @map("bushels_delivered") @db.Decimal(12, 2)
+  isActive           Boolean        @default(true) @map("is_active")
+
+  notes              String?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  grainEntity        GrainEntity           @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+  createdByUser      User                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  accumulatorDetails AccumulatorDetails?
+
+  @@index([grainEntityId, cropYear])
+  @@index([contractType, isActive])
+  @@index([grainEntityId, year, commodityType])
+  @@map("grain_contracts")
+}
+
+model AccumulatorDetails {
+  id                    String                   @id @default(uuid())
+  contractId            String                   @unique @map("contract_id")
+  knockoutPrice         Decimal                  @map("knockout_price") @db.Decimal(10, 4)
+  doubleUpPrice         Decimal                  @map("double_up_price") @db.Decimal(10, 4)
+  dailyBushels          Decimal                  @map("daily_bushels") @db.Decimal(12, 2)
+  totalBushelsMarketed  Decimal                  @default(0) @map("total_bushels_marketed") @db.Decimal(12, 2)
+  startDate             DateTime                 @map("start_date")
+  endDate               DateTime?                @map("end_date")
+  isDailyDouble         Boolean                  @default(false) @map("is_daily_double")
+  isCurrentlyDoubled    Boolean                  @default(false) @map("is_currently_doubled")
+  knockoutReached       Boolean                  @default(false) @map("knockout_reached")
+  knockoutDate          DateTime?                @map("knockout_date")
+  basisLocked           Boolean                  @default(false) @map("basis_locked")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  // Relations
+  contract              GrainContract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  dailyEntries          AccumulatorDailyEntry[]
+
+  @@map("accumulator_details")
+}
+
+model AccumulatorDailyEntry {
+  id                  String             @id @default(uuid())
+  accumulatorId       String             @map("accumulator_id")
+  date                DateTime
+  bushelsMarketed     Decimal            @map("bushels_marketed") @db.Decimal(12, 2)
+  marketPrice         Decimal            @map("market_price") @db.Decimal(10, 4)
+  wasDoubledUp        Boolean            @default(false) @map("was_doubled_up")
+  notes               String?
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  // Relations
+  accumulator         AccumulatorDetails @relation(fields: [accumulatorId], references: [id], onDelete: Cascade)
+
+  @@unique([accumulatorId, date])
+  @@index([accumulatorId])
+  @@map("accumulator_daily_entries")
+}
+
+model CropYearProduction {
+  id              String        @id @default(uuid())
+  grainEntityId   String        @map("grain_entity_id")
+  commodityType   CommodityType @map("commodity_type")
+  year            Int           // Actual year: 2024, 2025, 2026, etc.
+  acres           Decimal       @db.Decimal(12, 2)
+  bushelsPerAcre  Decimal       @map("bushels_per_acre") @db.Decimal(10, 2)
+  totalProjected  Decimal       @map("total_projected") @db.Decimal(12, 2)
+  notes           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  grainEntity     GrainEntity   @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([grainEntityId, commodityType, year])
+  @@index([grainEntityId, year])
+  @@index([commodityType, year])
+  @@map("crop_year_productions")
+}
+
+model MarketPrice {
+  id            String        @id @default(uuid())
+  commodityType CommodityType @map("commodity_type")
+  price         Decimal       @db.Decimal(10, 4)
+  priceDate     DateTime      @map("price_date")
+  source        String        // 'USDA_NASS', 'CME', etc.
+  marketType    String        @default("SPOT") @map("market_type") // 'SPOT', 'FUTURES'
+  contractMonth String?       @map("contract_month")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  @@index([commodityType, priceDate])
+  @@index([priceDate])
+  @@map("market_prices")
+}
+
+model PriceAlert {
+  id              String        @id @default(uuid())
+  businessId      String        @map("business_id")
+  userId          String        @map("user_id")
+  commodityType   CommodityType @map("commodity_type")
+  targetPrice     Decimal       @map("target_price") @db.Decimal(10, 4)
+  alertType       String        @map("alert_type") // 'ABOVE', 'BELOW'
+  isActive        Boolean       @default(true) @map("is_active")
+  lastTriggered   DateTime?     @map("last_triggered")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, isActive])
+  @@index([commodityType, isActive])
+  @@map("price_alerts")
+}

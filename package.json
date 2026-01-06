@@ -1,0 +1,23 @@
+{
+  "name": "business-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:web": "npm run dev --workspace=web",
+    "dev:mobile": "npm run dev --workspace=mobile",
+    "build:backend": "npm run build --workspace=backend",
+    "build:web": "npm run build --workspace=web",
+    "build:mobile": "npm run build --workspace=mobile",
+    "prisma:generate": "npm run prisma:generate --workspace=backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=backend",
+    "prisma:studio": "npm run prisma:studio --workspace=backend"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

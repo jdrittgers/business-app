@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof:*)",
+      "Bash(/Users/90tenhobby/Desktop/Business-App/Postgres.app/Contents/Versions/18/bin/createdb business_app)",
+      "Bash(npx prisma migrate dev:*)"
+    ]
+  }
+}
