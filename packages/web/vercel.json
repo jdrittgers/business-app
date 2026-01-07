@@ -9,3 +9,4 @@
   "buildCommand": "cd ../shared && npm run build && cd ../web && npm run build",
   "outputDirectory": "dist"
 }
+
