@@ -1,0 +1,566 @@
+import { prisma } from '../prisma/client';
+import {
+  Farm,
+  CreateFarmRequest,
+  UpdateFarmRequest,
+  CreateFarmFertilizerUsageRequest,
+  CreateFarmChemicalUsageRequest,
+  CreateFarmSeedUsageRequest,
+  CreateFarmOtherCostRequest,
+  GetFarmsQuery
+} from '@business-app/shared';
+
+export class FarmService {
+  async getAll(businessId: string, query?: GetFarmsQuery): Promise<Farm[]> {
+    const farms = await prisma.farm.findMany({
+      where: {
+        grainEntity: { businessId },
+        ...(query?.grainEntityId && { grainEntityId: query.grainEntityId }),
+        ...(query?.year && { year: query.year }),
+        ...(query?.commodityType && { commodityType: query.commodityType })
+      },
+      include: {
+        grainEntity: true
+      },
+      orderBy: [
+        { year: 'desc' },
+        { grainEntity: { name: 'asc' } },
+        { name: 'asc' }
+      ]
+    });
+
+    return farms.map(f => ({
+      ...f,
+      acres: Number(f.acres),
+      projectedYield: Number(f.projectedYield),
+      aph: Number(f.aph),
+      commodityType: f.commodityType as any,
+      grainEntity: f.grainEntity,
+      notes: f.notes || undefined
+    }));
+  }
+
+  async getById(id: string, businessId: string): Promise<Farm | null> {
+    const farm = await prisma.farm.findFirst({
+      where: {
+        id,
+        grainEntity: { businessId }
+      },
+      include: {
+        grainEntity: true,
+        fertilizerUsage: {
+          include: { fertilizer: true }
+        },
+        chemicalUsage: {
+          include: { chemical: true }
+        },
+        seedUsage: {
+          include: { seedHybrid: true }
+        },
+        otherCosts: true
+      }
+    });
+
+    if (!farm) return null;
+
+    return {
+      ...farm,
+      acres: Number(farm.acres),
+      projectedYield: Number(farm.projectedYield),
+      aph: Number(farm.aph),
+      commodityType: farm.commodityType as any,
+      grainEntity: farm.grainEntity,
+      notes: farm.notes || undefined,
+      fertilizerUsage: farm.fertilizerUsage?.map(fu => ({
+        ...fu,
+        amountUsed: Number(fu.amountUsed),
+        fertilizer: fu.fertilizer ? {
+          ...fu.fertilizer,
+          pricePerUnit: Number(fu.fertilizer.pricePerUnit),
+          unit: fu.fertilizer.unit as any
+        } : undefined
+      })),
+      chemicalUsage: farm.chemicalUsage?.map(cu => ({
+        ...cu,
+        amountUsed: Number(cu.amountUsed),
+        chemical: cu.chemical ? {
+          ...cu.chemical,
+          pricePerUnit: Number(cu.chemical.pricePerUnit),
+          unit: cu.chemical.unit as any
+        } : undefined
+      })),
+      seedUsage: farm.seedUsage?.map(su => ({
+        ...su,
+        bagsUsed: Number(su.bagsUsed),
+        seedHybrid: su.seedHybrid ? {
+          ...su.seedHybrid,
+          pricePerBag: Number(su.seedHybrid.pricePerBag),
+          commodityType: su.seedHybrid.commodityType as any
+        } : undefined
+      })),
+      otherCosts: farm.otherCosts?.map(oc => ({
+        ...oc,
+        amount: Number(oc.amount),
+        costType: oc.costType as any,
+        description: oc.description || undefined
+      }))
+    };
+  }
+
+  async create(businessId: string, data: CreateFarmRequest): Promise<Farm> {
+    // Verify entity belongs to business
+    const entity = await prisma.grainEntity.findFirst({
+      where: { id: data.grainEntityId, businessId }
+    });
+
+    if (!entity) {
+      throw new Error('Grain entity not found');
+    }
+
+    const farm = await prisma.farm.create({
+      data: {
+        grainEntityId: data.grainEntityId,
+        name: data.name,
+        acres: data.acres,
+        commodityType: data.commodityType,
+        year: data.year,
+        projectedYield: data.projectedYield,
+        aph: data.aph,
+        notes: data.notes
+      },
+      include: {
+        grainEntity: true
+      }
+    });
+
+    return {
+      ...farm,
+      acres: Number(farm.acres),
+      projectedYield: Number(farm.projectedYield),
+      aph: Number(farm.aph),
+      commodityType: farm.commodityType as any,
+      grainEntity: farm.grainEntity,
+      notes: farm.notes || undefined
+    };
+  }
+
+  async update(id: string, businessId: string, data: UpdateFarmRequest): Promise<Farm> {
+    // Verify farm belongs to business
+    const existing = await this.getById(id, businessId);
+    if (!existing) {
+      throw new Error('Farm not found');
+    }
+
+    const farm = await prisma.farm.update({
+      where: { id },
+      data,
+      include: {
+        grainEntity: true
+      }
+    });
+
+    return {
+      ...farm,
+      acres: Number(farm.acres),
+      projectedYield: Number(farm.projectedYield),
+      aph: Number(farm.aph),
+      commodityType: farm.commodityType as any,
+      grainEntity: farm.grainEntity,
+      notes: farm.notes || undefined
+    };
+  }
+
+  async delete(id: string, businessId: string): Promise<void> {
+    // Verify farm belongs to business
+    const existing = await this.getById(id, businessId);
+    if (!existing) {
+      throw new Error('Farm not found');
+    }
+
+    await prisma.farm.delete({
+      where: { id }
+    });
+  }
+
+  // ===== Usage Tracking Methods =====
+
+  async addFertilizerUsage(businessId: string, data: CreateFarmFertilizerUsageRequest) {
+    // Verify farm belongs to business
+    const farm = await this.getById(data.farmId, businessId);
+    if (!farm) throw new Error('Farm not found');
+
+    // Verify fertilizer belongs to business
+    const fertilizer = await prisma.fertilizer.findFirst({
+      where: { id: data.fertilizerId, businessId }
+    });
+    if (!fertilizer) throw new Error('Fertilizer not found');
+
+    const usage = await prisma.farmFertilizerUsage.create({
+      data: {
+        farmId: data.farmId,
+        fertilizerId: data.fertilizerId,
+        amountUsed: data.amountUsed
+      },
+      include: {
+        fertilizer: true
+      }
+    });
+
+    return {
+      ...usage,
+      amountUsed: Number(usage.amountUsed),
+      fertilizer: {
+        ...usage.fertilizer,
+        pricePerUnit: Number(usage.fertilizer.pricePerUnit)
+      }
+    };
+  }
+
+  async updateFertilizerUsage(id: string, businessId: string, amountUsed: number) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmFertilizerUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Fertilizer usage not found');
+
+    const updated = await prisma.farmFertilizerUsage.update({
+      where: { id },
+      data: { amountUsed },
+      include: {
+        fertilizer: true
+      }
+    });
+
+    return {
+      ...updated,
+      amountUsed: Number(updated.amountUsed),
+      fertilizer: {
+        ...updated.fertilizer,
+        pricePerUnit: Number(updated.fertilizer.pricePerUnit)
+      }
+    };
+  }
+
+  async deleteFertilizerUsage(id: string, businessId: string) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmFertilizerUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Fertilizer usage not found');
+
+    await prisma.farmFertilizerUsage.delete({
+      where: { id }
+    });
+  }
+
+  async addChemicalUsage(businessId: string, data: CreateFarmChemicalUsageRequest) {
+    // Verify farm belongs to business
+    const farm = await this.getById(data.farmId, businessId);
+    if (!farm) throw new Error('Farm not found');
+
+    // Verify chemical belongs to business
+    const chemical = await prisma.chemical.findFirst({
+      where: { id: data.chemicalId, businessId }
+    });
+    if (!chemical) throw new Error('Chemical not found');
+
+    const usage = await prisma.farmChemicalUsage.create({
+      data: {
+        farmId: data.farmId,
+        chemicalId: data.chemicalId,
+        amountUsed: data.amountUsed
+      },
+      include: {
+        chemical: true
+      }
+    });
+
+    return {
+      ...usage,
+      amountUsed: Number(usage.amountUsed),
+      chemical: {
+        ...usage.chemical,
+        pricePerUnit: Number(usage.chemical.pricePerUnit)
+      }
+    };
+  }
+
+  async updateChemicalUsage(id: string, businessId: string, amountUsed: number) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmChemicalUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Chemical usage not found');
+
+    const updated = await prisma.farmChemicalUsage.update({
+      where: { id },
+      data: { amountUsed },
+      include: {
+        chemical: true
+      }
+    });
+
+    return {
+      ...updated,
+      amountUsed: Number(updated.amountUsed),
+      chemical: {
+        ...updated.chemical,
+        pricePerUnit: Number(updated.chemical.pricePerUnit)
+      }
+    };
+  }
+
+  async deleteChemicalUsage(id: string, businessId: string) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmChemicalUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Chemical usage not found');
+
+    await prisma.farmChemicalUsage.delete({
+      where: { id }
+    });
+  }
+
+  async addSeedUsage(businessId: string, data: CreateFarmSeedUsageRequest) {
+    // Verify farm belongs to business
+    const farm = await this.getById(data.farmId, businessId);
+    if (!farm) throw new Error('Farm not found');
+
+    // Verify seed hybrid belongs to business
+    const seedHybrid = await prisma.seedHybrid.findFirst({
+      where: { id: data.seedHybridId, businessId }
+    });
+    if (!seedHybrid) throw new Error('Seed hybrid not found');
+
+    const usage = await prisma.farmSeedUsage.create({
+      data: {
+        farmId: data.farmId,
+        seedHybridId: data.seedHybridId,
+        bagsUsed: data.bagsUsed
+      },
+      include: {
+        seedHybrid: true
+      }
+    });
+
+    return {
+      ...usage,
+      bagsUsed: Number(usage.bagsUsed),
+      seedHybrid: {
+        ...usage.seedHybrid,
+        pricePerBag: Number(usage.seedHybrid.pricePerBag),
+        commodityType: usage.seedHybrid.commodityType as any
+      }
+    };
+  }
+
+  async updateSeedUsage(id: string, businessId: string, bagsUsed: number) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmSeedUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Seed usage not found');
+
+    const updated = await prisma.farmSeedUsage.update({
+      where: { id },
+      data: { bagsUsed },
+      include: {
+        seedHybrid: true
+      }
+    });
+
+    return {
+      ...updated,
+      bagsUsed: Number(updated.bagsUsed),
+      seedHybrid: {
+        ...updated.seedHybrid,
+        pricePerBag: Number(updated.seedHybrid.pricePerBag),
+        commodityType: updated.seedHybrid.commodityType as any
+      }
+    };
+  }
+
+  async deleteSeedUsage(id: string, businessId: string) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmSeedUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Seed usage not found');
+
+    await prisma.farmSeedUsage.delete({
+      where: { id }
+    });
+  }
+
+  async addOtherCost(businessId: string, data: CreateFarmOtherCostRequest) {
+    // Verify farm belongs to business
+    const farm = await this.getById(data.farmId, businessId);
+    if (!farm) throw new Error('Farm not found');
+
+    const cost = await prisma.farmOtherCost.create({
+      data: {
+        farmId: data.farmId,
+        costType: data.costType,
+        amount: data.amount,
+        isPerAcre: data.isPerAcre,
+        description: data.description
+      }
+    });
+
+    return {
+      ...cost,
+      amount: Number(cost.amount),
+      costType: cost.costType as any
+    };
+  }
+
+  async updateOtherCost(id: string, businessId: string, data: { amount?: number; isPerAcre?: boolean; description?: string }) {
+    // Verify cost belongs to farm owned by business
+    const cost = await prisma.farmOtherCost.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!cost) throw new Error('Cost not found');
+
+    const updated = await prisma.farmOtherCost.update({
+      where: { id },
+      data
+    });
+
+    return {
+      ...updated,
+      amount: Number(updated.amount),
+      costType: updated.costType as any
+    };
+  }
+
+  async deleteOtherCost(id: string, businessId: string) {
+    // Verify cost belongs to farm owned by business
+    const cost = await prisma.farmOtherCost.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!cost) throw new Error('Cost not found');
+
+    await prisma.farmOtherCost.delete({
+      where: { id }
+    });
+  }
+
+  async getFarmBreakEven(id: string, businessId: string) {
+    const farm = await this.getById(id, businessId);
+    if (!farm) throw new Error('Farm not found');
+
+    // Use farm's projected yield
+    const expectedYield = farm.projectedYield;
+    const expectedBushels = farm.acres * expectedYield;
+
+    // Calculate fertilizer cost
+    let fertilizerCost = 0;
+    if (farm.fertilizerUsage) {
+      for (const usage of farm.fertilizerUsage as any[]) {
+        const cost = Number(usage.amountUsed) * Number(usage.fertilizer.pricePerUnit);
+        fertilizerCost += cost;
+      }
+    }
+
+    // Calculate chemical cost
+    let chemicalCost = 0;
+    if (farm.chemicalUsage) {
+      for (const usage of farm.chemicalUsage as any[]) {
+        const cost = Number(usage.amountUsed) * Number(usage.chemical.pricePerUnit);
+        chemicalCost += cost;
+      }
+    }
+
+    // Calculate seed cost
+    let seedCost = 0;
+    if (farm.seedUsage) {
+      for (const usage of farm.seedUsage as any[]) {
+        const totalCost = Number(usage.bagsUsed) * Number(usage.seedHybrid.pricePerBag);
+        seedCost += totalCost;
+      }
+    }
+
+    // Calculate other costs
+    let otherCostsTotal = 0;
+    if (farm.otherCosts) {
+      for (const cost of farm.otherCosts as any[]) {
+        const amount = Number(cost.amount);
+        if (cost.isPerAcre) {
+          otherCostsTotal += amount * farm.acres;
+        } else {
+          otherCostsTotal += amount;
+        }
+      }
+    }
+
+    const totalCost = fertilizerCost + chemicalCost + seedCost + otherCostsTotal;
+    const costPerAcre = totalCost / farm.acres;
+    const breakEvenPrice = expectedBushels > 0 ? totalCost / expectedBushels : 0;
+
+    return {
+      farmId: farm.id,
+      farmName: farm.name,
+      acres: farm.acres,
+      expectedYield,
+      expectedBushels,
+      costs: {
+        fertilizer: fertilizerCost,
+        chemical: chemicalCost,
+        seed: seedCost,
+        other: otherCostsTotal,
+        total: totalCost
+      },
+      costPerAcre,
+      breakEvenPrice
+    };
+  }
+}

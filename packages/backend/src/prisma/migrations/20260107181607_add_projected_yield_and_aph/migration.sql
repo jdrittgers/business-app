@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "farms" ADD COLUMN     "aph" DECIMAL(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "projected_yield" DECIMAL(10,2) NOT NULL DEFAULT 0;

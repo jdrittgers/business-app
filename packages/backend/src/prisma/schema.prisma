@@ -13,6 +13,7 @@ datasource db {
 enum UserRole {
   OWNER
   EMPLOYEE
+  RETAILER
 }
 
 enum TaskStatus {
@@ -45,6 +46,11 @@ enum CommodityType {
   WHEAT
 }
 
+enum BidRequestStatus {
+  OPEN
+  CLOSED
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -65,6 +71,8 @@ model User {
   pushSubscriptions   PushSubscription[]
   grainContracts      GrainContract[]
   priceAlerts         PriceAlert[]
+  retailerProfile     Retailer?
+  createdBidRequests  BidRequest[]
 
   @@map("users")
 }
@@ -72,6 +80,8 @@ model User {
 model Business {
   id        String   @id @default(uuid())
   name      String
+  city      String?
+  state     String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -81,6 +91,10 @@ model Business {
   tasks          Task[]
   grainEntities  GrainEntity[]
   priceAlerts    PriceAlert[]
+  fertilizers    Fertilizer[]
+  chemicals      Chemical[]
+  seedHybrids    SeedHybrid[]
+  bidRequests    BidRequest[]
 
   @@map("businesses")
 }
@@ -207,6 +221,7 @@ model GrainEntity {
   business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   contracts   GrainContract[]
   productions CropYearProduction[]
+  farms       Farm[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -348,4 +363,257 @@ model PriceAlert {
   @@index([businessId, isActive])
   @@index([commodityType, isActive])
   @@map("price_alerts")
+}
+
+// ===== Break-Even Calculator Models =====
+
+model Fertilizer {
+  id          String   @id @default(uuid())
+  businessId  String   @map("business_id")
+  name        String   // MAP, DAP, MESZ, POTASH, LIME, UREA, UAN(32%), SULFUR, etc.
+  pricePerUnit Decimal @map("price_per_unit") @db.Decimal(10, 2) // Price per lb or gallon
+  unit        String   // "LB" or "GAL"
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  usage       FarmFertilizerUsage[]
+
+  @@map("fertilizers")
+  @@index([businessId])
+}
+
+model Chemical {
+  id          String   @id @default(uuid())
+  businessId  String   @map("business_id")
+  name        String
+  pricePerUnit Decimal @map("price_per_unit") @db.Decimal(10, 2) // Price per gallon or lb
+  unit        String   // "LB" or "GAL"
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  usage       FarmChemicalUsage[]
+
+  @@map("chemicals")
+  @@index([businessId])
+}
+
+model SeedHybrid {
+  id          String        @id @default(uuid())
+  businessId  String        @map("business_id")
+  name        String        // Hybrid name
+  commodityType CommodityType @map("commodity_type") // CORN, SOYBEANS, WHEAT
+  pricePerBag Decimal       @map("price_per_bag") @db.Decimal(10, 2)
+  seedsPerBag Int           @map("seeds_per_bag") // Number of seeds in a bag
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  usage       FarmSeedUsage[]
+
+  @@map("seed_hybrids")
+  @@index([businessId])
+  @@index([commodityType])
+}
+
+model Farm {
+  id            String        @id @default(uuid())
+  grainEntityId String        @map("grain_entity_id")
+  name          String        // "North 40", "South Farm", etc.
+  acres         Decimal       @db.Decimal(10, 2)
+  commodityType CommodityType @map("commodity_type") // CORN, SOYBEANS, WHEAT
+  year          Int           // Crop year
+  projectedYield Decimal      @default(0) @map("projected_yield") @db.Decimal(10, 2) // Projected bushels per acre
+  aph           Decimal       @default(0) @db.Decimal(10, 2) // Actual Production History (APH)
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  grainEntity   GrainEntity @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+
+  // Cost tracking relations
+  fertilizerUsage FarmFertilizerUsage[]
+  chemicalUsage   FarmChemicalUsage[]
+  seedUsage       FarmSeedUsage[]
+  otherCosts      FarmOtherCost[]
+
+  @@map("farms")
+  @@index([grainEntityId])
+  @@index([year])
+  @@unique([grainEntityId, name, year])
+}
+
+model FarmFertilizerUsage {
+  id           String   @id @default(uuid())
+  farmId       String   @map("farm_id")
+  fertilizerId String   @map("fertilizer_id")
+  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Pounds or gallons
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  farm         Farm      @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  fertilizer   Fertilizer @relation(fields: [fertilizerId], references: [id], onDelete: Cascade)
+
+  @@map("farm_fertilizer_usage")
+  @@index([farmId])
+  @@index([fertilizerId])
+}
+
+model FarmChemicalUsage {
+  id           String   @id @default(uuid())
+  farmId       String   @map("farm_id")
+  chemicalId   String   @map("chemical_id")
+  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Pounds or gallons
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  farm         Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  chemical     Chemical @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+
+  @@map("farm_chemical_usage")
+  @@index([farmId])
+  @@index([chemicalId])
+}
+
+model FarmSeedUsage {
+  id             String   @id @default(uuid())
+  farmId         String   @map("farm_id")
+  seedHybridId   String   @map("seed_hybrid_id")
+  bagsUsed       Decimal  @map("bags_used") @db.Decimal(10, 2) // Number of bags used
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  farm           Farm       @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  seedHybrid     SeedHybrid @relation(fields: [seedHybridId], references: [id], onDelete: Cascade)
+
+  @@map("farm_seed_usage")
+  @@index([farmId])
+  @@index([seedHybridId])
+}
+
+model FarmOtherCost {
+  id          String   @id @default(uuid())
+  farmId      String   @map("farm_id")
+  costType    String   @map("cost_type") // "LAND_RENT", "INSURANCE", "CUSTOM_WORK", "FUEL", "LABOR", "OTHER"
+  amount      Decimal  @db.Decimal(10, 2) // Total amount or per-acre amount
+  isPerAcre   Boolean  @default(false) @map("is_per_acre") // If true, multiply by acres
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  farm        Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("farm_other_costs")
+  @@index([farmId])
+  @@index([costType])
+}
+
+// ===== Input Bidding System Models =====
+
+model Retailer {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  companyName     String   @map("company_name")
+  businessLicense String?  @map("business_license")
+  phone           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bids            RetailerBid[]
+
+  @@map("retailers")
+}
+
+model BidRequest {
+  id                  String             @id @default(uuid())
+  businessId          String             @map("business_id")
+  createdBy           String             @map("created_by")
+  title               String
+  description         String?
+  status              BidRequestStatus   @default(OPEN)
+  desiredDeliveryDate DateTime?          @map("desired_delivery_date")
+  notes               String?
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  closedAt            DateTime?          @map("closed_at")
+
+  // Relations
+  business            Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator             User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  items               BidRequestItem[]
+  bids                RetailerBid[]
+
+  @@map("bid_requests")
+  @@index([businessId])
+  @@index([status])
+}
+
+model BidRequestItem {
+  id            String   @id @default(uuid())
+  bidRequestId  String   @map("bid_request_id")
+  productType   String   @map("product_type")  // "FERTILIZER" or "CHEMICAL"
+  productId     String?  @map("product_id")     // Optional FK to Fertilizer or Chemical
+  productName   String   @map("product_name")   // Stored for flexibility
+  quantity      Decimal  @db.Decimal(10, 2)
+  unit          String   // "LB" or "GAL"
+  currentPrice  Decimal? @map("current_price") @db.Decimal(10, 2)  // Current best price - updates when lower bid received
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  bidRequest    BidRequest @relation(fields: [bidRequestId], references: [id], onDelete: Cascade)
+
+  @@map("bid_request_items")
+  @@index([bidRequestId])
+}
+
+model RetailerBid {
+  id                      String     @id @default(uuid())
+  bidRequestId            String     @map("bid_request_id")
+  retailerId              String     @map("retailer_id")
+  totalDeliveredPrice     Decimal    @map("total_delivered_price") @db.Decimal(12, 2)
+  guaranteedDeliveryDate  DateTime   @map("guaranteed_delivery_date")
+  expirationDate          DateTime?  @map("expiration_date")  // Date when bid expires
+  termsAcknowledged       Boolean    @default(false) @map("terms_acknowledged")
+  notes                   String?
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  bidRequest              BidRequest @relation(fields: [bidRequestId], references: [id], onDelete: Cascade)
+  retailer                Retailer   @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  bidItems                RetailerBidItem[]
+
+  @@unique([bidRequestId, retailerId])
+  @@map("retailer_bids")
+  @@index([retailerId])
+  @@index([bidRequestId])
+}
+
+model RetailerBidItem {
+  id                String      @id @default(uuid())
+  retailerBidId     String      @map("retailer_bid_id")
+  bidRequestItemId  String      @map("bid_request_item_id")
+  pricePerUnit      Decimal     @map("price_per_unit") @db.Decimal(10, 2)
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  retailerBid       RetailerBid @relation(fields: [retailerBidId], references: [id], onDelete: Cascade)
+
+  @@map("retailer_bid_items")
+  @@index([retailerBidId])
+  @@index([bidRequestItemId])
 }

@@ -9,7 +9,15 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx prisma db execute:*)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx tsx:*)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx tsx:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(xargs kill:*)",
+      "Bash(grep:*)",
+      "Bash(node -e:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" node:*)"
     ]
   }
 }

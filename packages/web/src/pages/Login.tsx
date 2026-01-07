@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 export default function Login() {
@@ -78,6 +78,15 @@ export default function Login() {
           <p className="font-medium mb-2">Test Credentials:</p>
           <p>Owner: owner@90ten.com / password123</p>
           <p>Employee: employee1@90ten.com / password123</p>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+          <p className="text-sm text-gray-600">
+            Are you a retailer?{' '}
+            <Link to="/retailer/login" className="text-indigo-600 hover:text-indigo-700 font-medium">
+              Sign in to the Retailer Portal
+            </Link>
+          </p>
         </div>
       </div>
     </div>

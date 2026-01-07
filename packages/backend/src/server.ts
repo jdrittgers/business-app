@@ -11,6 +11,10 @@ import grainContractRoutes from './routes/grain-contract.routes';
 import grainProductionRoutes from './routes/grain-production.routes';
 import grainAnalyticsRoutes from './routes/grain-analytics.routes';
 import marketPriceRoutes from './routes/market-price.routes';
+import breakevenRoutes from './controllers/breakeven.controller';
+import retailerAuthRoutes from './routes/retailer-auth.routes';
+import bidRequestRoutes from './routes/bid-request.routes';
+import retailerBidRoutes from './routes/retailer-bid.routes';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 
@@ -30,8 +34,17 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-// Routes
+// Debug middleware
+app.use((req, res, next) => {
+  console.log(`📍 ${req.method} ${req.path}`);
+  next();
+});
+
+// Routes - More specific routes first!
 app.use('/api/auth', authRoutes);
+app.use('/api/retailer', retailerAuthRoutes); // Retailer auth routes MUST come before generic /api routes
+app.use('/api', bidRequestRoutes); // Bid request routes before grain routes to avoid middleware conflicts
+app.use('/api', retailerBidRoutes);
 app.use('/api', calendarRoutes);
 app.use('/api', tasksRoutes);
 app.use('/api', pushNotificationRoutes);
@@ -39,6 +52,7 @@ app.use('/api', grainContractRoutes);
 app.use('/api', grainProductionRoutes);
 app.use('/api', grainAnalyticsRoutes);
 app.use('/api', marketPriceRoutes);
+app.use('/api', breakevenRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

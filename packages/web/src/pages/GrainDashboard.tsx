@@ -100,6 +100,12 @@ export default function GrainDashboard() {
                 Contracts
               </button>
               <button
+                onClick={() => navigate('/breakeven')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Breakeven
+              </button>
+              <button
                 onClick={handleLogout}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
               >

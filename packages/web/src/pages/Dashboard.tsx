@@ -79,6 +79,12 @@ export default function Dashboard() {
                       >
                         ✅ Tasks
                       </button>
+                      <button
+                        onClick={() => navigate('/input-bids')}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium text-sm"
+                      >
+                        📦 Input Bids
+                      </button>
 
                       {/* Show Grain features only for Rittgers Farm */}
                       {(membership.business.name === 'Rittgers Farm' || membership.business.name === 'Rittgers Farms') && (
@@ -100,6 +106,12 @@ export default function Dashboard() {
                             className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 font-medium text-sm"
                           >
                             📝 Contracts
+                          </button>
+                          <button
+                            onClick={() => navigate('/breakeven')}
+                            className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium text-sm"
+                          >
+                            💰 Breakeven
                           </button>
                         </>
                       )}
