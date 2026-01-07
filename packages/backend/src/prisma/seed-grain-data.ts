@@ -71,7 +71,7 @@ async function main() {
     const existing = await prisma.cropYearProduction.findFirst({
       where: {
         grainEntityId: entity.id,
-        commodityType: prod.commodity,
+        commodityType: prod.commodity as any,
         year: 2026
       }
     });
@@ -84,7 +84,7 @@ async function main() {
     await prisma.cropYearProduction.create({
       data: {
         grainEntityId: entity.id,
-        commodityType: prod.commodity,
+        commodityType: prod.commodity as any,
         year: 2026,
         acres: prod.acres,
         bushelsPerAcre: prod.buPerAcre,
