@@ -226,6 +226,7 @@ export interface EntityProductionSummary {
   totalSold: number;
   totalRemaining: number;
   percentageSold: number;
+  averagePrice: number; // Average sale price in $/bu
   contracts: GrainContract[];
 }
 
@@ -239,6 +240,7 @@ export interface DashboardSummary {
     projected: number;
     sold: number;
     remaining: number;
+    averagePrice: number; // Average sale price in $/bu
   }>;
   byContractType: Array<{
     contractType: ContractType;

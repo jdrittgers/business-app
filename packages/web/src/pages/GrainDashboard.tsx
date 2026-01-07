@@ -161,6 +161,25 @@ export default function GrainDashboard() {
               />
             </div>
 
+            {/* Average Price Cards - One per Commodity */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {summary.byCommodity.map((commodity) => (
+                <DashboardCard
+                  key={`avg-price-${commodity.commodityType}`}
+                  title={`Avg ${commodity.commodityType} Price`}
+                  value={commodity.averagePrice > 0
+                    ? `$${commodity.averagePrice.toFixed(2)}`
+                    : 'N/A'}
+                  subtitle="per bushel"
+                  color="purple"
+                  icon={<span className="text-2xl">
+                    {commodity.commodityType === 'CORN' ? '🌽' :
+                     commodity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
+                  </span>}
+                />
+              ))}
+            </div>
+
             {/* Commodity Specific Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {summary.byCommodity.map((commodity) => {
@@ -185,6 +204,14 @@ export default function GrainDashboard() {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Remaining:</span>
                         <span className="text-lg font-bold text-yellow-600">{commodity.remaining.toLocaleString()} bu</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Avg Price:</span>
+                        <span className="text-lg font-bold text-purple-600">
+                          {commodity.averagePrice > 0
+                            ? `$${commodity.averagePrice.toFixed(2)}/bu`
+                            : 'N/A'}
+                        </span>
                       </div>
                       <div className="pt-3 border-t">
                         <div className="flex justify-between items-center">
@@ -244,7 +271,14 @@ export default function GrainDashboard() {
                       <h4 className="font-medium text-gray-900">
                         {entity.grainEntityName} - {entity.commodityType}
                       </h4>
-                      <span className="text-sm text-gray-500">{entity.year}</span>
+                      <div className="flex items-center gap-4">
+                        {entity.averagePrice > 0 && (
+                          <span className="text-sm font-semibold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                            Avg: ${entity.averagePrice.toFixed(2)}/bu
+                          </span>
+                        )}
+                        <span className="text-sm text-gray-500">{entity.year}</span>
+                      </div>
                     </div>
                     <ProgressBar
                       label={`${entity.commodityType}`}
@@ -291,6 +325,14 @@ export default function GrainDashboard() {
                       <div className="flex justify-between">
                         <span className="text-gray-600">Remaining:</span>
                         <span className="font-semibold text-yellow-600">{commodity.remaining.toLocaleString()} bu</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Avg Price:</span>
+                        <span className="font-semibold text-purple-600">
+                          {commodity.averagePrice > 0
+                            ? `$${commodity.averagePrice.toFixed(2)}/bu`
+                            : 'N/A'}
+                        </span>
                       </div>
                       <div className="pt-2 border-t">
                         <div className="flex justify-between">

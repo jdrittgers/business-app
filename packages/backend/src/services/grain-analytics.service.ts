@@ -45,6 +45,7 @@ export class GrainAnalyticsService {
 
     const byCommodityMap = new Map<CommodityType, { projected: number; sold: number }>();
     const byContractTypeMap = new Map<ContractType, number>();
+    const byCommodityPriceMap = new Map<CommodityType, { totalValue: number; totalBushels: number }>();
 
     for (const entity of entities) {
       for (const production of entity.productions) {
@@ -64,6 +65,32 @@ export class GrainAnalyticsService {
         const totalRemaining = totalProjected - totalSold;
         const percentageSold = totalProjected > 0 ? (totalSold / totalProjected) * 100 : 0;
 
+        // Calculate average price for this entity/commodity
+        let entityTotalValue = 0;
+        let entityTotalBushels = 0;
+
+        for (const contract of relevantContracts) {
+          const bushelsDelivered = this.calculateBushelsDelivered(contract);
+          const effectivePrice = this.calculateEffectivePrice(contract);
+
+          if (effectivePrice !== null && bushelsDelivered > 0) {
+            const value = bushelsDelivered * effectivePrice;
+            entityTotalValue += value;
+            entityTotalBushels += bushelsDelivered;
+
+            // Aggregate for commodity totals
+            const commodityPrice = byCommodityPriceMap.get(commodityType) ||
+              { totalValue: 0, totalBushels: 0 };
+            commodityPrice.totalValue += value;
+            commodityPrice.totalBushels += bushelsDelivered;
+            byCommodityPriceMap.set(commodityType, commodityPrice);
+          }
+        }
+
+        const averagePrice = entityTotalBushels > 0
+          ? entityTotalValue / entityTotalBushels
+          : 0;
+
         byEntity.push({
           grainEntityId: entity.id,
           grainEntityName: entity.name,
@@ -73,6 +100,7 @@ export class GrainAnalyticsService {
           totalSold,
           totalRemaining,
           percentageSold,
+          averagePrice,
           contracts: relevantContracts.map(c => this.mapContract(c))
         });
 
@@ -99,12 +127,20 @@ export class GrainAnalyticsService {
     const percentageSoldAll = totalProjectedAll > 0 ? (totalSoldAll / totalProjectedAll) * 100 : 0;
 
     // Format by commodity
-    const byCommodity = Array.from(byCommodityMap.entries()).map(([commodityType, data]) => ({
-      commodityType,
-      projected: data.projected,
-      sold: data.sold,
-      remaining: data.projected - data.sold
-    }));
+    const byCommodity = Array.from(byCommodityMap.entries()).map(([commodityType, data]) => {
+      const priceData = byCommodityPriceMap.get(commodityType);
+      const averagePrice = priceData && priceData.totalBushels > 0
+        ? priceData.totalValue / priceData.totalBushels
+        : 0;
+
+      return {
+        commodityType,
+        projected: data.projected,
+        sold: data.sold,
+        remaining: data.projected - data.sold,
+        averagePrice
+      };
+    });
 
     // Format by contract type
     const byContractType = Array.from(byContractTypeMap.entries()).map(([contractType, totalBushels]) => ({
@@ -203,6 +239,59 @@ export class GrainAnalyticsService {
     }
 
     return bushelsDelivered;
+  }
+
+  // Helper to calculate effective price per contract
+  private calculateEffectivePrice(contract: any): number | null {
+    const contractType = contract.contractType;
+
+    // CASH contract
+    if (contractType === 'CASH') {
+      return contract.cashPrice ? Number(contract.cashPrice) : null;
+    }
+
+    // BASIS contract
+    if (contractType === 'BASIS') {
+      if (contract.basisPrice !== null && contract.futuresPrice !== null) {
+        return Number(contract.futuresPrice) + Number(contract.basisPrice);
+      }
+      return null;
+    }
+
+    // HTA contract
+    if (contractType === 'HTA') {
+      const futuresPrice = contract.futuresPrice ? Number(contract.futuresPrice) : null;
+      if (!futuresPrice) return null;
+
+      let basis: number;
+      if (contract.accumulatorDetails?.basisLocked && contract.basisPrice) {
+        basis = Number(contract.basisPrice);
+      } else {
+        // Use default basis assumptions
+        const commodity = contract.commodityType;
+        if (commodity === 'CORN') basis = -0.45;
+        else if (commodity === 'SOYBEANS') basis = -0.75;
+        else if (commodity === 'WHEAT') basis = -0.60;
+        else return null;
+      }
+
+      return futuresPrice + basis;
+    }
+
+    // ACCUMULATOR contract
+    if (contractType === 'ACCUMULATOR' && contract.accumulatorDetails) {
+      const entries = contract.accumulatorDetails.dailyEntries || [];
+      if (entries.length === 0) return null;
+
+      const totalMarketed = entries.reduce((sum: number, e: any) =>
+        sum + Number(e.bushelsMarketed), 0);
+      const totalValue = entries.reduce((sum: number, e: any) =>
+        sum + Number(e.bushelsMarketed) * Number(e.marketPrice), 0);
+
+      return totalMarketed > 0 ? totalValue / totalMarketed : null;
+    }
+
+    return null;
   }
 
   // Helper to map contract
