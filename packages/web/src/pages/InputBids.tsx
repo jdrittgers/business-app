@@ -146,18 +146,6 @@ export default function InputBids() {
     }
   };
 
-  const _handleViewBids = async (bidRequest: BidRequest) => {
-    if (!selectedBusinessId) return;
-
-    try {
-      const fullData = await biddingApi.getBidRequest(selectedBusinessId, bidRequest.id);
-      setSelectedBidRequest(fullData);
-      setShowViewBidsModal(true);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load bids');
-    }
-  };
-
   const resetForm = () => {
     setFormData({
       desiredDeliveryDate: '',
