@@ -146,7 +146,7 @@ export default function InputBids() {
     }
   };
 
-  const handleViewBids = async (bidRequest: BidRequest) => {
+  const _handleViewBids = async (bidRequest: BidRequest) => {
     if (!selectedBusinessId) return;
 
     try {
@@ -575,11 +575,11 @@ export default function InputBids() {
                 <h3 className="font-semibold mb-2">Items Requested</h3>
 
                 {/* Chemicals */}
-                {selectedBidRequest.items?.filter(item => item.productType === 'CHEMICAL').length > 0 && (
+                {selectedBidRequest.items?.filter(item => item.productType === 'CHEMICAL').length! > 0 && (
                   <div className="mb-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Chemicals</h4>
                     <div className="space-y-2">
-                      {selectedBidRequest.items
+                      {selectedBidRequest.items!
                         .filter(item => item.productType === 'CHEMICAL')
                         .map((item) => (
                           <div key={item.id} className="flex justify-between items-center p-3 bg-blue-50 rounded">
@@ -599,11 +599,11 @@ export default function InputBids() {
                 )}
 
                 {/* Fertilizers */}
-                {selectedBidRequest.items?.filter(item => item.productType === 'FERTILIZER').length > 0 && (
+                {selectedBidRequest.items?.filter(item => item.productType === 'FERTILIZER').length! > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Fertilizers</h4>
                     <div className="space-y-2">
-                      {selectedBidRequest.items
+                      {selectedBidRequest.items!
                         .filter(item => item.productType === 'FERTILIZER')
                         .map((item) => (
                           <div key={item.id} className="flex justify-between items-center p-3 bg-green-50 rounded">

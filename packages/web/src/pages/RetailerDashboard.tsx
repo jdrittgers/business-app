@@ -466,7 +466,7 @@ export default function RetailerDashboard() {
                       Item Pricing (Price per Unit) *
                     </label>
                     <div className="space-y-3 max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3">
-                      {selectedBidRequest.items?.map((item, index) => {
+                      {selectedBidRequest.items?.map((item) => {
                         const bidItem = bidFormData.bidItems.find(bi => bi.bidRequestItemId === item.id);
                         return (
                           <div key={item.id} className="flex items-center gap-3 pb-3 border-b border-gray-100 last:border-0">

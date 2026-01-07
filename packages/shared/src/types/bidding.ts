@@ -157,5 +157,6 @@ export interface CreateRetailerBidRequest {
 export interface UpdateRetailerBidRequest {
   totalDeliveredPrice?: number;
   guaranteedDeliveryDate?: Date | string;
+  expirationDate?: Date | string;
   notes?: string;
 }
