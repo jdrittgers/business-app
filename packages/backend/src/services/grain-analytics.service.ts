@@ -280,15 +280,36 @@ export class GrainAnalyticsService {
 
     // ACCUMULATOR contract
     if (contractType === 'ACCUMULATOR' && contract.accumulatorDetails) {
-      const entries = contract.accumulatorDetails.dailyEntries || [];
-      if (entries.length === 0) return null;
+      const details = contract.accumulatorDetails;
+      const entries = details.dailyEntries || [];
 
-      const totalMarketed = entries.reduce((sum: number, e: any) =>
-        sum + Number(e.bushelsMarketed), 0);
-      const totalValue = entries.reduce((sum: number, e: any) =>
-        sum + Number(e.bushelsMarketed) * Number(e.marketPrice), 0);
+      // If we have daily entries, calculate actual weighted average
+      if (entries.length > 0) {
+        const totalMarketed = entries.reduce((sum: number, e: any) =>
+          sum + Number(e.bushelsMarketed), 0);
+        const totalValue = entries.reduce((sum: number, e: any) =>
+          sum + Number(e.bushelsMarketed) * Number(e.marketPrice), 0);
 
-      return totalMarketed > 0 ? totalValue / totalMarketed : null;
+        return totalMarketed > 0 ? totalValue / totalMarketed : null;
+      }
+
+      // No daily entries yet - estimate using doubleUpPrice minus basis
+      const doubleUpPrice = details.doubleUpPrice ? Number(details.doubleUpPrice) : null;
+      if (!doubleUpPrice) return null;
+
+      let basis: number;
+      if (details.basisLocked && contract.basisPrice) {
+        basis = Number(contract.basisPrice);
+      } else {
+        // Use default basis assumptions
+        const commodity = contract.commodityType;
+        if (commodity === 'CORN') basis = -0.45;
+        else if (commodity === 'SOYBEANS') basis = -0.75;
+        else if (commodity === 'WHEAT') basis = -0.60;
+        else return null;
+      }
+
+      return doubleUpPrice + basis; // basis is negative, so this subtracts
     }
 
     return null;
