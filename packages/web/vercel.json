@@ -6,6 +6,6 @@
     }
   ],
   "installCommand": "cd ../.. && npm install",
-  "buildCommand": "npm run build",
+  "buildCommand": "cd ../shared && npm run build && cd ../web && npm run build",
   "outputDirectory": "dist"
 }

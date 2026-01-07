@@ -17,7 +17,10 @@
       "Bash(node -e:*)",
       "Bash(cat:*)",
       "Bash(curl:*)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" node:*)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" node:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx prisma migrate:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/business_app\" node:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" node -e:*)"
     ]
   }
 }
