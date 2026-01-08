@@ -85,36 +85,30 @@ export default function Dashboard() {
                       >
                         📦 Input Bids
                       </button>
-
-                      {/* Show Grain features only for Rittgers Farm */}
-                      {(membership.business.name === 'Rittgers Farm' || membership.business.name === 'Rittgers Farms') && (
-                        <>
-                          <button
-                            onClick={() => navigate('/grain-contracts/dashboard')}
-                            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium text-sm"
-                          >
-                            📊 Grain Dashboard
-                          </button>
-                          <button
-                            onClick={() => navigate('/grain-contracts/production')}
-                            className="bg-green-700 text-white px-4 py-2 rounded-md hover:bg-green-800 font-medium text-sm"
-                          >
-                            🌱 Production
-                          </button>
-                          <button
-                            onClick={() => navigate('/grain-contracts')}
-                            className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 font-medium text-sm"
-                          >
-                            📝 Contracts
-                          </button>
-                          <button
-                            onClick={() => navigate('/breakeven')}
-                            className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium text-sm"
-                          >
-                            💰 Breakeven
-                          </button>
-                        </>
-                      )}
+                      <button
+                        onClick={() => navigate('/grain-contracts/dashboard')}
+                        className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium text-sm"
+                      >
+                        📊 Grain Dashboard
+                      </button>
+                      <button
+                        onClick={() => navigate('/grain-contracts/production')}
+                        className="bg-green-700 text-white px-4 py-2 rounded-md hover:bg-green-800 font-medium text-sm"
+                      >
+                        🌱 Production
+                      </button>
+                      <button
+                        onClick={() => navigate('/grain-contracts')}
+                        className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 font-medium text-sm"
+                      >
+                        📝 Contracts
+                      </button>
+                      <button
+                        onClick={() => navigate('/breakeven')}
+                        className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium text-sm"
+                      >
+                        💰 Breakeven
+                      </button>
                     </div>
                   </div>
                 </div>
