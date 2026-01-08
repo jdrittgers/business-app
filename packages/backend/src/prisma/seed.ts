@@ -279,7 +279,7 @@ async function main() {
       where: { grainEntityId: mainFarm.id }
     });
 
-    // Corn contract - sold portion
+    // Corn contract - sold portion (45% of production)
     await prisma.grainContract.create({
       data: {
         grainEntityId: mainFarm.id,
@@ -291,15 +291,16 @@ async function main() {
         contractNumber: 'CORN-2026-001',
         buyer: 'ABC Grain Co',
         totalBushels: 50000,
+        bushelsDelivered: 50000, // Fully delivered
         cashPrice: 4.25,
         deliveryStartDate: new Date('2026-11-01'),
         deliveryEndDate: new Date('2026-12-31'),
         isActive: true,
-        notes: 'Fall delivery contract'
+        notes: 'Fall delivery contract - 45% of production sold'
       }
     });
 
-    // Soybean contract - sold portion
+    // Soybean contract - sold portion (55% of production)
     await prisma.grainContract.create({
       data: {
         grainEntityId: mainFarm.id,
@@ -311,11 +312,12 @@ async function main() {
         contractNumber: 'SOY-2026-001',
         buyer: 'XYZ Processors',
         totalBushels: 15000,
+        bushelsDelivered: 15000, // Fully delivered
         cashPrice: 10.50,
         deliveryStartDate: new Date('2026-10-01'),
         deliveryEndDate: new Date('2026-11-30'),
         isActive: true,
-        notes: 'Early harvest delivery'
+        notes: 'Early harvest delivery - 55% of production sold'
       }
     });
   }
