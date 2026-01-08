@@ -31,7 +31,13 @@ export class GrainContractController {
   // Create grain entity
   async createGrainEntity(req: AuthRequest, res: Response): Promise<void> {
     try {
+      console.log('📝 Create grain entity request received');
+      console.log('User:', req.user?.userId);
+      console.log('BusinessId from params:', req.params.businessId);
+      console.log('Name from body:', req.body.name);
+
       if (!req.user) {
+        console.error('❌ No user in request');
         res.status(401).json({ error: 'Not authenticated' });
         return;
       }
@@ -39,15 +45,26 @@ export class GrainContractController {
       const { businessId } = req.params;
       const { name } = req.body;
 
+      if (!businessId) {
+        console.error('❌ No businessId provided');
+        res.status(400).json({ error: 'Business ID is required' });
+        return;
+      }
+
       if (!name || name.trim() === '') {
+        console.error('❌ No name provided');
         res.status(400).json({ error: 'Entity name is required' });
         return;
       }
 
+      console.log(`✅ Creating entity "${name}" for business ${businessId}`);
       const entity = await grainContractService.createGrainEntity(businessId, name.trim());
+      console.log('✅ Entity created successfully:', entity.id);
       res.status(201).json(entity);
     } catch (error) {
-      console.error('Create grain entity error:', error);
+      console.error('❌ Create grain entity error:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
       res.status(500).json({ error: 'Internal server error' });
     }
   }

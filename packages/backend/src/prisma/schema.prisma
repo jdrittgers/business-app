@@ -589,17 +589,26 @@ model BidRequestItem {
   @@index([bidRequestId])
 }
 
+enum RetailerBidStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model RetailerBid {
-  id                      String     @id @default(uuid())
-  bidRequestId            String     @map("bid_request_id")
-  retailerId              String     @map("retailer_id")
-  totalDeliveredPrice     Decimal    @map("total_delivered_price") @db.Decimal(12, 2)
-  guaranteedDeliveryDate  DateTime   @map("guaranteed_delivery_date")
-  expirationDate          DateTime?  @map("expiration_date")  // Date when bid expires
-  termsAcknowledged       Boolean    @default(false) @map("terms_acknowledged")
+  id                      String             @id @default(uuid())
+  bidRequestId            String             @map("bid_request_id")
+  retailerId              String             @map("retailer_id")
+  status                  RetailerBidStatus  @default(PENDING)
+  totalDeliveredPrice     Decimal            @map("total_delivered_price") @db.Decimal(12, 2)
+  guaranteedDeliveryDate  DateTime           @map("guaranteed_delivery_date")
+  expirationDate          DateTime?          @map("expiration_date")  // Date when bid expires
+  termsAcknowledged       Boolean            @default(false) @map("terms_acknowledged")
   notes                   String?
-  createdAt               DateTime   @default(now()) @map("created_at")
-  updatedAt               DateTime   @updatedAt @map("updated_at")
+  acceptedAt              DateTime?          @map("accepted_at")  // When farmer accepted
+  acceptedBy              String?            @map("accepted_by")  // User ID who accepted
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
 
   // Relations
   bidRequest              BidRequest @relation(fields: [bidRequestId], references: [id], onDelete: Cascade)
@@ -610,6 +619,7 @@ model RetailerBid {
   @@map("retailer_bids")
   @@index([retailerId])
   @@index([bidRequestId])
+  @@index([status])
 }
 
 model RetailerBidItem {

@@ -5,6 +5,12 @@ export enum BidRequestStatus {
   CLOSED = 'CLOSED'
 }
 
+export enum RetailerBidStatus {
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED'
+}
+
 export enum ProductType {
   FERTILIZER = 'FERTILIZER',
   CHEMICAL = 'CHEMICAL'
@@ -142,11 +148,14 @@ export interface RetailerBid {
   id: string;
   bidRequestId: string;
   retailerId: string;
+  status: RetailerBidStatus;
   totalDeliveredPrice: number;
   guaranteedDeliveryDate: Date;
   expirationDate?: Date;
   termsAcknowledged: boolean;
   notes?: string;
+  acceptedAt?: Date;
+  acceptedBy?: string;
   createdAt: Date;
   updatedAt: Date;
   retailer?: Retailer;

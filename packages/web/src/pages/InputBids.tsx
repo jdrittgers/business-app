@@ -163,6 +163,21 @@ export default function InputBids() {
     }
   };
 
+  const handleAcceptBid = async (bidId: string, retailerName: string, totalPrice: number) => {
+    if (!confirm(`Accept bid from ${retailerName} for $${totalPrice.toLocaleString()}?\n\nThis will notify the retailer that their bid has been accepted.`)) {
+      return;
+    }
+
+    try {
+      await biddingApi.acceptBid(bidId);
+      // Reload to show updated status
+      loadBidRequests();
+      alert(`✅ Bid accepted! ${retailerName} has been notified.`);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to accept bid');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       desiredDeliveryDate: '',
@@ -575,6 +590,47 @@ export default function InputBids() {
                 </div>
               </div>
 
+              {/* Pricing Summary */}
+              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                <h3 className="font-semibold mb-3">Pricing Summary</h3>
+                {(() => {
+                  const totalStartingPrice = selectedBidRequest.items?.reduce((sum, item) => {
+                    return sum + (item.currentPrice || 0) * item.quantity;
+                  }, 0) || 0;
+
+                  const bestBid = selectedBidRequest.bids && selectedBidRequest.bids.length > 0
+                    ? selectedBidRequest.bids.sort((a, b) => a.totalDeliveredPrice - b.totalDeliveredPrice)[0]
+                    : null;
+
+                  const savings = bestBid ? totalStartingPrice - bestBid.totalDeliveredPrice : 0;
+                  const savingsPercent = totalStartingPrice > 0 ? (savings / totalStartingPrice) * 100 : 0;
+
+                  return (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Starting Price</p>
+                        <p className="text-2xl font-bold text-gray-700">${totalStartingPrice.toLocaleString()}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Best Bid</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {bestBid ? `$${bestBid.totalDeliveredPrice.toLocaleString()}` : 'No bids yet'}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">Projected Savings</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {bestBid ? `$${savings.toLocaleString()}` : '$0'}
+                        </p>
+                        {bestBid && savingsPercent > 0 && (
+                          <p className="text-sm text-green-600">({savingsPercent.toFixed(1)}% off)</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* Items - Organized by Chemicals and Fertilizers */}
               <div className="mb-6">
                 <h3 className="font-semibold mb-2">Items Requested</h3>
@@ -592,8 +648,8 @@ export default function InputBids() {
                             <div className="flex gap-4 text-sm">
                               <span className="text-gray-600">{item.quantity} {item.unit}</span>
                               {item.currentPrice && (
-                                <span className="text-green-600 font-semibold">
-                                  Current: ${item.currentPrice.toFixed(2)}/{item.unit}
+                                <span className="text-gray-700 font-semibold">
+                                  Starting: ${item.currentPrice.toFixed(2)}/{item.unit}
                                 </span>
                               )}
                             </div>
@@ -617,7 +673,7 @@ export default function InputBids() {
                               <span className="text-gray-600">{item.quantity} {item.unit}</span>
                               {item.currentPrice && (
                                 <span className="text-green-600 font-semibold">
-                                  Current: ${item.currentPrice.toFixed(2)}/{item.unit}
+                                  Starting: ${item.currentPrice.toFixed(2)}/{item.unit}
                                 </span>
                               )}
                             </div>
@@ -637,28 +693,67 @@ export default function InputBids() {
                   <div className="space-y-3">
                     {selectedBidRequest.bids
                       .sort((a, b) => a.totalDeliveredPrice - b.totalDeliveredPrice)
-                      .map((bid) => (
-                        <div key={bid.id} className="p-4 border border-gray-200 rounded-lg">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-semibold text-lg">{bid.retailer?.companyName}</p>
-                              {bid.retailer?.phone && (
-                                <p className="text-sm text-gray-600">Phone: {bid.retailer.phone}</p>
+                      .map((bid, index) => {
+                        const isLowestBid = index === 0;
+                        const statusColors = {
+                          PENDING: 'bg-yellow-100 text-yellow-800',
+                          ACCEPTED: 'bg-green-100 text-green-800',
+                          REJECTED: 'bg-red-100 text-red-800'
+                        };
+                        const borderColor = bid.status === 'ACCEPTED' ? 'border-green-400 bg-green-50' : 'border-gray-200';
+
+                        return (
+                          <div key={bid.id} className={`p-4 border-2 ${borderColor} rounded-lg`}>
+                            {/* Status Badge */}
+                            <div className="flex justify-between items-center mb-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[bid.status]}`}>
+                                {bid.status}
+                              </span>
+                              {isLowestBid && bid.status === 'PENDING' && (
+                                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                  ⭐ Best Price
+                                </span>
                               )}
                             </div>
-                            <div className="text-right">
-                              <p className="text-2xl font-bold text-green-600">
-                                ${bid.totalDeliveredPrice.toLocaleString()}
-                              </p>
-                              <p className="text-sm text-gray-600">Delivered Price</p>
+
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-semibold text-lg">{bid.retailer?.companyName}</p>
+                                {bid.retailer?.phone && (
+                                  <p className="text-sm text-gray-600">Phone: {bid.retailer.phone}</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-2xl font-bold text-green-600">
+                                  ${bid.totalDeliveredPrice.toLocaleString()}
+                                </p>
+                                <p className="text-sm text-gray-600">Delivered Price</p>
+                              </div>
                             </div>
+                            <div className="mt-3 text-sm text-gray-600">
+                              <p>Guaranteed Delivery: {new Date(bid.guaranteedDeliveryDate).toLocaleDateString()}</p>
+                              {bid.notes && <p className="mt-1">Notes: {bid.notes}</p>}
+                              {bid.acceptedAt && (
+                                <p className="mt-1 text-green-600 font-medium">
+                                  ✓ Accepted on {new Date(bid.acceptedAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Accept Button - only for PENDING bids */}
+                            {bid.status === 'PENDING' && (
+                              <div className="mt-4 flex justify-end">
+                                <button
+                                  onClick={() => handleAcceptBid(bid.id, bid.retailer?.companyName || 'Unknown Retailer', bid.totalDeliveredPrice)}
+                                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
+                                >
+                                  ✓ Accept This Bid
+                                </button>
+                              </div>
+                            )}
                           </div>
-                          <div className="mt-3 text-sm text-gray-600">
-                            <p>Guaranteed Delivery: {new Date(bid.guaranteedDeliveryDate).toLocaleDateString()}</p>
-                            {bid.notes && <p className="mt-1">Notes: {bid.notes}</p>}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 ) : (
                   <p className="text-gray-500 text-center py-4">No bids received yet</p>

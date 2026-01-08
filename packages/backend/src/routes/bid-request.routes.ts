@@ -57,6 +57,13 @@ router.delete(
   bidRequestController.deleteRetailerBid
 );
 
+// Accept a bid
+router.post(
+  '/bids/:bidId/accept',
+  authenticate,
+  bidRequestController.acceptBid
+);
+
 // Retailer routes - require retailer role
 router.get(
   '/retailer/bid-requests/open',

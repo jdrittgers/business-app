@@ -308,16 +308,34 @@ export default function GrainContracts() {
   const handleCreateEntity = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log('🔵 handleCreateEntity called');
+    console.log('selectedBusinessId:', selectedBusinessId);
+    console.log('newEntityName:', newEntityName);
+
     if (!selectedBusinessId || !newEntityName.trim()) {
+      console.log('❌ Missing businessId or name');
+      alert('Business ID or name is missing');
       return;
     }
 
     try {
-      await grainContractsApi.createGrainEntity(selectedBusinessId, newEntityName.trim());
-      setNewEntityName('');
+      console.log('🚀 Calling API to create entity...');
+      const newEntity = await grainContractsApi.createGrainEntity(selectedBusinessId, newEntityName.trim());
+      console.log('✅ Entity created successfully:', newEntity);
+
+      // Close modal first
       setShowEntityModal(false);
-      loadData(); // Reload entities
+      setNewEntityName('');
+
+      // Show success message
+      alert(`✅ Successfully created entity: ${newEntity.name}`);
+
+      // Reload data to show new entity
+      await loadData();
+      console.log('✅ Data reloaded');
     } catch (err: any) {
+      console.error('❌ Error creating entity:', err);
+      console.error('Error response:', err.response);
       alert(err.response?.data?.error || 'Failed to create entity');
     }
   };

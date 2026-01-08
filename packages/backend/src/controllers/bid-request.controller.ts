@@ -152,3 +152,43 @@ export async function getOpenBidRequests(req: AuthRequest, res: Response): Promi
     res.status(500).json({ error: 'Failed to fetch open bid requests' });
   }
 }
+
+// Accept a retailer bid
+export async function acceptBid(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { bidId } = req.params;
+
+    if (!bidId) {
+      res.status(400).json({ error: 'Bid ID is required' });
+      return;
+    }
+
+    await bidRequestService.acceptBid(bidId, req.user.userId);
+    res.json({ message: 'Bid accepted successfully' });
+  } catch (error) {
+    console.error('Accept bid error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to accept bid';
+
+    if (message.includes('not found')) {
+      res.status(404).json({ error: message });
+      return;
+    }
+
+    if (message.includes('Not authorized')) {
+      res.status(403).json({ error: message });
+      return;
+    }
+
+    if (message.includes('Cannot accept')) {
+      res.status(400).json({ error: message });
+      return;
+    }
+
+    res.status(500).json({ error: message });
+  }
+}

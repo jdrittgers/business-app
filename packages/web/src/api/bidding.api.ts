@@ -45,6 +45,10 @@ export const biddingApi = {
     await apiClient.delete(`/api/businesses/${businessId}/bid-requests/${bidRequestId}/bids/${bidId}`);
   },
 
+  acceptBid: async (bidId: string): Promise<void> => {
+    await apiClient.post(`/api/bids/${bidId}/accept`);
+  },
+
   // Retailer Operations
   getOpenBidRequests: async (params?: GetOpenBidRequestsQuery): Promise<BidRequest[]> => {
     const response = await apiClient.get('/api/retailer/bid-requests/open', { params });

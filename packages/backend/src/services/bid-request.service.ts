@@ -342,10 +342,13 @@ export class BidRequestService {
         id: bid.id,
         bidRequestId: bid.bidRequestId,
         retailerId: bid.retailerId,
+        status: bid.status,
         totalDeliveredPrice: Number(bid.totalDeliveredPrice),
         guaranteedDeliveryDate: bid.guaranteedDeliveryDate,
         termsAcknowledged: bid.termsAcknowledged,
         notes: bid.notes || undefined,
+        acceptedAt: bid.acceptedAt || undefined,
+        acceptedBy: bid.acceptedBy || undefined,
         createdAt: bid.createdAt,
         updatedAt: bid.updatedAt,
         retailer: bid.retailer ? {
@@ -366,5 +369,60 @@ export class BidRequestService {
         }))
       }))
     };
+  }
+
+  // Accept a retailer bid
+  async acceptBid(bidId: string, userId: string): Promise<void> {
+    // Get the bid with relations
+    const bid = await prisma.retailerBid.findUnique({
+      where: { id: bidId },
+      include: {
+        bidRequest: {
+          include: {
+            business: true
+          }
+        },
+        retailer: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    if (!bid) {
+      throw new Error('Bid not found');
+    }
+
+    // Verify user has permission (member of business)
+    const membership = await prisma.businessMember.findFirst({
+      where: {
+        userId,
+        businessId: bid.bidRequest.businessId
+      }
+    });
+
+    if (!membership) {
+      throw new Error('Not authorized to accept bids for this business');
+    }
+
+    // Check if bid is still pending
+    if (bid.status !== 'PENDING') {
+      throw new Error(`Cannot accept bid with status: ${bid.status}`);
+    }
+
+    // Update bid status to ACCEPTED
+    await prisma.retailerBid.update({
+      where: { id: bidId },
+      data: {
+        status: 'ACCEPTED',
+        acceptedAt: new Date(),
+        acceptedBy: userId
+      }
+    });
+
+    // TODO: Send notification to retailer (implement with Socket.io)
+    console.log(`✅ Bid ${bidId} accepted by user ${userId}`);
+    console.log(`📧 Notify retailer: ${bid.retailer.companyName} (${bid.retailer.user.email})`);
   }
 }
