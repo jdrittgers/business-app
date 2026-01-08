@@ -88,6 +88,12 @@ export default function GrainDashboard() {
                 <option value={2027}>2027</option>
               </select>
               <button
+                onClick={() => navigate('/dashboard')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Dashboard
+              </button>
+              <button
                 onClick={() => navigate('/grain-contracts/production')}
                 className="text-sm text-blue-600 hover:text-blue-700"
               >
