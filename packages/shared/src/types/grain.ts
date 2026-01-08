@@ -115,15 +115,24 @@ export interface CreateGrainContractRequest {
 }
 
 export interface UpdateGrainContractRequest {
+  // Core fields
+  grainEntityId?: string;
+  contractType?: ContractType;
+  cropYear?: CropYear;
+  year?: number;
+  commodityType?: CommodityType;
+  // Contract details
   contractNumber?: string;
   buyer?: string;
   totalBushels?: number;
   deliveryStartDate?: string;
   deliveryEndDate?: string;
+  // Pricing fields
   cashPrice?: number;
   basisPrice?: number;
   futuresMonth?: string;
   futuresPrice?: number;
+  // Status and delivery
   bushelsDelivered?: number;
   isActive?: boolean;
   notes?: string;

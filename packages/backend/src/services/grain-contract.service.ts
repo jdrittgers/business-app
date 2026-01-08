@@ -136,6 +136,14 @@ export class GrainContractService {
   async updateContract(contractId: string, data: UpdateGrainContractRequest): Promise<GrainContract> {
     const updateData: any = {};
 
+    // Core fields
+    if (data.grainEntityId !== undefined) updateData.grainEntityId = data.grainEntityId;
+    if (data.contractType !== undefined) updateData.contractType = data.contractType as ContractType;
+    if (data.cropYear !== undefined) updateData.cropYear = data.cropYear as CropYear;
+    if (data.year !== undefined) updateData.year = data.year;
+    if (data.commodityType !== undefined) updateData.commodityType = data.commodityType as CommodityType;
+
+    // Contract details
     if (data.contractNumber !== undefined) updateData.contractNumber = data.contractNumber;
     if (data.buyer !== undefined) updateData.buyer = data.buyer;
     if (data.totalBushels !== undefined) updateData.totalBushels = data.totalBushels;
@@ -145,10 +153,14 @@ export class GrainContractService {
     if (data.deliveryEndDate !== undefined) {
       updateData.deliveryEndDate = data.deliveryEndDate ? new Date(data.deliveryEndDate) : null;
     }
+
+    // Pricing fields
     if (data.cashPrice !== undefined) updateData.cashPrice = data.cashPrice;
     if (data.basisPrice !== undefined) updateData.basisPrice = data.basisPrice;
     if (data.futuresMonth !== undefined) updateData.futuresMonth = data.futuresMonth;
     if (data.futuresPrice !== undefined) updateData.futuresPrice = data.futuresPrice;
+
+    // Status and notes
     if (data.bushelsDelivered !== undefined) updateData.bushelsDelivered = data.bushelsDelivered;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.notes !== undefined) updateData.notes = data.notes;
