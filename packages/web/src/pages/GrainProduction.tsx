@@ -46,9 +46,13 @@ export default function GrainProduction() {
 
   useEffect(() => {
     if (user && user.businessMemberships.length > 0 && !selectedBusinessId) {
-      const rittgersFarm = user.businessMemberships.find(m => m.business.name === 'Rittgers Farm');
-      if (rittgersFarm) {
-        setSelectedBusinessId(rittgersFarm.businessId);
+      const demoFarm = user.businessMemberships.find(m =>
+        m.business.name === 'Demo Farm' ||
+        m.business.name === 'Rittgers Farm' ||
+        m.business.name === 'Rittgers Farms'
+      );
+      if (demoFarm) {
+        setSelectedBusinessId(demoFarm.businessId);
       } else {
         setSelectedBusinessId(user.businessMemberships[0].businessId);
       }

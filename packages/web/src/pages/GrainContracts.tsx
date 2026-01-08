@@ -67,10 +67,14 @@ export default function GrainContracts() {
 
   useEffect(() => {
     if (user && user.businessMemberships.length > 0 && !selectedBusinessId) {
-      // Default to Rittgers Farm
-      const rittgersFarm = user.businessMemberships.find(m => m.business.name === 'Rittgers Farm');
-      if (rittgersFarm) {
-        setSelectedBusinessId(rittgersFarm.businessId);
+      // Default to Demo Farm (or legacy Rittgers Farm)
+      const demoFarm = user.businessMemberships.find(m =>
+        m.business.name === 'Demo Farm' ||
+        m.business.name === 'Rittgers Farm' ||
+        m.business.name === 'Rittgers Farms'
+      );
+      if (demoFarm) {
+        setSelectedBusinessId(demoFarm.businessId);
       } else {
         setSelectedBusinessId(user.businessMemberships[0].businessId);
       }
