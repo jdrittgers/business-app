@@ -43,6 +43,10 @@ export default function GrainContracts() {
     deliveryEndDate: '',
     cashPrice: '',
     notes: '',
+    // HTA/BASIS specific fields
+    futuresPrice: '',
+    futuresMonth: '',
+    basisPrice: '',
     // Accumulator specific fields
     isDailyDouble: false,
     basisLocked: false,
@@ -190,6 +194,9 @@ export default function GrainContracts() {
       deliveryEndDate: '',
       cashPrice: '',
       notes: '',
+      futuresPrice: '',
+      futuresMonth: '',
+      basisPrice: '',
       isDailyDouble: false,
       basisLocked: false,
       knockoutPrice: '',
@@ -214,6 +221,9 @@ export default function GrainContracts() {
       deliveryEndDate: contract.deliveryEndDate ? new Date(contract.deliveryEndDate).toISOString().split('T')[0] : '',
       cashPrice: contract.cashPrice?.toString() || '',
       notes: contract.notes || '',
+      futuresPrice: contract.futuresPrice?.toString() || '',
+      futuresMonth: contract.futuresMonth || '',
+      basisPrice: contract.basisPrice?.toString() || '',
       isDailyDouble: contract.accumulatorDetails?.isDailyDouble || false,
       basisLocked: contract.accumulatorDetails?.basisLocked || false,
       knockoutPrice: contract.accumulatorDetails?.knockoutPrice?.toString() || '',
@@ -257,6 +267,9 @@ export default function GrainContracts() {
         deliveryStartDate: formData.deliveryStartDate || undefined,
         deliveryEndDate: formData.deliveryEndDate || undefined,
         cashPrice: formData.cashPrice ? parseFloat(formData.cashPrice) : undefined,
+        futuresPrice: formData.futuresPrice ? parseFloat(formData.futuresPrice) : undefined,
+        futuresMonth: formData.futuresMonth || undefined,
+        basisPrice: formData.basisPrice ? parseFloat(formData.basisPrice) : undefined,
         notes: formData.notes || undefined
       };
 
@@ -720,6 +733,85 @@ export default function GrainContracts() {
                   )}
                 </div>
               </div>
+
+              {/* HTA and BASIS-specific fields */}
+              {(formData.contractType === 'HTA' || formData.contractType === 'BASIS') && (
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    {formData.contractType === 'HTA' ? 'HTA Contract Details' : 'BASIS Contract Details'}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {formData.contractType === 'HTA' ? 'Board Price ($/bu) *' : 'Futures Price ($/bu)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={formData.futuresPrice}
+                        onChange={(e) => setFormData({ ...formData, futuresPrice: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        required={formData.contractType === 'HTA'}
+                        placeholder="e.g., 4.50"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formData.contractType === 'HTA' ? 'Locked futures price' : 'Current futures price (update as needed)'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Futures Month *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.futuresMonth}
+                        onChange={(e) => setFormData({ ...formData, futuresMonth: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        required={formData.contractType === 'HTA' || formData.contractType === 'BASIS'}
+                        placeholder="e.g., Dec 2026"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Month of futures contract</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Basis ($/bu) {formData.contractType === 'BASIS' && '*'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.basisPrice}
+                        onChange={(e) => setFormData({ ...formData, basisPrice: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        required={formData.contractType === 'BASIS'}
+                        placeholder={formData.contractType === 'HTA' ? 'Leave blank for default' : 'e.g., -0.45'}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formData.contractType === 'HTA'
+                          ? 'Optional - defaults will be used if not set'
+                          : 'Locked basis for this contract'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                    <p className="text-sm text-gray-700">
+                      {formData.contractType === 'HTA' ? (
+                        <>
+                          <strong>Board Price:</strong> The locked futures price for your contract.<br/>
+                          <strong>Basis:</strong> Leave blank to use default basis assumptions (Corn: -$0.45, Soybeans: -$0.75, Wheat: -$0.60).<br/>
+                          <strong>Cash Price:</strong> Board Price + Basis = Final price per bushel.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Futures Price:</strong> Current futures price (you can update this as the market changes).<br/>
+                          <strong>Basis:</strong> Your locked basis value.<br/>
+                          <strong>Cash Price:</strong> Futures Price + Basis = Current estimated price per bushel.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Accumulator-specific fields */}
               {formData.contractType === 'ACCUMULATOR' && (

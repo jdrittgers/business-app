@@ -204,8 +204,13 @@ export class GrainAnalyticsService {
     };
   }
 
-  // Helper to calculate bushels delivered (auto-calculates for accumulators)
+  // Helper to calculate bushels delivered (auto-calculates for accumulators and counts full amount for HTA)
   private calculateBushelsDelivered(contract: any): number {
+    // HTA contracts count full amount as marketed (price is locked even if not delivered)
+    if (contract.contractType === 'HTA') {
+      return Number(contract.totalBushels);
+    }
+
     let bushelsDelivered = Number(contract.bushelsDelivered);
 
     if (contract.contractType === 'ACCUMULATOR' && contract.accumulatorDetails) {
