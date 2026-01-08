@@ -34,23 +34,23 @@ async function main() {
 
   console.log('✓ Businesses created');
 
-  // Create owner user
-  console.log('Creating owner user...');
-  const ownerPassword = await hashPassword('password123');
+  // Create demo user
+  console.log('Creating demo user...');
+  const demoPassword = await hashPassword('demo');
 
   const owner = await prisma.user.upsert({
-    where: { email: 'owner@90ten.com' },
+    where: { email: 'demo@demo.com' },
     update: {},
     create: {
-      email: 'owner@90ten.com',
-      passwordHash: ownerPassword,
-      firstName: 'John',
-      lastName: 'Doe',
+      email: 'demo@demo.com',
+      passwordHash: demoPassword,
+      firstName: 'Demo',
+      lastName: 'User',
       role: UserRole.OWNER
     }
   });
 
-  console.log('✓ Owner user created');
+  console.log('✓ Demo user created');
 
   // Associate owner with both businesses
   console.log('Associating owner with businesses...');
@@ -580,8 +580,8 @@ async function main() {
   }
 
   console.log('\n✅ Seed completed successfully!');
-  console.log('\nTest credentials:');
-  console.log('Owner: owner@90ten.com / password123');
+  console.log('\nDemo credentials:');
+  console.log('Demo Account: demo@demo.com / demo');
   console.log('Employee 1 (90ten): employee1@90ten.com / password123');
   console.log('Employee 2 (Demo Farm): employee2@demofarm.com / password123');
   console.log('\nGrain Entities (Demo Farm): Main Farm, North Fields, South Fields, East Section, West Section');
