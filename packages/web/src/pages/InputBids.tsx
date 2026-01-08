@@ -604,7 +604,9 @@ export default function InputBids() {
                 <h3 className="font-semibold mb-3">Pricing Summary</h3>
                 {(() => {
                   const totalStartingPrice = selectedBidRequest.items?.reduce((sum, item) => {
-                    return sum + (item.currentPrice || 0) * item.quantity;
+                    // Use startingPrice (farmer's target or first retailer bid), fallback to currentPrice for backward compatibility
+                    const basePrice = item.startingPrice || item.currentPrice || 0;
+                    return sum + basePrice * item.quantity;
                   }, 0) || 0;
 
                   const bestBid = selectedBidRequest.bids && selectedBidRequest.bids.length > 0
@@ -656,9 +658,9 @@ export default function InputBids() {
                             <span className="font-medium">{item.productName}</span>
                             <div className="flex gap-4 text-sm">
                               <span className="text-gray-600">{item.quantity} {item.unit}</span>
-                              {item.currentPrice && (
+                              {(item.startingPrice || item.currentPrice) && (
                                 <span className="text-gray-700 font-semibold">
-                                  Starting: ${item.currentPrice.toFixed(2)}/{item.unit}
+                                  Starting: ${(item.startingPrice || item.currentPrice)!.toFixed(2)}/{item.unit}
                                 </span>
                               )}
                             </div>
@@ -680,9 +682,9 @@ export default function InputBids() {
                             <span className="font-medium">{item.productName}</span>
                             <div className="flex gap-4 text-sm">
                               <span className="text-gray-600">{item.quantity} {item.unit}</span>
-                              {item.currentPrice && (
+                              {(item.startingPrice || item.currentPrice) && (
                                 <span className="text-green-600 font-semibold">
-                                  Starting: ${item.currentPrice.toFixed(2)}/{item.unit}
+                                  Starting: ${(item.startingPrice || item.currentPrice)!.toFixed(2)}/{item.unit}
                                 </span>
                               )}
                             </div>

@@ -72,11 +72,21 @@ export class RetailerBidService {
           });
 
           if (requestItem) {
-            // Update currentPrice if this bid is lower (or if no current price exists)
-            if (!requestItem.currentPrice || bidItem.pricePerUnit < Number(requestItem.currentPrice)) {
+            // If startingPrice is null (farmer left it blank), set it to this first bid's price
+            const updates: any = {};
+
+            if (!requestItem.startingPrice) {
+              updates.startingPrice = bidItem.pricePerUnit;
+              updates.currentPrice = bidItem.pricePerUnit;
+            } else if (!requestItem.currentPrice || bidItem.pricePerUnit < Number(requestItem.currentPrice)) {
+              // Update currentPrice if this bid is lower (or if no current price exists)
+              updates.currentPrice = bidItem.pricePerUnit;
+            }
+
+            if (Object.keys(updates).length > 0) {
               await tx.bidRequestItem.update({
                 where: { id: bidItem.bidRequestItemId },
-                data: { currentPrice: bidItem.pricePerUnit }
+                data: updates
               });
             }
           }
@@ -216,17 +226,22 @@ export class RetailerBidService {
 
       // Recalculate currentPrice for each affected item
       for (const itemId of itemIds) {
+        // Get the item to access its startingPrice
+        const item = await tx.bidRequestItem.findUnique({
+          where: { id: itemId }
+        });
+
         // Find the lowest price among remaining bids for this item
         const lowestBidItem = await tx.retailerBidItem.findFirst({
           where: { bidRequestItemId: itemId },
           orderBy: { pricePerUnit: 'asc' }
         });
 
-        // Update the item's currentPrice (null if no bids remain)
+        // Update the item's currentPrice (revert to startingPrice if no bids remain)
         await tx.bidRequestItem.update({
           where: { id: itemId },
           data: {
-            currentPrice: lowestBidItem ? lowestBidItem.pricePerUnit : null
+            currentPrice: lowestBidItem ? lowestBidItem.pricePerUnit : item?.startingPrice
           }
         });
       }

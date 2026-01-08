@@ -44,7 +44,8 @@ export class BidRequestService {
             productName: item.productName,
             quantity: item.quantity,
             unit: item.unit,
-            currentPrice: item.currentPrice
+            startingPrice: item.currentPrice,  // Farmer's target price becomes the base (can be null)
+            currentPrice: item.currentPrice    // Initially same as starting price
           }))
         });
       }
@@ -323,17 +324,22 @@ export class BidRequestService {
 
       // Recalculate currentPrice for each affected item
       for (const itemId of itemIds) {
+        // Get the item to access its startingPrice
+        const item = await tx.bidRequestItem.findUnique({
+          where: { id: itemId }
+        });
+
         // Find the lowest price among remaining bids for this item
         const lowestBidItem = await tx.retailerBidItem.findFirst({
           where: { bidRequestItemId: itemId },
           orderBy: { pricePerUnit: 'asc' }
         });
 
-        // Update the item's currentPrice (null if no bids remain)
+        // Update the item's currentPrice (revert to startingPrice if no bids remain)
         await tx.bidRequestItem.update({
           where: { id: itemId },
           data: {
-            currentPrice: lowestBidItem ? lowestBidItem.pricePerUnit : null
+            currentPrice: lowestBidItem ? lowestBidItem.pricePerUnit : item?.startingPrice
           }
         });
       }
@@ -361,6 +367,7 @@ export class BidRequestService {
         productName: item.productName,
         quantity: Number(item.quantity),
         unit: item.unit,
+        startingPrice: item.startingPrice ? Number(item.startingPrice) : undefined,
         currentPrice: item.currentPrice ? Number(item.currentPrice) : undefined,
         createdAt: item.createdAt
       })),

@@ -70,7 +70,8 @@ export interface BidRequestItem {
   productName: string;
   quantity: number;
   unit: string;
-  currentPrice?: number;  // Current best price per unit - updates when lower bid received
+  startingPrice?: number;  // Farmer's original target price (or first retailer bid if left blank) - never changes
+  currentPrice?: number;  // Current best bid price - updates when lower bid received
   createdAt: Date;
 }
 

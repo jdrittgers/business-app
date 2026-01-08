@@ -579,7 +579,8 @@ model BidRequestItem {
   productName   String   @map("product_name")   // Stored for flexibility
   quantity      Decimal  @db.Decimal(10, 2)
   unit          String   // "LB" or "GAL"
-  currentPrice  Decimal? @map("current_price") @db.Decimal(10, 2)  // Current best price - updates when lower bid received
+  startingPrice Decimal? @map("starting_price") @db.Decimal(10, 2)  // Farmer's original target price (or first retailer bid if left blank) - never changes
+  currentPrice  Decimal? @map("current_price") @db.Decimal(10, 2)  // Current best bid price - updates when lower bid received
   createdAt     DateTime @default(now()) @map("created_at")
 
   // Relations
