@@ -51,6 +51,23 @@ export default function InputBids() {
     }
   }, [selectedBusinessId, filterStatus]);
 
+  // Check for preselected products from Product Catalog
+  useEffect(() => {
+    const preselectedData = localStorage.getItem('preselectedBidProducts');
+    if (preselectedData) {
+      try {
+        const preselectedItems = JSON.parse(preselectedData);
+        if (Array.isArray(preselectedItems) && preselectedItems.length > 0) {
+          setItems(preselectedItems);
+          setShowCreateModal(true); // Auto-open the create modal
+        }
+        localStorage.removeItem('preselectedBidProducts'); // Clear after reading
+      } catch (err) {
+        console.error('Failed to parse preselected products:', err);
+      }
+    }
+  }, []);
+
   const loadBidRequests = async () => {
     if (!selectedBusinessId) return;
 

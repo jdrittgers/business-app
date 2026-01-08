@@ -20,6 +20,9 @@ export default function ProductCatalog() {
   const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [seedHybrids, setSeedHybrids] = useState<SeedHybrid[]>([]);
 
+  // Selection state for bid request creation
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -159,6 +162,55 @@ export default function ProductCatalog() {
     navigate('/login');
   };
 
+  const toggleProductSelection = (productId: string) => {
+    const newSelection = new Set(selectedProducts);
+    if (newSelection.has(productId)) {
+      newSelection.delete(productId);
+    } else {
+      newSelection.add(productId);
+    }
+    setSelectedProducts(newSelection);
+  };
+
+  const handleCreateBidRequestWithSelected = () => {
+    if (selectedProducts.size === 0) {
+      alert('Please select at least one product');
+      return;
+    }
+
+    // Gather selected product details
+    const selectedItems: any[] = [];
+
+    selectedProducts.forEach(productId => {
+      const fertilizer = fertilizers.find(f => f.id === productId);
+      const chemical = chemicals.find(c => c.id === productId);
+
+      if (fertilizer) {
+        selectedItems.push({
+          productType: 'FERTILIZER',
+          productName: fertilizer.name,
+          currentPrice: fertilizer.pricePerUnit,
+          unit: fertilizer.unit,
+          quantity: 0 // User will fill this in
+        });
+      } else if (chemical) {
+        selectedItems.push({
+          productType: 'CHEMICAL',
+          productName: chemical.name,
+          currentPrice: chemical.pricePerUnit,
+          unit: chemical.unit,
+          quantity: 0 // User will fill this in
+        });
+      }
+    });
+
+    // Store in localStorage for InputBids page to read
+    localStorage.setItem('preselectedBidProducts', JSON.stringify(selectedItems));
+
+    // Navigate to Input Bids page
+    navigate('/input-bids');
+  };
+
   if (!user) return null;
 
   return (
@@ -172,6 +224,12 @@ export default function ProductCatalog() {
               <p className="text-sm text-gray-600">Manage fertilizers, chemicals, and seed hybrids</p>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Dashboard
+              </button>
               <button
                 onClick={() => navigate('/breakeven')}
                 className="text-sm text-blue-600 hover:text-blue-700"
@@ -247,12 +305,22 @@ export default function ProductCatalog() {
                 {activeTab === 'chemicals' && 'Chemicals'}
                 {activeTab === 'seedHybrids' && 'Seed Hybrids'}
               </h2>
-              <button
-                onClick={handleAdd}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Add {activeTab === 'fertilizers' ? 'Fertilizer' : activeTab === 'chemicals' ? 'Chemical' : 'Seed Hybrid'}
-              </button>
+              <div className="flex gap-3">
+                {selectedProducts.size > 0 && activeTab !== 'seedHybrids' && (
+                  <button
+                    onClick={handleCreateBidRequestWithSelected}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Create Bid Request ({selectedProducts.size} selected)
+                  </button>
+                )}
+                <button
+                  onClick={handleAdd}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Add {activeTab === 'fertilizers' ? 'Fertilizer' : activeTab === 'chemicals' ? 'Chemical' : 'Seed Hybrid'}
+                </button>
+              </div>
             </div>
 
             {isLoading ? (
@@ -264,6 +332,17 @@ export default function ProductCatalog() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      {activeTab !== 'seedHybrids' && (
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={false}
+                            onChange={() => {}}
+                            title="Select for bid request"
+                          />
+                        </th>
+                      )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Name
                       </th>
@@ -293,6 +372,14 @@ export default function ProductCatalog() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {activeTab === 'fertilizers' && fertilizers.map((item) => (
                       <tr key={item.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={selectedProducts.has(item.id)}
+                            onChange={() => toggleProductSelection(item.id)}
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.pricePerUnit.toFixed(2)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
@@ -304,6 +391,14 @@ export default function ProductCatalog() {
                     ))}
                     {activeTab === 'chemicals' && chemicals.map((item) => (
                       <tr key={item.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={selectedProducts.has(item.id)}
+                            onChange={() => toggleProductSelection(item.id)}
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.pricePerUnit.toFixed(2)}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
