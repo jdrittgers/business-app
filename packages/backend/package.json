@@ -17,7 +17,10 @@
     "prisma:seed": "tsx src/prisma/seed.ts",
     "seed:prod": "tsx src/prisma/seed-production.ts",
     "seed:grain": "tsx src/prisma/seed-grain-entities.ts",
-    "seed:grain-data": "tsx src/prisma/seed-grain-data.ts"
+    "seed:grain-data": "tsx src/prisma/seed-grain-data.ts",
+    "backup": "node scripts/backup-database.js",
+    "restore": "node scripts/restore-database.js",
+    "list-backups": "node scripts/list-backups.js"
   },
   "dependencies": {
     "@business-app/shared": "*",

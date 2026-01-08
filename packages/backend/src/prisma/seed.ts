@@ -6,6 +6,41 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...');
 
+  // SAFETY CHECK: Require explicit confirmation to run seed
+  if (process.env.ALLOW_SEED !== 'true') {
+    console.error('');
+    console.error('⛔️ SAFETY CHECK FAILED ⛔️');
+    console.error('');
+    console.error('This seed script can overwrite production data!');
+    console.error('To run this script, you must explicitly set:');
+    console.error('  ALLOW_SEED=true npm run prisma:seed');
+    console.error('');
+    console.error('⚠️  WARNING: This will overwrite Demo Farm data!');
+    console.error('⚠️  It will NOT touch other businesses like Rittgers Farm.');
+    console.error('');
+    console.error('💡 TIP: Run "npm run backup" BEFORE seeding!');
+    console.error('');
+    process.exit(1);
+  }
+
+  // SAFETY CHECK: Warn if production data exists
+  const productionUsers = await prisma.user.count({
+    where: {
+      email: {
+        not: 'demo@demo.com'
+      }
+    }
+  });
+
+  if (productionUsers > 0) {
+    console.log('');
+    console.log('⚠️  WARNING: Production data detected!');
+    console.log(`Found ${productionUsers} non-demo users in database.`);
+    console.log('This seed will ONLY affect Demo Farm data.');
+    console.log('Other businesses and users will NOT be touched.');
+    console.log('');
+  }
+
   // Create businesses
   console.log('Creating businesses...');
   const business90ten = await prisma.business.upsert({

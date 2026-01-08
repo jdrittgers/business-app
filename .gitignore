@@ -36,6 +36,9 @@ lerna-debug.log*
 # Prisma
 prisma/migrations/**/migration.sql.bak
 
+# Database backups (keep local, don't commit)
+packages/backend/backups/
+
 # Misc
 *.tsbuildinfo
 .turbo
