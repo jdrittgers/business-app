@@ -192,11 +192,12 @@ export class BreakEvenAnalyticsService {
 
     if (farm.seedUsage.length > 0) {
       const usage = farm.seedUsage[0]; // Assuming one hybrid per farm
-      const population = usage.population;
+      const bagsUsed = Number(usage.bagsUsed);
       const pricePerBag = Number(usage.seedHybrid.pricePerBag);
       const seedsPerBag = usage.seedHybrid.seedsPerBag;
-      const bagsPerAcre = population / seedsPerBag;
-      const totalCost = bagsPerAcre * pricePerBag * acres;
+      const bagsPerAcre = bagsUsed / acres;
+      const population = bagsPerAcre * seedsPerBag; // Calculate population from bags used
+      const totalCost = bagsUsed * pricePerBag;
       seedCost = totalCost;
 
       seedUsage = {
