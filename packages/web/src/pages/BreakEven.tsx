@@ -152,7 +152,7 @@ export default function BreakEven() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Cost:</span>
-                    <span className="text-2xl font-bold text-red-600">${summary.totalCost.toLocaleString()}</span>
+                    <span className="text-2xl font-bold text-red-600">${summary.totalCost?.toLocaleString() || '0'}</span>
                   </div>
                 </div>
               </div>
@@ -178,7 +178,7 @@ export default function BreakEven() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Total Cost:</span>
-                          <span className="font-semibold text-red-600">${commodity.totalCost.toLocaleString()}</span>
+                          <span className="font-semibold text-red-600">${commodity.totalCost?.toLocaleString() || '0'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600">Cost/Acre:</span>
@@ -215,7 +215,7 @@ export default function BreakEven() {
                         </div>
                         <div>
                           <span className="text-gray-600">Total Cost:</span>
-                          <p className="font-semibold text-red-600">${entity.totalCost.toLocaleString()}</p>
+                          <p className="font-semibold text-red-600">${entity.totalCost?.toLocaleString() || '0'}</p>
                         </div>
                         <div>
                           <span className="text-gray-600">Cost/Acre:</span>
