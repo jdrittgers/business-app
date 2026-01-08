@@ -12,6 +12,7 @@ export default function RetailerRegister() {
     firstName: '',
     lastName: '',
     companyName: '',
+    zipCode: '',
     businessLicense: '',
     phone: ''
   });
@@ -53,6 +54,7 @@ export default function RetailerRegister() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         companyName: formData.companyName,
+        zipCode: formData.zipCode || undefined,
         businessLicense: formData.businessLicense || undefined,
         phone: formData.phone || undefined
       });
@@ -140,6 +142,26 @@ export default function RetailerRegister() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="Your Company LLC"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ZIP Code *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.zipCode}
+                onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="43062"
+                pattern="\d{5}"
+                title="Please enter a 5-digit ZIP code"
+                maxLength={5}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Used to find nearby bid requests within your delivery area
+              </p>
             </div>
 
             <div>

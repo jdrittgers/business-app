@@ -82,6 +82,9 @@ model Business {
   name      String
   city      String?
   state     String?
+  zipCode   String?  @map("zip_code")
+  latitude  Decimal? @db.Decimal(10, 8)
+  longitude Decimal? @db.Decimal(11, 8)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -96,6 +99,7 @@ model Business {
   seedHybrids    SeedHybrid[]
   bidRequests    BidRequest[]
 
+  @@index([latitude, longitude])
   @@map("businesses")
 }
 
@@ -523,18 +527,23 @@ model FarmOtherCost {
 // ===== Input Bidding System Models =====
 
 model Retailer {
-  id              String   @id @default(uuid())
-  userId          String   @unique @map("user_id")
-  companyName     String   @map("company_name")
-  businessLicense String?  @map("business_license")
-  phone           String?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid())
+  userId            String   @unique @map("user_id")
+  companyName       String   @map("company_name")
+  businessLicense   String?  @map("business_license")
+  phone             String?
+  zipCode           String?  @map("zip_code")
+  latitude          Decimal? @db.Decimal(10, 8)
+  longitude         Decimal? @db.Decimal(11, 8)
+  radiusPreference  Int      @default(50) @map("radius_preference")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bids            RetailerBid[]
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bids              RetailerBid[]
 
+  @@index([latitude, longitude])
   @@map("retailers")
 }
 

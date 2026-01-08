@@ -4,6 +4,7 @@ import {
   CreateBidRequestRequest,
   UpdateBidRequestRequest,
   GetBidRequestsQuery,
+  GetOpenBidRequestsQuery,
   RetailerBid,
   CreateRetailerBidRequest,
   UpdateRetailerBidRequest
@@ -45,8 +46,8 @@ export const biddingApi = {
   },
 
   // Retailer Operations
-  getOpenBidRequests: async (): Promise<BidRequest[]> => {
-    const response = await apiClient.get('/api/retailer/bid-requests/open');
+  getOpenBidRequests: async (params?: GetOpenBidRequestsQuery): Promise<BidRequest[]> => {
+    const response = await apiClient.get('/api/retailer/bid-requests/open', { params });
     return response.data;
   },
 

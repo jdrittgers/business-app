@@ -4,7 +4,9 @@ import {
   CreateBidRequestRequest,
   UpdateBidRequestRequest,
   GetBidRequestsQuery,
-  BidRequestStatus
+  GetOpenBidRequestsQuery,
+  BidRequestStatus,
+  calculateDistance
 } from '@business-app/shared';
 
 export class BidRequestService {
@@ -92,7 +94,7 @@ export class BidRequestService {
     return bidRequests.map(br => this.mapToResponse(br));
   }
 
-  async getOpenBidRequests(): Promise<BidRequest[]> {
+  async getOpenBidRequests(query?: GetOpenBidRequestsQuery): Promise<BidRequest[]> {
     const bidRequests = await prisma.bidRequest.findMany({
       where: {
         status: BidRequestStatus.OPEN
@@ -104,7 +106,10 @@ export class BidRequestService {
             id: true,
             name: true,
             city: true,
-            state: true
+            state: true,
+            zipCode: true,
+            latitude: true,
+            longitude: true
           }
         }
       },
@@ -113,15 +118,68 @@ export class BidRequestService {
       }
     });
 
-    return bidRequests.map(br => ({
+    // Map to response format
+    let results = bidRequests.map(br => ({
       ...this.mapToResponse(br),
       business: {
         id: br.business.id,
         name: br.business.name,
         city: br.business.city || undefined,
-        state: br.business.state || undefined
+        state: br.business.state || undefined,
+        zipCode: br.business.zipCode || undefined,
+        latitude: br.business.latitude ? Number(br.business.latitude) : undefined,
+        longitude: br.business.longitude ? Number(br.business.longitude) : undefined
       }
     }));
+
+    // Calculate distances if retailer location provided
+    if (query?.latitude && query?.longitude) {
+      const retailerCoords = {
+        latitude: query.latitude,
+        longitude: query.longitude
+      };
+
+      results = results.map(bidRequest => {
+        // Calculate distance if business has coordinates
+        if (bidRequest.business?.latitude && bidRequest.business?.longitude) {
+          const businessCoords = {
+            latitude: bidRequest.business.latitude,
+            longitude: bidRequest.business.longitude
+          };
+
+          const distance = calculateDistance(retailerCoords, businessCoords);
+
+          return {
+            ...bidRequest,
+            distance
+          };
+        }
+
+        // No coordinates - can't calculate distance
+        return bidRequest;
+      });
+
+      // Filter by radius if specified
+      if (query.radiusMiles) {
+        results = results.filter(bidRequest => {
+          // If no distance calculated (no coordinates), include by default
+          if (bidRequest.distance === undefined) return true;
+
+          // Filter by radius
+          return bidRequest.distance <= query.radiusMiles!;
+        });
+      }
+
+      // Sort by distance (closest first)
+      results.sort((a, b) => {
+        // Items without distance go to the end
+        if (a.distance === undefined) return 1;
+        if (b.distance === undefined) return -1;
+        return a.distance - b.distance;
+      });
+    }
+
+    return results;
   }
 
   async getById(id: string, businessId?: string): Promise<BidRequest | null> {

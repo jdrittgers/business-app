@@ -18,6 +18,10 @@ export interface Retailer {
   companyName: string;
   businessLicense?: string;
   phone?: string;
+  zipCode?: string;
+  latitude?: number;
+  longitude?: number;
+  radiusPreference?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,6 +32,7 @@ export interface CreateRetailerRequest {
   firstName: string;
   lastName: string;
   companyName: string;
+  zipCode?: string;
   businessLicense?: string;
   phone?: string;
 }
@@ -82,7 +87,11 @@ export interface BidRequest {
     name: string;
     city?: string;
     state?: string;
+    zipCode?: string;
+    latitude?: number;
+    longitude?: number;
   };
+  distance?: number;  // Distance in miles (calculated for retailers)
 }
 
 export interface CreateBidRequestItemInput {
@@ -111,6 +120,12 @@ export interface UpdateBidRequestRequest {
 
 export interface GetBidRequestsQuery {
   status?: BidRequestStatus;
+}
+
+export interface GetOpenBidRequestsQuery {
+  radiusMiles?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 // ===== Retailer Bid Types =====

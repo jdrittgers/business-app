@@ -8,8 +8,15 @@ import {
 } from '@business-app/shared';
 import { hashPassword, comparePassword } from '../utils/password';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
+import { GeocodingService } from './geocoding.service';
 
 export class RetailerService {
+  private geocodingService: GeocodingService;
+
+  constructor() {
+    this.geocodingService = new GeocodingService();
+  }
+
   async register(data: CreateRetailerRequest): Promise<RetailerLoginResponse> {
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
@@ -22,6 +29,19 @@ export class RetailerService {
 
     // Hash password
     const passwordHash = await hashPassword(data.password);
+
+    // Geocode ZIP code if provided
+    let geocodeResult = null;
+    if (data.zipCode) {
+      try {
+        geocodeResult = await this.geocodingService.geocodeZipCode(data.zipCode);
+        console.log(`✅ Geocoded ZIP ${data.zipCode}: ${geocodeResult.latitude}, ${geocodeResult.longitude}`);
+      } catch (error) {
+        console.error('Geocoding failed during registration:', error);
+        // Don't fail registration if geocoding fails
+        // User can update location later
+      }
+    }
 
     // Create user with RETAILER role and retailer profile in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -40,7 +60,11 @@ export class RetailerService {
           userId: user.id,
           companyName: data.companyName,
           businessLicense: data.businessLicense,
-          phone: data.phone
+          phone: data.phone,
+          zipCode: data.zipCode,
+          latitude: geocodeResult?.latitude,
+          longitude: geocodeResult?.longitude,
+          radiusPreference: 50  // Default 50 miles
         }
       });
 
@@ -84,6 +108,10 @@ export class RetailerService {
         companyName: result.retailer.companyName,
         businessLicense: result.retailer.businessLicense || undefined,
         phone: result.retailer.phone || undefined,
+        zipCode: result.retailer.zipCode || undefined,
+        latitude: result.retailer.latitude ? Number(result.retailer.latitude) : undefined,
+        longitude: result.retailer.longitude ? Number(result.retailer.longitude) : undefined,
+        radiusPreference: result.retailer.radiusPreference,
         createdAt: result.retailer.createdAt,
         updatedAt: result.retailer.updatedAt
       }
@@ -155,6 +183,10 @@ export class RetailerService {
         companyName: user.retailerProfile.companyName,
         businessLicense: user.retailerProfile.businessLicense || undefined,
         phone: user.retailerProfile.phone || undefined,
+        zipCode: user.retailerProfile.zipCode || undefined,
+        latitude: user.retailerProfile.latitude ? Number(user.retailerProfile.latitude) : undefined,
+        longitude: user.retailerProfile.longitude ? Number(user.retailerProfile.longitude) : undefined,
+        radiusPreference: user.retailerProfile.radiusPreference,
         createdAt: user.retailerProfile.createdAt,
         updatedAt: user.retailerProfile.updatedAt
       }
@@ -174,15 +206,47 @@ export class RetailerService {
       companyName: retailer.companyName,
       businessLicense: retailer.businessLicense || undefined,
       phone: retailer.phone || undefined,
+      zipCode: retailer.zipCode || undefined,
+      latitude: retailer.latitude ? Number(retailer.latitude) : undefined,
+      longitude: retailer.longitude ? Number(retailer.longitude) : undefined,
+      radiusPreference: retailer.radiusPreference,
       createdAt: retailer.createdAt,
       updatedAt: retailer.updatedAt
     };
   }
 
-  async update(retailerId: string, data: { companyName?: string; businessLicense?: string; phone?: string }): Promise<Retailer> {
+  async update(
+    retailerId: string,
+    data: {
+      companyName?: string;
+      businessLicense?: string;
+      phone?: string;
+      zipCode?: string;
+      radiusPreference?: number;
+    }
+  ): Promise<Retailer> {
+    // Geocode if ZIP code is being updated
+    let geocodeUpdate = {};
+    if (data.zipCode) {
+      try {
+        const geocodeResult = await this.geocodingService.geocodeZipCode(data.zipCode);
+        geocodeUpdate = {
+          latitude: geocodeResult.latitude,
+          longitude: geocodeResult.longitude
+        };
+        console.log(`✅ Updated geocode for retailer ${retailerId}`);
+      } catch (error) {
+        console.error('Geocoding failed during update:', error);
+        // Continue update without geocoding
+      }
+    }
+
     const retailer = await prisma.retailer.update({
       where: { id: retailerId },
-      data
+      data: {
+        ...data,
+        ...geocodeUpdate
+      }
     });
 
     return {
@@ -191,6 +255,10 @@ export class RetailerService {
       companyName: retailer.companyName,
       businessLicense: retailer.businessLicense || undefined,
       phone: retailer.phone || undefined,
+      zipCode: retailer.zipCode || undefined,
+      latitude: retailer.latitude ? Number(retailer.latitude) : undefined,
+      longitude: retailer.longitude ? Number(retailer.longitude) : undefined,
+      radiusPreference: retailer.radiusPreference,
       createdAt: retailer.createdAt,
       updatedAt: retailer.updatedAt
     };

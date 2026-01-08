@@ -21,6 +21,7 @@ interface RetailerAuthState {
     firstName: string;
     lastName: string;
     companyName: string;
+    zipCode?: string;
     businessLicense?: string;
     phone?: string;
   }) => Promise<void>;

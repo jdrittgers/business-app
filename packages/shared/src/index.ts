@@ -5,3 +5,4 @@ export * from './types/task';
 export * from './types/grain';
 export * from './types/breakeven';
 export * from './types/bidding';
+export * from './utils/distance';

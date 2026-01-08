@@ -110,7 +110,42 @@ export async function deleteRetailerBid(req: AuthRequest, res: Response): Promis
 
 export async function getOpenBidRequests(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const bidRequests = await bidRequestService.getOpenBidRequests();
+    const { radiusMiles, latitude, longitude } = req.query;
+
+    // Parse query parameters
+    const query = {
+      radiusMiles: radiusMiles ? Number(radiusMiles) : undefined,
+      latitude: latitude ? Number(latitude) : undefined,
+      longitude: longitude ? Number(longitude) : undefined
+    };
+
+    // Validate coordinates
+    if (query.latitude !== undefined && query.longitude !== undefined) {
+      if (isNaN(query.latitude) || isNaN(query.longitude)) {
+        res.status(400).json({ error: 'Invalid latitude or longitude' });
+        return;
+      }
+
+      if (query.latitude < -90 || query.latitude > 90) {
+        res.status(400).json({ error: 'Latitude must be between -90 and 90' });
+        return;
+      }
+
+      if (query.longitude < -180 || query.longitude > 180) {
+        res.status(400).json({ error: 'Longitude must be between -180 and 180' });
+        return;
+      }
+    }
+
+    // Validate radius
+    if (query.radiusMiles !== undefined) {
+      if (isNaN(query.radiusMiles) || query.radiusMiles <= 0) {
+        res.status(400).json({ error: 'Invalid radius value' });
+        return;
+      }
+    }
+
+    const bidRequests = await bidRequestService.getOpenBidRequests(query);
     res.json(bidRequests);
   } catch (error) {
     console.error('Get open bid requests error:', error);

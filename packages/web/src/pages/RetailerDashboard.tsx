@@ -6,7 +6,8 @@ import {
   BidRequest,
   RetailerBid,
   BidRequestStatus,
-  CreateRetailerBidItemInput
+  CreateRetailerBidItemInput,
+  formatDistance
 } from '@business-app/shared';
 
 export default function RetailerDashboard() {
@@ -18,6 +19,7 @@ export default function RetailerDashboard() {
   const [myBids, setMyBids] = useState<RetailerBid[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRadius, setSelectedRadius] = useState<number>(50);
 
   // Modal state
   const [showSubmitBidModal, setShowSubmitBidModal] = useState(false);
@@ -45,14 +47,22 @@ export default function RetailerDashboard() {
     } else {
       loadMyBids();
     }
-  }, [activeTab]);
+  }, [activeTab, selectedRadius]);
 
   const loadOpenBidRequests = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const data = await biddingApi.getOpenBidRequests();
+      const params: any = {};
+
+      if (retailer?.latitude && retailer?.longitude) {
+        params.latitude = retailer.latitude;
+        params.longitude = retailer.longitude;
+        params.radiusMiles = selectedRadius;
+      }
+
+      const data = await biddingApi.getOpenBidRequests(params);
       setOpenBidRequests(data);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load bid requests');
@@ -278,6 +288,25 @@ export default function RetailerDashboard() {
           </div>
         )}
 
+        {/* Location Warning */}
+        {!retailer?.latitude && !retailer?.longitude && (
+          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Location not set</h3>
+                <p className="mt-1 text-sm text-yellow-700">
+                  Add your ZIP code to see bid requests near you and filter by distance. Update your profile to add your location.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="mt-8 bg-white rounded-lg shadow">
           <div className="border-b border-gray-200">
@@ -305,6 +334,31 @@ export default function RetailerDashboard() {
             </nav>
           </div>
 
+          {/* Radius Filter - Only show in Available tab when retailer has location */}
+          {activeTab === 'available' && retailer?.latitude && retailer?.longitude && (
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium text-gray-700">
+                  Show bid requests within:
+                </label>
+                <select
+                  value={selectedRadius}
+                  onChange={(e) => setSelectedRadius(Number(e.target.value))}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value={25}>25 miles</option>
+                  <option value={50}>50 miles</option>
+                  <option value={100}>100 miles</option>
+                  <option value={200}>200 miles</option>
+                  <option value={500}>500 miles</option>
+                </select>
+                <span className="text-sm text-gray-500">
+                  {openBidRequests.length} {openBidRequests.length === 1 ? 'request' : 'requests'} found
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="p-6">
             {isLoading ? (
               <div className="text-center py-12">
@@ -322,7 +376,14 @@ export default function RetailerDashboard() {
                     <div key={bidRequest.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900">{bidRequest.title}</h3>
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-semibold text-gray-900">{bidRequest.title}</h3>
+                            {bidRequest.distance !== undefined && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                                {formatDistance(bidRequest.distance)}
+                              </span>
+                            )}
+                          </div>
                           {bidRequest.description && (
                             <p className="mt-1 text-sm text-gray-600">{bidRequest.description}</p>
                           )}
