@@ -296,11 +296,14 @@ export class BidRequestService {
       throw new Error('Bid request not found');
     }
 
-    // Verify bid belongs to this bid request
+    // Verify bid belongs to this bid request and get its items
     const bid = await prisma.retailerBid.findFirst({
       where: {
         id: bidId,
         bidRequestId
+      },
+      include: {
+        bidItems: true
       }
     });
 
@@ -308,9 +311,32 @@ export class BidRequestService {
       throw new Error('Bid not found');
     }
 
-    // Delete the bid (cascades to bid items)
-    await prisma.retailerBid.delete({
-      where: { id: bidId }
+    // Store the item IDs that need price recalculation
+    const itemIds = bid.bidItems.map(item => item.bidRequestItemId);
+
+    // Delete the bid in a transaction and recalculate prices
+    await prisma.$transaction(async (tx) => {
+      // Delete the bid (cascades to bid items)
+      await tx.retailerBid.delete({
+        where: { id: bidId }
+      });
+
+      // Recalculate currentPrice for each affected item
+      for (const itemId of itemIds) {
+        // Find the lowest price among remaining bids for this item
+        const lowestBidItem = await tx.retailerBidItem.findFirst({
+          where: { bidRequestItemId: itemId },
+          orderBy: { pricePerUnit: 'asc' }
+        });
+
+        // Update the item's currentPrice (null if no bids remain)
+        await tx.bidRequestItem.update({
+          where: { id: itemId },
+          data: {
+            currentPrice: lowestBidItem ? lowestBidItem.pricePerUnit : null
+          }
+        });
+      }
     });
   }
 
