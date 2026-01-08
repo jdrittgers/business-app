@@ -80,6 +80,7 @@ model User {
 model Business {
   id        String   @id @default(uuid())
   name      String
+  address   String?  // Street address for deliveries
   city      String?
   state     String?
   zipCode   String?  @map("zip_code")
@@ -532,6 +533,9 @@ model Retailer {
   companyName       String   @map("company_name")
   businessLicense   String?  @map("business_license")
   phone             String?
+  address           String?  // Street address for delivery
+  city              String?
+  state             String?
   zipCode           String?  @map("zip_code")
   latitude          Decimal? @db.Decimal(10, 8)
   longitude         Decimal? @db.Decimal(11, 8)

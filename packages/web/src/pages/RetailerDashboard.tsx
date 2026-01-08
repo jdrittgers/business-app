@@ -14,7 +14,7 @@ export default function RetailerDashboard() {
   const { retailer, user, isAuthenticated, logout } = useRetailerAuthStore();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'available' | 'my-bids'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'my-bids' | 'accepted'>('available');
   const [openBidRequests, setOpenBidRequests] = useState<BidRequest[]>([]);
   const [myBids, setMyBids] = useState<RetailerBid[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -243,9 +243,12 @@ export default function RetailerDashboard() {
     return <div>Loading...</div>;
   }
 
+  const acceptedBids = myBids.filter(b => b.status === 'ACCEPTED');
+
   const stats = {
     totalBids: myBids.length,
     activeBids: myBids.filter(b => b.bidRequest?.status === BidRequestStatus.OPEN).length,
+    acceptedBids: acceptedBids.length,
     availableRequests: openBidRequests.length
   };
 
@@ -281,7 +284,7 @@ export default function RetailerDashboard() {
 
       {/* Stats */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-500">Total Bids</div>
             <div className="mt-2 text-3xl font-bold text-gray-900">{stats.totalBids}</div>
@@ -289,6 +292,10 @@ export default function RetailerDashboard() {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-500">Active Bids</div>
             <div className="mt-2 text-3xl font-bold text-green-600">{stats.activeBids}</div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Accepted Bids</div>
+            <div className="mt-2 text-3xl font-bold text-purple-600">{stats.acceptedBids}</div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-500">Available Requests</div>
@@ -354,6 +361,16 @@ export default function RetailerDashboard() {
                 }`}
               >
                 My Bids
+              </button>
+              <button
+                onClick={() => setActiveTab('accepted')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 ${
+                  activeTab === 'accepted'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Accepted Bids
               </button>
             </nav>
           </div>
@@ -443,7 +460,7 @@ export default function RetailerDashboard() {
                   ))}
                 </div>
               )
-            ) : (
+            ) : activeTab === 'my-bids' ? (
               // My Bids Tab
               myBids.length === 0 ? (
                 <div className="text-center py-12">
@@ -508,6 +525,105 @@ export default function RetailerDashboard() {
                             </button>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              // Accepted Bids Tab
+              acceptedBids.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">You don't have any accepted bids yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {acceptedBids.map((bid) => (
+                    <div key={bid.id} className="border-2 border-green-400 bg-green-50 rounded-lg p-6">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className="px-3 py-1 bg-green-600 text-white rounded-full text-xs font-semibold">
+                              ✓ ACCEPTED
+                            </span>
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {bid.bidRequest?.title}
+                            </h3>
+                          </div>
+
+                          {/* Delivery Address */}
+                          {bid.bidRequest?.business && (
+                            <div className="mt-4 p-3 bg-white rounded border border-green-200">
+                              <p className="text-xs font-semibold text-gray-700 mb-2">DELIVERY ADDRESS</p>
+                              <p className="font-medium text-gray-900">{bid.bidRequest.business.name}</p>
+                              {bid.bidRequest.business.city && bid.bidRequest.business.state && (
+                                <p className="text-sm text-gray-600">
+                                  📍 {bid.bidRequest.business.city}, {bid.bidRequest.business.state}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="mt-4 grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-500">Your Winning Bid</p>
+                              <p className="text-2xl font-bold text-green-600">
+                                ${bid.totalDeliveredPrice.toLocaleString()}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">Delivery Date</p>
+                              <p className="font-medium">
+                                {new Date(bid.guaranteedDeliveryDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Items Breakdown */}
+                          {bid.bidItems && bid.bidItems.length > 0 && (
+                            <div className="mt-4 p-3 bg-white rounded border border-gray-200">
+                              <p className="text-xs font-semibold text-gray-700 mb-2">ITEMS TO DELIVER</p>
+                              <div className="space-y-2">
+                                {bid.bidItems.map((bidItem) => {
+                                  const requestItem = bid.bidRequest?.items?.find(
+                                    (item) => item.id === bidItem.bidRequestItemId
+                                  );
+                                  if (!requestItem) return null;
+
+                                  return (
+                                    <div key={bidItem.id} className="flex justify-between text-sm">
+                                      <span className="text-gray-700">
+                                        {requestItem.productName} - {requestItem.quantity} {requestItem.unit}
+                                      </span>
+                                      <span className="font-semibold text-gray-900">
+                                        ${bidItem.pricePerUnit.toFixed(2)}/{requestItem.unit}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {bid.notes && (
+                            <p className="mt-3 text-sm text-gray-600">Notes: {bid.notes}</p>
+                          )}
+
+                          {bid.acceptedAt && (
+                            <p className="mt-3 text-sm text-green-600 font-medium">
+                              ✓ Accepted on {new Date(bid.acceptedAt).toLocaleDateString()}
+                            </p>
+                          )}
+
+                          {/* Payment Notice */}
+                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                            <p className="text-sm text-yellow-800">
+                              <span className="font-semibold">⚠️ Payment Due Upon Delivery</span>
+                              <br />
+                              Please coordinate with the farmer for delivery and payment collection.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}

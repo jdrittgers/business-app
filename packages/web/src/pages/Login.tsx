@@ -80,7 +80,13 @@ export default function Login() {
           <p>Employee: employee1@90ten.com / password123</p>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+        <div className="mt-6 pt-6 border-t border-gray-200 text-center space-y-2">
+          <p className="text-sm text-gray-600">
+            Don't have an account?{' '}
+            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+              Register as a Farmer
+            </Link>
+          </p>
           <p className="text-sm text-gray-600">
             Are you a retailer?{' '}
             <Link to="/retailer/login" className="text-indigo-600 hover:text-indigo-700 font-medium">

@@ -24,6 +24,9 @@ export interface Retailer {
   companyName: string;
   businessLicense?: string;
   phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
   zipCode?: string;
   latitude?: number;
   longitude?: number;
@@ -38,6 +41,9 @@ export interface CreateRetailerRequest {
   firstName: string;
   lastName: string;
   companyName: string;
+  address?: string;
+  city?: string;
+  state?: string;
   zipCode?: string;
   businessLicense?: string;
   phone?: string;

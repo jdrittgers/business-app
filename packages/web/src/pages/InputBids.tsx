@@ -733,6 +733,11 @@ export default function InputBids() {
                                 {bid.retailer?.phone && (
                                   <p className="text-sm text-gray-600">Phone: {bid.retailer.phone}</p>
                                 )}
+                                {bid.retailer?.city && bid.retailer?.state && (
+                                  <p className="text-sm text-gray-600">
+                                    📍 {bid.retailer.city}, {bid.retailer.state}
+                                  </p>
+                                )}
                               </div>
                               <div className="text-right">
                                 <p className="text-2xl font-bold text-green-600">
@@ -741,6 +746,47 @@ export default function InputBids() {
                                 <p className="text-sm text-gray-600">Delivered Price</p>
                               </div>
                             </div>
+
+                            {/* Per-Item Pricing Breakdown */}
+                            {bid.bidItems && bid.bidItems.length > 0 && (
+                              <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-200">
+                                <p className="text-xs font-semibold text-gray-700 mb-2">PRICING BREAKDOWN</p>
+                                <div className="space-y-2">
+                                  {bid.bidItems.map((bidItem) => {
+                                    const requestItem = selectedBidRequest.items?.find(
+                                      (item) => item.id === bidItem.bidRequestItemId
+                                    );
+                                    if (!requestItem) return null;
+
+                                    const startingPrice = requestItem.startingPrice || requestItem.currentPrice || 0;
+                                    const bidPrice = bidItem.pricePerUnit;
+                                    const savings = startingPrice - bidPrice;
+                                    const savingsPercent = startingPrice > 0 ? (savings / startingPrice) * 100 : 0;
+
+                                    return (
+                                      <div key={bidItem.id} className="text-xs">
+                                        <p className="font-medium text-gray-700">{requestItem.productName}</p>
+                                        <div className="flex justify-between items-center mt-1">
+                                          <div>
+                                            <span className="text-gray-500">Starting: ${startingPrice.toFixed(2)}/{requestItem.unit}</span>
+                                            <span className="mx-2 text-gray-400">→</span>
+                                            <span className={`font-semibold ${savings > 0 ? 'text-green-600' : savings < 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                                              Bid: ${bidPrice.toFixed(2)}/{requestItem.unit}
+                                            </span>
+                                          </div>
+                                          {savings !== 0 && (
+                                            <span className={`text-xs px-2 py-1 rounded ${savings > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                              {savings > 0 ? '-' : '+'}{Math.abs(savingsPercent).toFixed(1)}%
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
                             <div className="mt-3 text-sm text-gray-600">
                               <p>Guaranteed Delivery: {new Date(bid.guaranteedDeliveryDate).toLocaleDateString()}</p>
                               {bid.notes && <p className="mt-1">Notes: {bid.notes}</p>}

@@ -6,6 +6,7 @@ import { useSocket } from './hooks/useSocket';
 import { registerServiceWorker } from './utils/push-notifications';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import FarmerRegister from './pages/FarmerRegister';
 import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calendar';
 import Tasks from './pages/Tasks';
@@ -41,6 +42,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<FarmerRegister />} />
       <Route
         path="/dashboard"
         element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />}

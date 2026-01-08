@@ -61,6 +61,9 @@ export class RetailerService {
           companyName: data.companyName,
           businessLicense: data.businessLicense,
           phone: data.phone,
+          address: data.address,
+          city: data.city,
+          state: data.state,
           zipCode: data.zipCode,
           latitude: geocodeResult?.latitude,
           longitude: geocodeResult?.longitude,
@@ -108,6 +111,9 @@ export class RetailerService {
         companyName: result.retailer.companyName,
         businessLicense: result.retailer.businessLicense || undefined,
         phone: result.retailer.phone || undefined,
+        address: result.retailer.address || undefined,
+        city: result.retailer.city || undefined,
+        state: result.retailer.state || undefined,
         zipCode: result.retailer.zipCode || undefined,
         latitude: result.retailer.latitude ? Number(result.retailer.latitude) : undefined,
         longitude: result.retailer.longitude ? Number(result.retailer.longitude) : undefined,
@@ -183,6 +189,9 @@ export class RetailerService {
         companyName: user.retailerProfile.companyName,
         businessLicense: user.retailerProfile.businessLicense || undefined,
         phone: user.retailerProfile.phone || undefined,
+        address: user.retailerProfile.address || undefined,
+        city: user.retailerProfile.city || undefined,
+        state: user.retailerProfile.state || undefined,
         zipCode: user.retailerProfile.zipCode || undefined,
         latitude: user.retailerProfile.latitude ? Number(user.retailerProfile.latitude) : undefined,
         longitude: user.retailerProfile.longitude ? Number(user.retailerProfile.longitude) : undefined,
@@ -206,6 +215,9 @@ export class RetailerService {
       companyName: retailer.companyName,
       businessLicense: retailer.businessLicense || undefined,
       phone: retailer.phone || undefined,
+      address: retailer.address || undefined,
+      city: retailer.city || undefined,
+      state: retailer.state || undefined,
       zipCode: retailer.zipCode || undefined,
       latitude: retailer.latitude ? Number(retailer.latitude) : undefined,
       longitude: retailer.longitude ? Number(retailer.longitude) : undefined,
@@ -229,6 +241,9 @@ export class RetailerService {
       companyName?: string;
       businessLicense?: string;
       phone?: string;
+      address?: string;
+      city?: string;
+      state?: string;
       zipCode?: string;
       radiusPreference?: number;
     }
@@ -263,6 +278,9 @@ export class RetailerService {
       companyName: retailer.companyName,
       businessLicense: retailer.businessLicense || undefined,
       phone: retailer.phone || undefined,
+      address: retailer.address || undefined,
+      city: retailer.city || undefined,
+      state: retailer.state || undefined,
       zipCode: retailer.zipCode || undefined,
       latitude: retailer.latitude ? Number(retailer.latitude) : undefined,
       longitude: retailer.longitude ? Number(retailer.longitude) : undefined,

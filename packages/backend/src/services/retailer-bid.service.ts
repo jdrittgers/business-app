@@ -269,6 +269,13 @@ export class RetailerBidService {
         companyName: bid.retailer.companyName,
         businessLicense: bid.retailer.businessLicense || undefined,
         phone: bid.retailer.phone || undefined,
+        address: bid.retailer.address || undefined,
+        city: bid.retailer.city || undefined,
+        state: bid.retailer.state || undefined,
+        zipCode: bid.retailer.zipCode || undefined,
+        latitude: bid.retailer.latitude ? Number(bid.retailer.latitude) : undefined,
+        longitude: bid.retailer.longitude ? Number(bid.retailer.longitude) : undefined,
+        radiusPreference: bid.retailer.radiusPreference,
         createdAt: bid.retailer.createdAt,
         updatedAt: bid.retailer.updatedAt
       } : undefined,
