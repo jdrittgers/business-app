@@ -22,7 +22,13 @@ async function main() {
     update: {},
     create: {
       id: 'rittgers-farm-business-id',
-      name: 'Rittgers Farm'
+      name: 'Demo Farm',
+      address: '1234 Farm Road',
+      city: 'Springfield',
+      state: 'OH',
+      zipCode: '43015',
+      phone: '(555) 123-4567',
+      email: 'contact@demofarm.com'
     }
   });
 
@@ -114,10 +120,10 @@ async function main() {
   });
 
   const employee2 = await prisma.user.upsert({
-    where: { email: 'employee2@rittgers.com' },
+    where: { email: 'employee2@demofarm.com' },
     update: {},
     create: {
-      email: 'employee2@rittgers.com',
+      email: 'employee2@demofarm.com',
       passwordHash: employeePassword,
       firstName: 'Bob',
       lastName: 'Johnson',
@@ -142,15 +148,15 @@ async function main() {
 
   console.log('✓ Employee users created');
 
-  // Create grain entities for Rittgers Farm
+  // Create grain entities for Demo Farm
   console.log('Creating grain entities...');
 
   const grainEntityNames = [
-    'Rittgers Grain',
-    'Rittgers Farm',
-    'JDR AG',
-    'JVR AG',
-    'JKC Farms'
+    'Main Farm',
+    'North Fields',
+    'South Fields',
+    'East Section',
+    'West Section'
   ];
 
   for (const entityName of grainEntityNames) {
@@ -174,238 +180,104 @@ async function main() {
   // Create production data for 2026
   console.log('Creating production data for 2026...');
 
-  // Get JDR AG and JVR AG entities
-  const jdrAg = await prisma.grainEntity.findFirst({
+  // Get grain entities
+  const mainFarm = await prisma.grainEntity.findFirst({
     where: {
       businessId: businessRittgers.id,
-      name: 'JDR AG'
+      name: 'Main Farm'
     }
   });
 
-  const jvrAg = await prisma.grainEntity.findFirst({
+  const northFields = await prisma.grainEntity.findFirst({
     where: {
       businessId: businessRittgers.id,
-      name: 'JVR AG'
+      name: 'North Fields'
     }
   });
 
-  if (jdrAg) {
-    // JDR AG: 218 acres soybeans at 60 bu/acre
+  if (mainFarm) {
+    // Main Farm: 500 acres soybeans at 55 bu/acre
     await prisma.cropYearProduction.upsert({
       where: {
         grainEntityId_commodityType_year: {
-          grainEntityId: jdrAg.id,
+          grainEntityId: mainFarm.id,
           commodityType: 'SOYBEANS',
           year: 2026
         }
       },
       update: {},
       create: {
-        grainEntityId: jdrAg.id,
+        grainEntityId: mainFarm.id,
         commodityType: 'SOYBEANS',
         year: 2026,
-        acres: 218,
-        bushelsPerAcre: 60,
-        totalProjected: 218 * 60, // 13,080
+        acres: 500,
+        bushelsPerAcre: 55,
+        totalProjected: 500 * 55, // 27,500
         notes: 'Initial projection for 2026 crop year'
       }
     });
 
-    // JDR AG: 111 acres corn at 200 bu/acre
+    // Main Farm: 600 acres corn at 185 bu/acre
     await prisma.cropYearProduction.upsert({
       where: {
         grainEntityId_commodityType_year: {
-          grainEntityId: jdrAg.id,
+          grainEntityId: mainFarm.id,
           commodityType: 'CORN',
           year: 2026
         }
       },
       update: {},
       create: {
-        grainEntityId: jdrAg.id,
+        grainEntityId: mainFarm.id,
         commodityType: 'CORN',
         year: 2026,
-        acres: 111,
-        bushelsPerAcre: 200,
-        totalProjected: 111 * 200, // 22,200
+        acres: 600,
+        bushelsPerAcre: 185,
+        totalProjected: 600 * 185, // 111,000
         notes: 'Initial projection for 2026 crop year'
       }
     });
   }
 
-  if (jvrAg) {
-    // JVR AG: 218 acres soybeans at 60 bu/acre
+  if (northFields) {
+    // North Fields: 300 acres soybeans at 58 bu/acre
     await prisma.cropYearProduction.upsert({
       where: {
         grainEntityId_commodityType_year: {
-          grainEntityId: jvrAg.id,
+          grainEntityId: northFields.id,
           commodityType: 'SOYBEANS',
           year: 2026
         }
       },
       update: {},
       create: {
-        grainEntityId: jvrAg.id,
+        grainEntityId: northFields.id,
         commodityType: 'SOYBEANS',
         year: 2026,
-        acres: 218,
-        bushelsPerAcre: 60,
-        totalProjected: 218 * 60, // 13,080
+        acres: 300,
+        bushelsPerAcre: 58,
+        totalProjected: 300 * 58, // 17,400
         notes: 'Initial projection for 2026 crop year'
       }
     });
 
-    // JVR AG: 149 acres corn at 200 bu/acre
+    // North Fields: 200 acres corn at 190 bu/acre
     await prisma.cropYearProduction.upsert({
       where: {
         grainEntityId_commodityType_year: {
-          grainEntityId: jvrAg.id,
+          grainEntityId: northFields.id,
           commodityType: 'CORN',
           year: 2026
         }
       },
       update: {},
       create: {
-        grainEntityId: jvrAg.id,
+        grainEntityId: northFields.id,
         commodityType: 'CORN',
         year: 2026,
-        acres: 149,
-        bushelsPerAcre: 200,
-        totalProjected: 149 * 200, // 29,800
-        notes: 'Initial projection for 2026 crop year'
-      }
-    });
-  }
-
-  // Get Rittgers Grain and Rittgers Farm entities
-  const rittgersGrain = await prisma.grainEntity.findFirst({
-    where: {
-      businessId: businessRittgers.id,
-      name: 'Rittgers Grain'
-    }
-  });
-
-  const rittgersFarm = await prisma.grainEntity.findFirst({
-    where: {
-      businessId: businessRittgers.id,
-      name: 'Rittgers Farm'
-    }
-  });
-
-  if (rittgersGrain) {
-    // Rittgers Grain: 682.3 acres soybeans at 60 bu/acre
-    await prisma.cropYearProduction.upsert({
-      where: {
-        grainEntityId_commodityType_year: {
-          grainEntityId: rittgersGrain.id,
-          commodityType: 'SOYBEANS',
-          year: 2026
-        }
-      },
-      update: {},
-      create: {
-        grainEntityId: rittgersGrain.id,
-        commodityType: 'SOYBEANS',
-        year: 2026,
-        acres: 682.3,
-        bushelsPerAcre: 60,
-        totalProjected: 682.3 * 60, // 40,938
-        notes: 'Initial projection for 2026 crop year'
-      }
-    });
-
-    // Rittgers Grain: 978.3 acres corn at 200 bu/acre
-    await prisma.cropYearProduction.upsert({
-      where: {
-        grainEntityId_commodityType_year: {
-          grainEntityId: rittgersGrain.id,
-          commodityType: 'CORN',
-          year: 2026
-        }
-      },
-      update: {},
-      create: {
-        grainEntityId: rittgersGrain.id,
-        commodityType: 'CORN',
-        year: 2026,
-        acres: 978.3,
-        bushelsPerAcre: 200,
-        totalProjected: 978.3 * 200, // 195,660
-        notes: 'Initial projection for 2026 crop year'
-      }
-    });
-  }
-
-  if (rittgersFarm) {
-    // Rittgers Farm: 510.2 acres soybeans at 60 bu/acre
-    await prisma.cropYearProduction.upsert({
-      where: {
-        grainEntityId_commodityType_year: {
-          grainEntityId: rittgersFarm.id,
-          commodityType: 'SOYBEANS',
-          year: 2026
-        }
-      },
-      update: {},
-      create: {
-        grainEntityId: rittgersFarm.id,
-        commodityType: 'SOYBEANS',
-        year: 2026,
-        acres: 510.2,
-        bushelsPerAcre: 60,
-        totalProjected: 510.2 * 60, // 30,612
-        notes: 'Initial projection for 2026 crop year'
-      }
-    });
-
-    // Rittgers Farm: 886.4 acres corn at 200 bu/acre
-    await prisma.cropYearProduction.upsert({
-      where: {
-        grainEntityId_commodityType_year: {
-          grainEntityId: rittgersFarm.id,
-          commodityType: 'CORN',
-          year: 2026
-        }
-      },
-      update: {},
-      create: {
-        grainEntityId: rittgersFarm.id,
-        commodityType: 'CORN',
-        year: 2026,
-        acres: 886.4,
-        bushelsPerAcre: 200,
-        totalProjected: 886.4 * 200, // 177,280
-        notes: 'Initial projection for 2026 crop year'
-      }
-    });
-  }
-
-  // Get JKC Farms entity
-  const jkcFarms = await prisma.grainEntity.findFirst({
-    where: {
-      businessId: businessRittgers.id,
-      name: 'JKC Farms'
-    }
-  });
-
-  if (jkcFarms) {
-    // JKC Farms: 100 acres corn at 200 bu/acre
-    await prisma.cropYearProduction.upsert({
-      where: {
-        grainEntityId_commodityType_year: {
-          grainEntityId: jkcFarms.id,
-          commodityType: 'CORN',
-          year: 2026
-        }
-      },
-      update: {},
-      create: {
-        grainEntityId: jkcFarms.id,
-        commodityType: 'CORN',
-        year: 2026,
-        acres: 100,
-        bushelsPerAcre: 200,
-        totalProjected: 100 * 200, // 20,000
+        acres: 200,
+        bushelsPerAcre: 190,
+        totalProjected: 200 * 190, // 38,000
         notes: 'Initial projection for 2026 crop year'
       }
     });
@@ -413,12 +285,306 @@ async function main() {
 
   console.log('✓ Production data created for 2026');
 
+  // Create sample grain contracts
+  console.log('Creating sample grain contracts...');
+
+  if (mainFarm && owner) {
+    // Delete existing contracts for demo
+    await prisma.grainContract.deleteMany({
+      where: { grainEntityId: mainFarm.id }
+    });
+
+    // Corn contract - sold portion
+    await prisma.grainContract.create({
+      data: {
+        grainEntityId: mainFarm.id,
+        createdBy: owner.id,
+        contractType: 'CASH',
+        cropYear: 'NEW_CROP',
+        commodityType: 'CORN',
+        year: 2026,
+        contractNumber: 'CORN-2026-001',
+        buyer: 'ABC Grain Co',
+        totalBushels: 50000,
+        cashPrice: 4.25,
+        deliveryStartDate: new Date('2026-11-01'),
+        deliveryEndDate: new Date('2026-12-31'),
+        isActive: true,
+        notes: 'Fall delivery contract'
+      }
+    });
+
+    // Soybean contract - sold portion
+    await prisma.grainContract.create({
+      data: {
+        grainEntityId: mainFarm.id,
+        createdBy: owner.id,
+        contractType: 'CASH',
+        cropYear: 'NEW_CROP',
+        commodityType: 'SOYBEANS',
+        year: 2026,
+        contractNumber: 'SOY-2026-001',
+        buyer: 'XYZ Processors',
+        totalBushels: 15000,
+        cashPrice: 10.50,
+        deliveryStartDate: new Date('2026-10-01'),
+        deliveryEndDate: new Date('2026-11-30'),
+        isActive: true,
+        notes: 'Early harvest delivery'
+      }
+    });
+  }
+
+  console.log('✓ Sample grain contracts created');
+
+  // Create sample farms for break-even analysis
+  console.log('Creating sample farms for break-even...');
+
+  // Get Main Farm grain entity for linking farms
+  if (mainFarm) {
+    // Create Corn Farm
+    const cornFarm = await prisma.farm.upsert({
+      where: {
+        grainEntityId_name_year: {
+          grainEntityId: mainFarm.id,
+          name: 'Corn Farm - Section A',
+          year: 2026
+        }
+      },
+      update: {},
+      create: {
+        grainEntityId: mainFarm.id,
+        name: 'Corn Farm - Section A',
+        acres: 600,
+        commodityType: 'CORN',
+        year: 2026,
+        projectedYield: 185,
+        aph: 180,
+        notes: 'Primary corn production area'
+      }
+    });
+
+    // Create Soybean Farm
+    const beanFarm = await prisma.farm.upsert({
+      where: {
+        grainEntityId_name_year: {
+          grainEntityId: mainFarm.id,
+          name: 'Soybean Farm - Section B',
+          year: 2026
+        }
+      },
+      update: {},
+      create: {
+        grainEntityId: mainFarm.id,
+        name: 'Soybean Farm - Section B',
+        acres: 500,
+        commodityType: 'SOYBEANS',
+        year: 2026,
+        projectedYield: 55,
+        aph: 52,
+        notes: 'Primary soybean production area'
+      }
+    });
+
+    console.log('✓ Sample farms created');
+
+    // Create sample products for break-even
+    console.log('Creating sample fertilizers and chemicals...');
+
+    // Delete existing products for demo business
+    await prisma.fertilizer.deleteMany({ where: { businessId: businessRittgers.id } });
+    await prisma.chemical.deleteMany({ where: { businessId: businessRittgers.id } });
+    await prisma.seedHybrid.deleteMany({ where: { businessId: businessRittgers.id } });
+
+    // Fertilizers
+    const nitrogen = await prisma.fertilizer.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: '28-0-0 Liquid Nitrogen',
+        pricePerUnit: 0.55, // $0.55 per lb
+        unit: 'LB'
+      }
+    });
+
+    const map = await prisma.fertilizer.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: '11-52-0 MAP',
+        pricePerUnit: 0.31, // $0.31 per lb
+        unit: 'LB'
+      }
+    });
+
+    const potash = await prisma.fertilizer.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: '0-0-60 Potash',
+        pricePerUnit: 0.40, // $0.40 per lb
+        unit: 'LB'
+      }
+    });
+
+    // Chemicals
+    const glyphosate = await prisma.chemical.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: 'Glyphosate 4.5 lb',
+        pricePerUnit: 22.50, // $22.50 per gallon
+        unit: 'GAL'
+      }
+    });
+
+    const atrazine = await prisma.chemical.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: 'Atrazine 4L',
+        pricePerUnit: 18.75, // $18.75 per gallon
+        unit: 'GAL'
+      }
+    });
+
+    // Seed Hybrids
+    const cornSeed = await prisma.seedHybrid.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: 'Pioneer P1197 (Corn)',
+        commodityType: 'CORN',
+        pricePerBag: 300,
+        seedsPerBag: 80000
+      }
+    });
+
+    const soybeanSeed = await prisma.seedHybrid.create({
+      data: {
+        businessId: businessRittgers.id,
+        name: 'Asgrow AG35X9 (Soybeans)',
+        commodityType: 'SOYBEANS',
+        pricePerBag: 62,
+        seedsPerBag: 140000
+      }
+    });
+
+    console.log('✓ Sample fertilizers and chemicals created');
+
+    // Create farm input usage for corn
+    console.log('Creating sample farm inputs for corn...');
+
+    // Delete existing usage for corn farm
+    await prisma.farmFertilizerUsage.deleteMany({ where: { farmId: cornFarm.id } });
+    await prisma.farmChemicalUsage.deleteMany({ where: { farmId: cornFarm.id } });
+    await prisma.farmSeedUsage.deleteMany({ where: { farmId: cornFarm.id } });
+    await prisma.farmOtherCost.deleteMany({ where: { farmId: cornFarm.id } });
+
+    // Corn fertilizer usage
+    await prisma.farmFertilizerUsage.createMany({
+      data: [
+        {
+          farmId: cornFarm.id,
+          fertilizerId: nitrogen.id,
+          amountUsed: 150 * 600 // 150 lbs/acre * 600 acres = 90,000 lbs
+        },
+        {
+          farmId: cornFarm.id,
+          fertilizerId: map.id,
+          amountUsed: 200 * 600 // 200 lbs/acre * 600 acres = 120,000 lbs
+        }
+      ]
+    });
+
+    // Corn chemical usage
+    await prisma.farmChemicalUsage.create({
+      data: {
+        farmId: cornFarm.id,
+        chemicalId: glyphosate.id,
+        amountUsed: 1.5 * 600 // 1.5 qts/acre * 600 acres = 225 gallons
+      }
+    });
+
+    // Corn seed usage
+    await prisma.farmSeedUsage.create({
+      data: {
+        farmId: cornFarm.id,
+        seedHybridId: cornSeed.id,
+        bagsUsed: (32000 * 600) / 80000 // 32k seeds/acre * 600 acres / 80k seeds per bag = 240 bags
+      }
+    });
+
+    // Corn other costs
+    await prisma.farmOtherCost.create({
+      data: {
+        farmId: cornFarm.id,
+        costType: 'LAND_RENT',
+        amount: 250,
+        isPerAcre: true,
+        description: 'Land rent for 2026'
+      }
+    });
+
+    console.log('✓ Sample farm inputs for corn created');
+
+    // Create farm input usage for soybeans
+    console.log('Creating sample farm inputs for soybeans...');
+
+    // Delete existing usage for soybean farm
+    await prisma.farmFertilizerUsage.deleteMany({ where: { farmId: beanFarm.id } });
+    await prisma.farmChemicalUsage.deleteMany({ where: { farmId: beanFarm.id } });
+    await prisma.farmSeedUsage.deleteMany({ where: { farmId: beanFarm.id } });
+    await prisma.farmOtherCost.deleteMany({ where: { farmId: beanFarm.id } });
+
+    // Soybean fertilizer usage
+    await prisma.farmFertilizerUsage.createMany({
+      data: [
+        {
+          farmId: beanFarm.id,
+          fertilizerId: map.id,
+          amountUsed: 150 * 500 // 150 lbs/acre * 500 acres = 75,000 lbs
+        },
+        {
+          farmId: beanFarm.id,
+          fertilizerId: potash.id,
+          amountUsed: 100 * 500 // 100 lbs/acre * 500 acres = 50,000 lbs
+        }
+      ]
+    });
+
+    // Soybean chemical usage
+    await prisma.farmChemicalUsage.create({
+      data: {
+        farmId: beanFarm.id,
+        chemicalId: glyphosate.id,
+        amountUsed: 1.0 * 500 // 1 qt/acre * 500 acres = 125 gallons
+      }
+    });
+
+    // Soybean seed usage
+    await prisma.farmSeedUsage.create({
+      data: {
+        farmId: beanFarm.id,
+        seedHybridId: soybeanSeed.id,
+        bagsUsed: (140000 * 500) / 140000 // 140k seeds/acre * 500 acres / 140k seeds per bag = 500 bags
+      }
+    });
+
+    // Soybean other costs
+    await prisma.farmOtherCost.create({
+      data: {
+        farmId: beanFarm.id,
+        costType: 'LAND_RENT',
+        amount: 225,
+        isPerAcre: true,
+        description: 'Land rent for 2026'
+      }
+    });
+
+    console.log('✓ Sample farm inputs for soybeans created');
+  }
+
   console.log('\n✅ Seed completed successfully!');
   console.log('\nTest credentials:');
   console.log('Owner: owner@90ten.com / password123');
   console.log('Employee 1 (90ten): employee1@90ten.com / password123');
-  console.log('Employee 2 (Rittgers Farm): employee2@rittgers.com / password123');
-  console.log('\nGrain Entities (Rittgers Farm): Rittgers Grain, Rittgers Farm, JDR AG, JVR AG, JKC Farms');
+  console.log('Employee 2 (Demo Farm): employee2@demofarm.com / password123');
+  console.log('\nGrain Entities (Demo Farm): Main Farm, North Fields, South Fields, East Section, West Section');
 }
 
 main()
