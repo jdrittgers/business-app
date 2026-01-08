@@ -52,23 +52,8 @@ async function main() {
 
   console.log('✓ Demo user created');
 
-  // Associate owner with both businesses
-  console.log('Associating owner with businesses...');
-
-  await prisma.businessMember.upsert({
-    where: {
-      userId_businessId: {
-        userId: owner.id,
-        businessId: business90ten.id
-      }
-    },
-    update: {},
-    create: {
-      userId: owner.id,
-      businessId: business90ten.id,
-      role: UserRole.OWNER
-    }
-  });
+  // Associate demo user with Demo Farm only
+  console.log('Associating demo user with Demo Farm...');
 
   await prisma.businessMember.upsert({
     where: {
@@ -85,7 +70,7 @@ async function main() {
     }
   });
 
-  console.log('✓ Owner associated with businesses');
+  console.log('✓ Demo user associated with Demo Farm');
 
   // Create sample employee users
   console.log('Creating employee users...');
