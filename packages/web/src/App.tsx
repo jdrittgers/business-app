@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore';
 import { useRetailerAuthStore } from './store/retailerAuthStore';
 import { useSocket } from './hooks/useSocket';
 import { registerServiceWorker } from './utils/push-notifications';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calendar';
@@ -37,6 +38,7 @@ function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route
         path="/dashboard"
@@ -90,8 +92,6 @@ function App() {
         path="/retailer/dashboard"
         element={isRetailerAuthenticated ? <RetailerDashboard /> : <Navigate to="/retailer/login" />}
       />
-
-      <Route path="/" element={<Navigate to="/dashboard" />} />
     </Routes>
   );
 }
