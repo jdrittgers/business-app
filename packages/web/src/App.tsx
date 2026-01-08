@@ -20,6 +20,7 @@ import InputBids from './pages/InputBids';
 import RetailerLogin from './pages/RetailerLogin';
 import RetailerRegister from './pages/RetailerRegister';
 import RetailerDashboard from './pages/RetailerDashboard';
+import RetailerProfile from './pages/RetailerProfile';
 
 function App() {
   const { loadUser, isAuthenticated } = useAuthStore();
@@ -91,6 +92,10 @@ function App() {
       <Route
         path="/retailer/dashboard"
         element={isRetailerAuthenticated ? <RetailerDashboard /> : <Navigate to="/retailer/login" />}
+      />
+      <Route
+        path="/retailer/profile"
+        element={isRetailerAuthenticated ? <RetailerProfile /> : <Navigate to="/retailer/login" />}
       />
     </Routes>
   );

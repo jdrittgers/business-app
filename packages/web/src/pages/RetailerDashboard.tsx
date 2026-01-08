@@ -94,15 +94,20 @@ export default function RetailerDashboard() {
       return;
     }
 
-    // Validate per-item pricing
-    if (bidFormData.bidItems.length === 0) {
-      setError('Please enter prices for all items');
+    // Validate per-item pricing - at least one item must have a price
+    const itemsWithPrices = bidFormData.bidItems.filter(
+      item => item.pricePerUnit && parseFloat(item.pricePerUnit) > 0
+    );
+
+    if (itemsWithPrices.length === 0) {
+      setError('Please enter a price for at least one item');
       return;
     }
 
-    for (const item of bidFormData.bidItems) {
-      if (!item.pricePerUnit || parseFloat(item.pricePerUnit) <= 0) {
-        setError('Please enter valid prices for all items');
+    // Validate that all entered prices are valid numbers
+    for (const item of itemsWithPrices) {
+      if (isNaN(parseFloat(item.pricePerUnit)) || parseFloat(item.pricePerUnit) <= 0) {
+        setError('Please enter valid prices (greater than 0)');
         return;
       }
     }
@@ -129,10 +134,13 @@ export default function RetailerDashboard() {
           notes: bidFormData.notes || undefined
         });
       } else {
-        const bidItems: CreateRetailerBidItemInput[] = bidFormData.bidItems.map(item => ({
-          bidRequestItemId: item.bidRequestItemId,
-          pricePerUnit: parseFloat(item.pricePerUnit)
-        }));
+        // Only include items with prices
+        const bidItems: CreateRetailerBidItemInput[] = bidFormData.bidItems
+          .filter(item => item.pricePerUnit && parseFloat(item.pricePerUnit) > 0)
+          .map(item => ({
+            bidRequestItemId: item.bidRequestItemId,
+            pricePerUnit: parseFloat(item.pricePerUnit)
+          }));
 
         await biddingApi.createBid({
           bidRequestId: selectedBidRequest.id,
@@ -253,12 +261,20 @@ export default function RetailerDashboard() {
                 {user.firstName} {user.lastName} • {user.email}
               </p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
-            >
-              Logout
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate('/retailer/profile')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
+              >
+                Profile Settings
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -291,18 +307,26 @@ export default function RetailerDashboard() {
         {/* Location Warning */}
         {!retailer?.latitude && !retailer?.longitude && (
           <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
+            <div className="flex items-start justify-between">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">Location not set</h3>
+                  <p className="mt-1 text-sm text-yellow-700">
+                    Add your ZIP code to see bid requests near you and filter by distance.
+                  </p>
+                </div>
               </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800">Location not set</h3>
-                <p className="mt-1 text-sm text-yellow-700">
-                  Add your ZIP code to see bid requests near you and filter by distance. Update your profile to add your location.
-                </p>
-              </div>
+              <button
+                onClick={() => navigate('/retailer/profile')}
+                className="ml-4 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-md hover:bg-yellow-700 whitespace-nowrap"
+              >
+                Add ZIP Code
+              </button>
             </div>
           </div>
         )}
@@ -523,9 +547,12 @@ export default function RetailerDashboard() {
                 <div className="space-y-4">
                   {/* Per-Item Pricing */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Item Pricing (Price per Unit) *
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Item Pricing (Price per Unit)
                     </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Enter prices only for items you want to bid on. You can leave items blank if you don't have competitive pricing for them.
+                    </p>
                     <div className="space-y-3 max-h-60 overflow-y-auto border border-gray-200 rounded-md p-3">
                       {selectedBidRequest.items?.map((item) => {
                         const bidItem = bidFormData.bidItems.find(bi => bi.bidRequestItemId === item.id);
@@ -543,7 +570,6 @@ export default function RetailerDashboard() {
                                 <span className="absolute left-2 top-2 text-gray-500 text-sm">$</span>
                                 <input
                                   type="number"
-                                  required
                                   step="0.01"
                                   min="0.01"
                                   value={bidItem?.pricePerUnit || ''}
@@ -594,7 +620,7 @@ export default function RetailerDashboard() {
                     <div className="text-2xl font-bold text-green-700">
                       ${bidFormData.totalDeliveredPrice || '0.00'}
                     </div>
-                    <p className="mt-1 text-xs text-gray-600">Auto-calculated from per-unit prices</p>
+                    <p className="mt-1 text-xs text-gray-600">Auto-calculated from items you're bidding on</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

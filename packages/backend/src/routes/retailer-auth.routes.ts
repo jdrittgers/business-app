@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, getMe } from '../controllers/retailer-auth.controller';
+import { register, login, getMe, updateProfile } from '../controllers/retailer-auth.controller';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -17,5 +17,6 @@ router.post('/login', (req, res) => {
 
 // Protected routes
 router.get('/me', authenticate, getMe);
+router.put('/profile', authenticate, updateProfile);
 
 export default router;

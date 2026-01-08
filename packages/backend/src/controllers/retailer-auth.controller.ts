@@ -52,10 +52,15 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
       return;
     }
 
+    // Get full user details
+    const user = await retailerService.getUserById(req.user.userId);
+
     res.json({
       user: {
         id: req.user.userId,
         email: req.user.email,
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
         role: req.user.role
       },
       retailer
@@ -63,5 +68,29 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
   } catch (error) {
     console.error('Get retailer profile error:', error);
     res.status(500).json({ error: 'Failed to fetch retailer profile' });
+  }
+}
+
+export async function updateProfile(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const retailer = await retailerService.getByUserId(req.user.userId);
+
+    if (!retailer) {
+      res.status(404).json({ error: 'Retailer profile not found' });
+      return;
+    }
+
+    const updatedRetailer = await retailerService.update(retailer.id, req.body);
+
+    res.json(updatedRetailer);
+  } catch (error) {
+    console.error('Update retailer profile error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update profile';
+    res.status(400).json({ error: message });
   }
 }

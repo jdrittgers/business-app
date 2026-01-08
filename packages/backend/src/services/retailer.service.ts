@@ -215,6 +215,14 @@ export class RetailerService {
     };
   }
 
+  async getUserById(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    return user;
+  }
+
   async update(
     retailerId: string,
     data: {
