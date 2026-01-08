@@ -187,15 +187,19 @@ export default function FarmerRegister() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone
+                Phone *
               </label>
               <input
                 type="tel"
+                required
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="(555) 123-4567"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                Required for retailers to coordinate delivery
+              </p>
             </div>
 
             <div>

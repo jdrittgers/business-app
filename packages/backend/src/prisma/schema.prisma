@@ -84,6 +84,8 @@ model Business {
   city      String?
   state     String?
   zipCode   String?  @map("zip_code")
+  phone     String?  // Contact phone for delivery coordination
+  email     String?  // Contact email for delivery coordination
   latitude  Decimal? @db.Decimal(10, 8)
   longitude Decimal? @db.Decimal(11, 8)
   createdAt DateTime @default(now()) @map("created_at")

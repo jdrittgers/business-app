@@ -200,8 +200,11 @@ export class BidRequestService {
           select: {
             id: true,
             name: true,
+            address: true,
             city: true,
-            state: true
+            state: true,
+            phone: true,
+            email: true
           }
         }
       }
@@ -214,8 +217,11 @@ export class BidRequestService {
       business: {
         id: bidRequest.business.id,
         name: bidRequest.business.name,
+        address: bidRequest.business.address || undefined,
         city: bidRequest.business.city || undefined,
-        state: bidRequest.business.state || undefined
+        state: bidRequest.business.state || undefined,
+        phone: bidRequest.business.phone || undefined,
+        email: bidRequest.business.email || undefined
       }
     };
   }

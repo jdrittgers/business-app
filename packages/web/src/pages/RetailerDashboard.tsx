@@ -551,16 +551,31 @@ export default function RetailerDashboard() {
                             </h3>
                           </div>
 
-                          {/* Delivery Address */}
+                          {/* Delivery Address & Contact Info */}
                           {bid.bidRequest?.business && (
                             <div className="mt-4 p-3 bg-white rounded border border-green-200">
-                              <p className="text-xs font-semibold text-gray-700 mb-2">DELIVERY ADDRESS</p>
+                              <p className="text-xs font-semibold text-gray-700 mb-2">DELIVERY ADDRESS & CONTACT</p>
                               <p className="font-medium text-gray-900">{bid.bidRequest.business.name}</p>
+                              {bid.bidRequest.business.address && (
+                                <p className="text-sm text-gray-600">{bid.bidRequest.business.address}</p>
+                              )}
                               {bid.bidRequest.business.city && bid.bidRequest.business.state && (
                                 <p className="text-sm text-gray-600">
-                                  📍 {bid.bidRequest.business.city}, {bid.bidRequest.business.state}
+                                  📍 {bid.bidRequest.business.city}, {bid.bidRequest.business.state} {bid.bidRequest.business.zipCode || ''}
                                 </p>
                               )}
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                {bid.bidRequest.business.phone && (
+                                  <p className="text-sm text-gray-700">
+                                    📞 <a href={`tel:${bid.bidRequest.business.phone}`} className="text-blue-600 hover:underline">{bid.bidRequest.business.phone}</a>
+                                  </p>
+                                )}
+                                {bid.bidRequest.business.email && (
+                                  <p className="text-sm text-gray-700">
+                                    ✉️ <a href={`mailto:${bid.bidRequest.business.email}`} className="text-blue-600 hover:underline">{bid.bidRequest.business.email}</a>
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           )}
 
