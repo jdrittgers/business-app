@@ -26,6 +26,11 @@ export interface GrainEntity {
   updatedAt: Date;
 }
 
+export interface CreateGrainEntityRequest {
+  businessId: string;
+  name: string;
+}
+
 // Grain Contract
 export interface GrainContract {
   id: string;

@@ -12,6 +12,7 @@ router.use(requireGrainAccess);
 
 // Grain entities
 router.get('/businesses/:businessId/grain-entities', (req, res) => controller.getGrainEntities(req, res));
+router.post('/businesses/:businessId/grain-entities', (req, res) => controller.createGrainEntity(req, res));
 
 // Contracts
 router.get('/businesses/:businessId/grain-contracts', (req, res) => controller.getContracts(req, res));

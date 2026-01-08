@@ -55,6 +55,10 @@ export default function GrainContracts() {
     dailyBushels: ''
   });
 
+  // Entity creation modal
+  const [showEntityModal, setShowEntityModal] = useState(false);
+  const [newEntityName, setNewEntityName] = useState('');
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -301,6 +305,23 @@ export default function GrainContracts() {
     }
   };
 
+  const handleCreateEntity = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedBusinessId || !newEntityName.trim()) {
+      return;
+    }
+
+    try {
+      await grainContractsApi.createGrainEntity(selectedBusinessId, newEntityName.trim());
+      setNewEntityName('');
+      setShowEntityModal(false);
+      loadData(); // Reload entities
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to create entity');
+    }
+  };
+
   const getContractTypeColor = (type: ContractType) => {
     switch (type) {
       case 'CASH': return 'bg-green-100 text-green-800';
@@ -398,6 +419,13 @@ export default function GrainContracts() {
               <h2 className="text-2xl font-bold text-gray-900">Grain Contracts</h2>
 
               <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setShowEntityModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                >
+                  + New Entity
+                </button>
+
                 <button
                   onClick={handleOpenModal}
                   className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
@@ -938,6 +966,55 @@ export default function GrainContracts() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Entity Creation Modal */}
+      {showEntityModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Grain Entity</h3>
+              <form onSubmit={handleCreateEntity}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Entity Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newEntityName}
+                    onChange={(e) => setNewEntityName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., JKC Farms"
+                    required
+                    autoFocus
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    A grain entity represents a farm, field, or production unit
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEntityModal(false);
+                      setNewEntityName('');
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Create Entity
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

@@ -16,6 +16,12 @@ export const grainContractsApi = {
     return response.data;
   },
 
+  // Create grain entity
+  createGrainEntity: async (businessId: string, name: string): Promise<GrainEntity> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/grain-entities`, { name });
+    return response.data;
+  },
+
   // Get contracts
   getContracts: async (businessId: string, query?: GetGrainContractsQuery): Promise<GrainContract[]> => {
     const response = await apiClient.get(`/api/businesses/${businessId}/grain-contracts`, {

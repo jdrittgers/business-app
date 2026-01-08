@@ -21,6 +21,16 @@ export class GrainContractService {
     });
   }
 
+  // Create a new grain entity
+  async createGrainEntity(businessId: string, name: string): Promise<GrainEntity> {
+    return await prisma.grainEntity.create({
+      data: {
+        businessId,
+        name
+      }
+    });
+  }
+
   // Get all contracts with optional filters
   async getContracts(businessId: string, query: GetGrainContractsQuery): Promise<GrainContract[]> {
     const whereClause: any = {

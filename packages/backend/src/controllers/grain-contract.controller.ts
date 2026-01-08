@@ -28,6 +28,30 @@ export class GrainContractController {
     }
   }
 
+  // Create grain entity
+  async createGrainEntity(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const { businessId } = req.params;
+      const { name } = req.body;
+
+      if (!name || name.trim() === '') {
+        res.status(400).json({ error: 'Entity name is required' });
+        return;
+      }
+
+      const entity = await grainContractService.createGrainEntity(businessId, name.trim());
+      res.status(201).json(entity);
+    } catch (error) {
+      console.error('Create grain entity error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   // Get contracts
   async getContracts(req: AuthRequest, res: Response): Promise<void> {
     try {
