@@ -158,8 +158,8 @@ export default function InvoiceParsing() {
 
     // Recalculate totalPrice if quantity or pricePerUnit changed
     if (field === 'quantity' || field === 'pricePerUnit') {
-      const quantity = field === 'quantity' ? parseFloat(value) : updated[index].quantity;
-      const pricePerUnit = field === 'pricePerUnit' ? parseFloat(value) : updated[index].pricePerUnit;
+      const quantity = field === 'quantity' ? parseFloat(value) : Number(updated[index].quantity);
+      const pricePerUnit = field === 'pricePerUnit' ? parseFloat(value) : Number(updated[index].pricePerUnit);
       updated[index].totalPrice = quantity * pricePerUnit;
     }
 
@@ -450,7 +450,7 @@ export default function InvoiceParsing() {
                       <td className="px-3 py-3">
                         <input
                           type="number"
-                          value={item.quantity}
+                          value={Number(item.quantity)}
                           onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)}
                           className="text-sm border-gray-300 rounded-md w-20"
                           disabled={!!item.priceLockedAt}
@@ -469,14 +469,14 @@ export default function InvoiceParsing() {
                         <input
                           type="number"
                           step="0.01"
-                          value={item.pricePerUnit}
+                          value={Number(item.pricePerUnit)}
                           onChange={(e) => handleLineItemChange(index, 'pricePerUnit', e.target.value)}
                           className="text-sm border-gray-300 rounded-md w-24"
                           disabled={!!item.priceLockedAt}
                         />
                       </td>
                       <td className="px-3 py-3 text-sm text-gray-900">
-                        ${item.totalPrice.toFixed(2)}
+                        ${Number(item.totalPrice).toFixed(2)}
                       </td>
                     </tr>
                   ))}
