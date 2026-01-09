@@ -35,6 +35,12 @@ export default function Dashboard() {
                 {user.firstName} {user.lastName}
               </span>
               <button
+                onClick={() => navigate('/settings')}
+                className="text-gray-700 hover:text-gray-900 text-sm font-medium"
+              >
+                Settings
+              </button>
+              <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
               >

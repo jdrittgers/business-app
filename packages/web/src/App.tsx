@@ -25,6 +25,7 @@ import RetailerDashboard from './pages/RetailerDashboard';
 import RetailerProfile from './pages/RetailerProfile';
 import TeamManagement from './pages/TeamManagement';
 import AcceptInvitation from './pages/AcceptInvitation';
+import UserSettings from './pages/UserSettings';
 import RequireRole from './components/RequireRole';
 
 function App() {
@@ -55,6 +56,10 @@ function App() {
       <Route
         path="/team"
         element={isAuthenticated ? <TeamManagement /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/settings"
+        element={isAuthenticated ? <UserSettings /> : <Navigate to="/login" />}
       />
       <Route
         path="/calendar"
