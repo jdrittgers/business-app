@@ -40,6 +40,10 @@ export class InvoiceParserService {
       const mediaType = this.getClaudeMediaType(mimeType);
 
       console.log('[InvoiceParser] Calling Claude API with model: claude-sonnet-4-20250514');
+
+      // Determine content type based on file type
+      const contentType = mimeType === 'application/pdf' ? 'document' : 'image';
+
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
@@ -47,7 +51,7 @@ export class InvoiceParserService {
           role: 'user',
           content: [
             {
-              type: 'image',
+              type: contentType as any,
               source: {
                 type: 'base64',
                 media_type: mediaType,
@@ -89,10 +93,10 @@ export class InvoiceParserService {
     }
   }
 
-  private getClaudeMediaType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
+  private getClaudeMediaType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'application/pdf' {
     if (mimeType === 'image/jpg' || mimeType === 'image/jpeg') return 'image/jpeg';
     if (mimeType === 'image/png') return 'image/png';
-    if (mimeType === 'application/pdf') return 'image/jpeg'; // PDF will need conversion
+    if (mimeType === 'application/pdf') return 'application/pdf';
     throw new Error(`Unsupported mime type: ${mimeType}`);
   }
 
