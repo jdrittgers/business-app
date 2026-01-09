@@ -26,6 +26,7 @@ import RetailerProfile from './pages/RetailerProfile';
 import TeamManagement from './pages/TeamManagement';
 import AcceptInvitation from './pages/AcceptInvitation';
 import UserSettings from './pages/UserSettings';
+import InvoiceParsing from './pages/InvoiceParsing';
 import RequireRole from './components/RequireRole';
 
 function App() {
@@ -100,6 +101,10 @@ function App() {
       <Route
         path="/input-bids"
         element={isAuthenticated ? <InputBids /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/invoice-parsing"
+        element={isAuthenticated ? <InvoiceParsing /> : <Navigate to="/login" />}
       />
 
       {/* Retailer Routes */}

@@ -1,0 +1,398 @@
+import { PrismaClient, InvoiceStatus, InvoiceProductType } from '@prisma/client';
+import { InvoiceParserService } from './invoice-parser.service';
+import fs from 'fs';
+import { Decimal } from '@prisma/client/runtime/library';
+
+const prisma = new PrismaClient();
+const parserService = new InvoiceParserService();
+
+export class InvoiceService {
+  async create(businessId: string, userId: string, file: Express.Multer.File) {
+    const invoice = await prisma.invoice.create({
+      data: {
+        businessId,
+        uploadedBy: userId,
+        fileName: file.originalname,
+        filePath: file.path,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        status: InvoiceStatus.PENDING
+      },
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Trigger async parsing (don't await - let it run in background)
+    this.parseInvoiceAsync(invoice.id, file.path, file.mimetype).catch(error => {
+      console.error(`Background parsing failed for invoice ${invoice.id}:`, error);
+    });
+
+    return invoice;
+  }
+
+  async parseInvoiceAsync(invoiceId: string, filePath: string, mimeType: string) {
+    try {
+      const parsedData = await parserService.parseInvoice(filePath, mimeType);
+
+      await prisma.$transaction(async (tx) => {
+        // Update invoice with parsed metadata
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            status: InvoiceStatus.PARSED,
+            vendorName: parsedData.vendorName,
+            invoiceNumber: parsedData.invoiceNumber,
+            invoiceDate: parsedData.invoiceDate ? new Date(parsedData.invoiceDate) : null,
+            totalAmount: parsedData.totalAmount ? new Decimal(parsedData.totalAmount) : null,
+            parsedData: parsedData as any,
+            parsedAt: new Date()
+          }
+        });
+
+        // Create line items
+        for (const item of parsedData.lineItems) {
+          await tx.invoiceLineItem.create({
+            data: {
+              invoiceId,
+              productType: item.productType as InvoiceProductType,
+              productName: item.productName,
+              quantity: new Decimal(item.quantity),
+              unit: item.unit,
+              pricePerUnit: new Decimal(item.pricePerUnit),
+              totalPrice: new Decimal(item.totalPrice),
+              isNewProduct: false
+            }
+          });
+        }
+      });
+
+      console.log(`Successfully parsed invoice ${invoiceId}`);
+    } catch (error) {
+      console.error(`Parsing failed for invoice ${invoiceId}:`, error);
+
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: InvoiceStatus.FAILED,
+          parseError: error instanceof Error ? error.message : 'Unknown parsing error'
+        }
+      });
+    }
+  }
+
+  async getAll(businessId: string) {
+    return prisma.invoice.findMany({
+      where: { businessId },
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        lineItems: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async getById(invoiceId: string, businessId: string) {
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        businessId
+      },
+      include: {
+        uploader: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        lineItems: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+
+    if (!invoice) {
+      throw new Error('Invoice not found');
+    }
+
+    return invoice;
+  }
+
+  async updateLineItem(
+    lineItemId: string,
+    businessId: string,
+    data: {
+      productName?: string;
+      productType?: InvoiceProductType;
+      quantity?: number;
+      unit?: string;
+      pricePerUnit?: number;
+      totalPrice?: number;
+    }
+  ) {
+    const lineItem = await prisma.invoiceLineItem.findFirst({
+      where: {
+        id: lineItemId,
+        invoice: { businessId }
+      }
+    });
+
+    if (!lineItem) {
+      throw new Error('Line item not found');
+    }
+
+    if (lineItem.priceLockedAt) {
+      throw new Error('Cannot edit line item after prices are locked');
+    }
+
+    const updateData: any = {};
+
+    if (data.productName !== undefined) updateData.productName = data.productName;
+    if (data.productType !== undefined) updateData.productType = data.productType;
+    if (data.quantity !== undefined) updateData.quantity = new Decimal(data.quantity);
+    if (data.unit !== undefined) updateData.unit = data.unit;
+    if (data.pricePerUnit !== undefined) updateData.pricePerUnit = new Decimal(data.pricePerUnit);
+
+    // Recalculate total price if quantity or pricePerUnit changed
+    if (data.quantity !== undefined || data.pricePerUnit !== undefined) {
+      const finalQuantity = data.quantity !== undefined ? data.quantity : Number(lineItem.quantity);
+      const finalPrice = data.pricePerUnit !== undefined ? data.pricePerUnit : Number(lineItem.pricePerUnit);
+      updateData.totalPrice = new Decimal(finalQuantity * finalPrice);
+    } else if (data.totalPrice !== undefined) {
+      updateData.totalPrice = new Decimal(data.totalPrice);
+    }
+
+    return prisma.invoiceLineItem.update({
+      where: { id: lineItemId },
+      data: updateData
+    });
+  }
+
+  async lockPrices(invoiceId: string, businessId: string, userId: string) {
+    const invoice = await this.getById(invoiceId, businessId);
+
+    if (invoice.status !== InvoiceStatus.PARSED) {
+      throw new Error('Can only lock prices for parsed invoices');
+    }
+
+    if (!invoice.lineItems || invoice.lineItems.length === 0) {
+      throw new Error('No line items to lock');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const lineItem of invoice.lineItems!) {
+        if (lineItem.priceLockedAt) {
+          continue; // Skip already locked items
+        }
+
+        let productId: string | null = null;
+
+        // Match or create product based on type
+        if (lineItem.productType === InvoiceProductType.FERTILIZER) {
+          productId = await this.matchOrCreateFertilizer(tx, businessId, lineItem);
+        } else if (lineItem.productType === InvoiceProductType.CHEMICAL) {
+          productId = await this.matchOrCreateChemical(tx, businessId, lineItem);
+        } else if (lineItem.productType === InvoiceProductType.SEED) {
+          productId = await this.matchOrCreateSeed(tx, businessId, lineItem);
+        }
+
+        // Create purchase history record
+        await tx.purchaseHistory.create({
+          data: {
+            businessId,
+            invoiceLineItemId: lineItem.id,
+            productType: lineItem.productType,
+            productId,
+            productName: lineItem.productName,
+            purchasedQuantity: lineItem.quantity,
+            purchasedUnit: lineItem.unit,
+            purchasedPrice: lineItem.pricePerUnit,
+            totalCost: lineItem.totalPrice,
+            purchasedAt: invoice.invoiceDate || invoice.createdAt,
+            vendorName: invoice.vendorName
+          }
+        });
+
+        // Mark line item as locked
+        await tx.invoiceLineItem.update({
+          where: { id: lineItem.id },
+          data: {
+            priceLockedAt: new Date(),
+            priceLockedBy: userId,
+            matchedProductId: productId,
+            matchedProductType: lineItem.productType
+          }
+        });
+      }
+
+      // Update invoice status
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { status: InvoiceStatus.REVIEWED }
+      });
+    });
+
+    return this.getById(invoiceId, businessId);
+  }
+
+  private async matchOrCreateFertilizer(
+    tx: any,
+    businessId: string,
+    lineItem: any
+  ): Promise<string> {
+    const existing = await tx.fertilizer.findFirst({
+      where: {
+        businessId,
+        name: {
+          equals: lineItem.productName,
+          mode: 'insensitive'
+        },
+        unit: lineItem.unit
+      }
+    });
+
+    if (existing) {
+      await tx.fertilizer.update({
+        where: { id: existing.id },
+        data: { pricePerUnit: lineItem.pricePerUnit }
+      });
+      return existing.id;
+    }
+
+    const newProduct = await tx.fertilizer.create({
+      data: {
+        businessId,
+        name: lineItem.productName,
+        pricePerUnit: lineItem.pricePerUnit,
+        unit: lineItem.unit
+      }
+    });
+
+    return newProduct.id;
+  }
+
+  private async matchOrCreateChemical(
+    tx: any,
+    businessId: string,
+    lineItem: any
+  ): Promise<string> {
+    const existing = await tx.chemical.findFirst({
+      where: {
+        businessId,
+        name: {
+          equals: lineItem.productName,
+          mode: 'insensitive'
+        },
+        unit: lineItem.unit
+      }
+    });
+
+    if (existing) {
+      await tx.chemical.update({
+        where: { id: existing.id },
+        data: { pricePerUnit: lineItem.pricePerUnit }
+      });
+      return existing.id;
+    }
+
+    const newProduct = await tx.chemical.create({
+      data: {
+        businessId,
+        name: lineItem.productName,
+        pricePerUnit: lineItem.pricePerUnit,
+        unit: lineItem.unit
+      }
+    });
+
+    return newProduct.id;
+  }
+
+  private async matchOrCreateSeed(
+    tx: any,
+    businessId: string,
+    lineItem: any
+  ): Promise<string> {
+    // Infer commodity type from product name
+    const commodityType = this.inferSeedCommodity(lineItem.productName);
+
+    const existing = await tx.seedHybrid.findFirst({
+      where: {
+        businessId,
+        hybridName: {
+          equals: lineItem.productName,
+          mode: 'insensitive'
+        },
+        commodityType
+      }
+    });
+
+    if (existing) {
+      await tx.seedHybrid.update({
+        where: { id: existing.id },
+        data: { pricePerBag: lineItem.pricePerUnit }
+      });
+      return existing.id;
+    }
+
+    const newProduct = await tx.seedHybrid.create({
+      data: {
+        businessId,
+        hybridName: lineItem.productName,
+        commodityType,
+        pricePerBag: lineItem.pricePerUnit,
+        seedsPerBag: lineItem.unit === 'BAG' ? 80000 : null // Default assumption
+      }
+    });
+
+    return newProduct.id;
+  }
+
+  private inferSeedCommodity(productName: string): string {
+    const name = productName.toLowerCase();
+
+    if (name.includes('corn') || name.includes('maize')) {
+      return 'CORN';
+    }
+    if (name.includes('soybean') || name.includes('soy')) {
+      return 'SOYBEANS';
+    }
+    if (name.includes('wheat')) {
+      return 'WHEAT';
+    }
+
+    // Default to CORN if unclear
+    return 'CORN';
+  }
+
+  async delete(invoiceId: string, businessId: string) {
+    const invoice = await this.getById(invoiceId, businessId);
+
+    // Delete file from filesystem
+    if (fs.existsSync(invoice.filePath)) {
+      fs.unlinkSync(invoice.filePath);
+    }
+
+    // Delete invoice (cascade will handle line items and purchase history)
+    await prisma.invoice.delete({
+      where: { id: invoiceId }
+    });
+  }
+}
+
+export const invoiceService = new InvoiceService();

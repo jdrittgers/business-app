@@ -76,6 +76,7 @@ model User {
   createdBidRequests  BidRequest[]
   createdInvitations  BusinessInvitation[] @relation("InvitationCreator")
   usedInvitations     BusinessInvitation[] @relation("InvitationUser")
+  uploadedInvoices    Invoice[]       @relation("InvoiceUploader")
 
   @@map("users")
 }
@@ -105,6 +106,8 @@ model Business {
   seedHybrids    SeedHybrid[]
   bidRequests    BidRequest[]
   invitations    BusinessInvitation[]
+  invoices       Invoice[]
+  purchaseHistory PurchaseHistory[]
 
   @@index([latitude, longitude])
   @@map("businesses")
@@ -601,6 +604,7 @@ model BidRequest {
   creator             User               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   items               BidRequestItem[]
   bids                RetailerBid[]
+  sourceInvoice       Invoice[]
 
   @@map("bid_requests")
   @@index([businessId])
@@ -672,4 +676,111 @@ model RetailerBidItem {
   @@map("retailer_bid_items")
   @@index([retailerBidId])
   @@index([bidRequestItemId])
+}
+
+// ===== Invoice Parsing System Models =====
+
+enum InvoiceStatus {
+  PENDING    // Upload complete, parsing in progress
+  PARSED     // Successfully parsed
+  FAILED     // Parsing failed
+  REVIEWED   // User reviewed and locked prices
+}
+
+enum InvoiceProductType {
+  FERTILIZER
+  CHEMICAL
+  SEED
+}
+
+model Invoice {
+  id                  String          @id @default(uuid())
+  businessId          String          @map("business_id")
+  uploadedBy          String          @map("uploaded_by")
+  fileName            String          @map("file_name")
+  filePath            String          @map("file_path")
+  fileSize            Int             @map("file_size")
+  mimeType            String          @map("mime_type")
+  status              InvoiceStatus   @default(PENDING)
+
+  vendorName          String?         @map("vendor_name")
+  invoiceNumber       String?         @map("invoice_number")
+  invoiceDate         DateTime?       @map("invoice_date")
+  totalAmount         Decimal?        @map("total_amount") @db.Decimal(12, 2)
+
+  parsedData          Json?           @map("parsed_data")
+  parseError          String?         @map("parse_error")
+  parsedAt            DateTime?       @map("parsed_at")
+
+  createdBidRequestId String?         @map("created_bid_request_id")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  business            Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  uploader            User            @relation("InvoiceUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  lineItems           InvoiceLineItem[]
+  createdBidRequest   BidRequest?     @relation(fields: [createdBidRequestId], references: [id], onDelete: SetNull)
+
+  @@map("invoices")
+  @@index([businessId, status])
+  @@index([uploadedBy])
+}
+
+model InvoiceLineItem {
+  id                  String               @id @default(uuid())
+  invoiceId           String               @map("invoice_id")
+  productType         InvoiceProductType   @map("product_type")
+  productName         String               @map("product_name")
+  quantity            Decimal              @db.Decimal(10, 2)
+  unit                String
+  pricePerUnit        Decimal              @map("price_per_unit") @db.Decimal(10, 2)
+  totalPrice          Decimal              @map("total_price") @db.Decimal(12, 2)
+
+  matchedProductId    String?              @map("matched_product_id")
+  matchedProductType  InvoiceProductType?  @map("matched_product_type")
+  isNewProduct        Boolean              @default(false) @map("is_new_product")
+
+  priceLockedAt       DateTime?            @map("price_locked_at")
+  priceLockedBy       String?              @map("price_locked_by")
+
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  invoice             Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  purchaseHistory     PurchaseHistory?
+
+  @@map("invoice_line_items")
+  @@index([invoiceId])
+  @@index([productType])
+}
+
+model PurchaseHistory {
+  id                  String               @id @default(uuid())
+  businessId          String               @map("business_id")
+  invoiceLineItemId   String               @unique @map("invoice_line_item_id")
+
+  productType         InvoiceProductType   @map("product_type")
+  productId           String?              @map("product_id")
+  productName         String               @map("product_name")
+
+  purchasedQuantity   Decimal              @map("purchased_quantity") @db.Decimal(10, 2)
+  purchasedUnit       String               @map("purchased_unit")
+  purchasedPrice      Decimal              @map("purchased_price") @db.Decimal(10, 2)
+  totalCost           Decimal              @map("total_cost") @db.Decimal(12, 2)
+
+  purchasedAt         DateTime             @map("purchased_at")
+  vendorName          String?              @map("vendor_name")
+
+  createdAt           DateTime             @default(now()) @map("created_at")
+
+  // Relations
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoiceLineItem     InvoiceLineItem      @relation(fields: [invoiceLineItemId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_history")
+  @@index([businessId, productType])
+  @@index([productId])
+  @@index([purchasedAt])
 }
