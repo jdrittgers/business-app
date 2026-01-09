@@ -42,28 +42,36 @@ export class InvoiceParserService {
       console.log('[InvoiceParser] Calling Claude API with model: claude-sonnet-4-20250514');
       console.log('[InvoiceParser] File type:', mimeType, 'Media type:', mediaType);
 
-      // Use 'document' type for PDFs, 'image' type for images
-      const contentType = mimeType === 'application/pdf' ? 'document' : 'image';
+      // Build content array with proper types
+      const isPdf = mimeType === 'application/pdf';
+      const contentBlocks: any[] = [
+        isPdf ? {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: mediaType,
+            data: base64Data
+          }
+        } : {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mediaType,
+            data: base64Data
+          }
+        },
+        {
+          type: 'text',
+          text: this.getParsingPrompt()
+        }
+      ];
 
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         messages: [{
           role: 'user',
-          content: [
-            {
-              type: contentType as any,
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: base64Data
-              }
-            },
-            {
-              type: 'text',
-              text: this.getParsingPrompt()
-            }
-          ]
+          content: contentBlocks
         }]
       });
 
