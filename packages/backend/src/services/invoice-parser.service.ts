@@ -40,9 +40,7 @@ export class InvoiceParserService {
       const mediaType = this.getClaudeMediaType(mimeType);
 
       console.log('[InvoiceParser] Calling Claude API with model: claude-sonnet-4-20250514');
-
-      // Determine content type based on file type
-      const contentType = mimeType === 'application/pdf' ? 'document' : 'image';
+      console.log('[InvoiceParser] File type:', mimeType, 'Media type:', mediaType);
 
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
@@ -51,7 +49,7 @@ export class InvoiceParserService {
           role: 'user',
           content: [
             {
-              type: contentType as any,
+              type: 'image',
               source: {
                 type: 'base64',
                 media_type: mediaType,
@@ -73,17 +71,27 @@ export class InvoiceParserService {
       }
 
       // Parse JSON response
+      console.log('[InvoiceParser] Raw Claude response:', textContent.text);
+
       const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
+        console.error('[InvoiceParser] Could not extract JSON from response:', textContent.text);
         throw new Error('Could not extract JSON from Claude response');
       }
 
+      console.log('[InvoiceParser] Extracted JSON:', jsonMatch[0]);
+
       const parsedData: ParsedInvoiceData = JSON.parse(jsonMatch[0]);
+
+      console.log('[InvoiceParser] Parsed data:', JSON.stringify(parsedData, null, 2));
 
       // Validate parsed data
       if (!parsedData.lineItems || parsedData.lineItems.length === 0) {
+        console.error('[InvoiceParser] No line items in parsed data:', parsedData);
         throw new Error('No line items found in invoice');
       }
+
+      console.log('[InvoiceParser] Successfully parsed', parsedData.lineItems.length, 'line items');
 
       return parsedData;
 
@@ -93,11 +101,18 @@ export class InvoiceParserService {
     }
   }
 
-  private getClaudeMediaType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'application/pdf' {
+  private getClaudeMediaType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
     if (mimeType === 'image/jpg' || mimeType === 'image/jpeg') return 'image/jpeg';
     if (mimeType === 'image/png') return 'image/png';
-    if (mimeType === 'application/pdf') return 'application/pdf';
-    throw new Error(`Unsupported mime type: ${mimeType}`);
+    if (mimeType === 'image/webp') return 'image/webp';
+    if (mimeType === 'image/gif') return 'image/gif';
+
+    // PDFs are not directly supported by Claude's vision API
+    if (mimeType === 'application/pdf') {
+      throw new Error('PDF support requires conversion to images. Please upload a JPG or PNG screenshot of your invoice instead.');
+    }
+
+    throw new Error(`Unsupported mime type: ${mimeType}. Supported formats: JPG, PNG, WEBP, GIF`);
   }
 
   private getParsingPrompt(): string {
