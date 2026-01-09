@@ -553,6 +553,7 @@ export default function InputBids() {
                         >
                           <option value="GAL">GAL</option>
                           <option value="LB">LB</option>
+                          <option value="TON">TON</option>
                         </select>
                         <input
                           type="number"

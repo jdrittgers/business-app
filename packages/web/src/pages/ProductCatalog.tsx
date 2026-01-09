@@ -497,11 +497,12 @@ export default function ProductCatalog() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
                     <select
-                      value={formData.unit || 'LB'}
+                      value={formData.unit || 'TON'}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       required
                     >
+                      <option value="TON">TON (Tons)</option>
                       <option value="LB">LB (Pounds)</option>
                       <option value="GAL">GAL (Gallons)</option>
                     </select>

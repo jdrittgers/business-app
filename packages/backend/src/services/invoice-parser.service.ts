@@ -143,7 +143,7 @@ Extract:
       "productType": "FERTILIZER|CHEMICAL|SEED",
       "productName": "Product name",
       "quantity": 1000,
-      "unit": "LB|GAL|BAG",
+      "unit": "TON|LB|GAL|BAG",
       "pricePerUnit": 0.50,
       "totalPrice": 500.00
     }
@@ -152,7 +152,7 @@ Extract:
 
 Rules:
 - Use best judgment for product type based on name
-- Normalize units to: LB (pounds), GAL (gallons), BAG (bags/units)
+- Normalize units to: TON (tons), LB (pounds), GAL (gallons), BAG (bags/units)
 - Extract numeric values only (remove $ and commas)
 - If date format is unclear, use YYYY-MM-DD
 - If information is missing, omit the field or use null
