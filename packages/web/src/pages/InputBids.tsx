@@ -26,6 +26,7 @@ export default function InputBids() {
   const [showViewBidsModal, setShowViewBidsModal] = useState(false);
   const [selectedBidRequest, setSelectedBidRequest] = useState<BidRequest | null>(null);
   const [formData, setFormData] = useState({
+    bidDeadline: '',
     desiredDeliveryDate: '',
     notes: ''
   });
@@ -108,6 +109,7 @@ export default function InputBids() {
     try {
       await biddingApi.createBidRequest(selectedBusinessId, {
         title,
+        bidDeadline: formData.bidDeadline || undefined,
         desiredDeliveryDate: formData.desiredDeliveryDate || undefined,
         notes: formData.notes || undefined,
         items: validItems
@@ -180,6 +182,7 @@ export default function InputBids() {
 
   const resetForm = () => {
     setFormData({
+      bidDeadline: '',
       desiredDeliveryDate: '',
       notes: ''
     });
@@ -463,6 +466,22 @@ export default function InputBids() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bid Deadline (Price Lock Date) *
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.bidDeadline}
+                      onChange={(e) => setFormData({ ...formData, bidDeadline: e.target.value })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      placeholder="When do you need pricing finalized?"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Retailers must submit bids before this date
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Desired Delivery Date
                     </label>
                     <input
@@ -471,6 +490,9 @@ export default function InputBids() {
                       onChange={(e) => setFormData({ ...formData, desiredDeliveryDate: e.target.value })}
                       className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      When you want the products delivered
+                    </p>
                   </div>
 
                   <div>
@@ -593,6 +615,11 @@ export default function InputBids() {
                 )}
                 <div className="text-sm text-gray-600">
                   <p>Status: <span className="font-medium">{selectedBidRequest.status}</span></p>
+                  {selectedBidRequest.bidDeadline && (
+                    <p className="text-orange-600 font-semibold">
+                      🔒 Bid Deadline: {new Date(selectedBidRequest.bidDeadline).toLocaleDateString()}
+                    </p>
+                  )}
                   {selectedBidRequest.desiredDeliveryDate && (
                     <p>Desired Delivery: {new Date(selectedBidRequest.desiredDeliveryDate).toLocaleDateString()}</p>
                   )}

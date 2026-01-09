@@ -10,6 +10,54 @@ import {
   formatDistance
 } from '@business-app/shared';
 
+// Countdown Timer Component
+function CountdownTimer({ deadline }: { deadline: Date }) {
+  const [timeLeft, setTimeLeft] = useState('');
+  const [isUrgent, setIsUrgent] = useState(false);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const deadlineDate = new Date(deadline);
+      const diff = deadlineDate.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setTimeLeft('EXPIRED');
+        setIsUrgent(true);
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      // Mark as urgent if less than 24 hours
+      setIsUrgent(diff < 24 * 60 * 60 * 1000);
+
+      if (days > 0) {
+        setTimeLeft(`${days}d ${hours}h`);
+      } else if (hours > 0) {
+        setTimeLeft(`${hours}h ${minutes}m`);
+      } else {
+        setTimeLeft(`${minutes}m`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, [deadline]);
+
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+      isUrgent ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-orange-100 text-orange-800'
+    }`}>
+      ⏰ {timeLeft}
+    </span>
+  );
+}
+
 export default function RetailerDashboard() {
   const { retailer, user, isAuthenticated, logout } = useRetailerAuthStore();
   const navigate = useNavigate();
@@ -245,11 +293,42 @@ export default function RetailerDashboard() {
 
   const acceptedBids = myBids.filter(b => b.status === 'ACCEPTED');
 
+  // Calculate total volumes and amounts
+  const calculateVolumes = () => {
+    let totalGallons = 0;
+    let totalLbs = 0;
+    let acceptedTotalValue = 0;
+
+    myBids.forEach(bid => {
+      if (bid.status === 'ACCEPTED') {
+        acceptedTotalValue += bid.totalDeliveredPrice;
+      }
+
+      // Count volumes from bid items for active bids
+      if (bid.bidRequest?.status === BidRequestStatus.OPEN && bid.bidRequest.items) {
+        bid.bidRequest.items.forEach(item => {
+          if (item.unit === 'GAL') {
+            totalGallons += item.quantity;
+          } else if (item.unit === 'LB' || item.unit === 'TON') {
+            totalLbs += item.unit === 'TON' ? item.quantity * 2000 : item.quantity;
+          }
+        });
+      }
+    });
+
+    return { totalGallons, totalLbs, acceptedTotalValue };
+  };
+
+  const { totalGallons, totalLbs, acceptedTotalValue } = calculateVolumes();
+
   const stats = {
     totalBids: myBids.length,
     activeBids: myBids.filter(b => b.bidRequest?.status === BidRequestStatus.OPEN).length,
     acceptedBids: acceptedBids.length,
-    availableRequests: openBidRequests.length
+    availableRequests: openBidRequests.length,
+    totalGallons,
+    totalLbs,
+    acceptedTotalValue
   };
 
   return (
@@ -284,7 +363,7 @@ export default function RetailerDashboard() {
 
       {/* Stats */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-500">Total Bids</div>
             <div className="mt-2 text-3xl font-bold text-gray-900">{stats.totalBids}</div>
@@ -300,6 +379,25 @@ export default function RetailerDashboard() {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-500">Available Requests</div>
             <div className="mt-2 text-3xl font-bold text-blue-600">{stats.availableRequests}</div>
+          </div>
+        </div>
+
+        {/* Volume & Value Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-blue-700">Products Out for Bid (GAL)</div>
+            <div className="mt-2 text-3xl font-bold text-blue-900">{stats.totalGallons.toLocaleString()}</div>
+            <div className="text-xs text-blue-600 mt-1">Gallons</div>
+          </div>
+          <div className="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-green-700">Products Out for Bid (LB/TON)</div>
+            <div className="mt-2 text-3xl font-bold text-green-900">{stats.totalLbs.toLocaleString()}</div>
+            <div className="text-xs text-green-600 mt-1">Pounds</div>
+          </div>
+          <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-purple-700">Accepted Bid Value</div>
+            <div className="mt-2 text-3xl font-bold text-purple-900">${stats.acceptedTotalValue.toLocaleString()}</div>
+            <div className="text-xs text-purple-600 mt-1">Total Revenue</div>
           </div>
         </div>
 
@@ -417,32 +515,51 @@ export default function RetailerDashboard() {
                     <div key={bidRequest.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-900">{bidRequest.title}</h3>
                             {bidRequest.distance !== undefined && (
                               <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
                                 {formatDistance(bidRequest.distance)}
                               </span>
                             )}
+                            {bidRequest.bidDeadline && (
+                              <CountdownTimer deadline={bidRequest.bidDeadline} />
+                            )}
                           </div>
                           {bidRequest.description && (
                             <p className="mt-1 text-sm text-gray-600">{bidRequest.description}</p>
                           )}
-                          <div className="mt-3 flex gap-6 text-sm text-gray-500">
+                          <div className="mt-3 flex gap-6 text-sm text-gray-500 flex-wrap">
                             <span>📍 {bidRequest.business?.city}, {bidRequest.business?.state}</span>
                             <span>🏢 {bidRequest.business?.name}</span>
+                            {bidRequest.bidDeadline && (
+                              <span className="text-orange-600 font-semibold">🔒 Deadline: {new Date(bidRequest.bidDeadline).toLocaleDateString()}</span>
+                            )}
                             {bidRequest.desiredDeliveryDate && (
-                              <span>📅 Desired: {new Date(bidRequest.desiredDeliveryDate).toLocaleDateString()}</span>
+                              <span>📅 Delivery: {new Date(bidRequest.desiredDeliveryDate).toLocaleDateString()}</span>
                             )}
                           </div>
 
-                          {/* Items */}
+                          {/* Items with Current Prices */}
                           <div className="mt-4">
                             <p className="text-sm font-medium text-gray-700 mb-2">Items Requested:</p>
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               {bidRequest.items?.map((item) => (
-                                <div key={item.id} className="text-sm text-gray-600">
-                                  • {item.productName} - {item.quantity} {item.unit}
+                                <div key={item.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                  <div className="text-sm text-gray-700">
+                                    <span className="font-medium">{item.productName}</span>
+                                    <span className="text-gray-500 ml-2">
+                                      {item.quantity} {item.unit}
+                                    </span>
+                                  </div>
+                                  {item.currentPrice !== undefined && item.currentPrice > 0 && (
+                                    <div className="text-sm">
+                                      <span className="text-gray-500">Beat: </span>
+                                      <span className="font-bold text-green-600">
+                                        ${item.currentPrice.toFixed(2)}/{item.unit}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

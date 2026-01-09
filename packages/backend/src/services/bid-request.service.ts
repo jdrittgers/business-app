@@ -28,6 +28,7 @@ export class BidRequestService {
           createdBy: userId,
           title: data.title,
           description: data.description,
+          bidDeadline: data.bidDeadline ? new Date(data.bidDeadline) : undefined,
           desiredDeliveryDate: data.desiredDeliveryDate ? new Date(data.desiredDeliveryDate) : undefined,
           notes: data.notes,
           status: BidRequestStatus.OPEN
@@ -238,6 +239,7 @@ export class BidRequestService {
       data: {
         title: data.title,
         description: data.description,
+        bidDeadline: data.bidDeadline ? new Date(data.bidDeadline) : undefined,
         desiredDeliveryDate: data.desiredDeliveryDate ? new Date(data.desiredDeliveryDate) : undefined,
         notes: data.notes
       },
@@ -360,6 +362,7 @@ export class BidRequestService {
       title: bidRequest.title,
       description: bidRequest.description || undefined,
       status: bidRequest.status,
+      bidDeadline: bidRequest.bidDeadline || undefined,
       desiredDeliveryDate: bidRequest.desiredDeliveryDate || undefined,
       notes: bidRequest.notes || undefined,
       createdAt: bidRequest.createdAt,

@@ -88,7 +88,8 @@ export interface BidRequest {
   title: string;
   description?: string;
   status: BidRequestStatus;
-  desiredDeliveryDate?: Date;
+  bidDeadline?: Date;  // When retailers must submit bids by (price lock deadline)
+  desiredDeliveryDate?: Date;  // When farmer wants delivery
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -122,7 +123,8 @@ export interface CreateBidRequestItemInput {
 export interface CreateBidRequestRequest {
   title: string;
   description?: string;
-  desiredDeliveryDate?: Date | string;
+  bidDeadline?: Date | string;  // When retailers must submit bids by
+  desiredDeliveryDate?: Date | string;  // When farmer wants delivery
   notes?: string;
   items: CreateBidRequestItemInput[];
 }
@@ -130,6 +132,7 @@ export interface CreateBidRequestRequest {
 export interface UpdateBidRequestRequest {
   title?: string;
   description?: string;
+  bidDeadline?: Date | string;
   desiredDeliveryDate?: Date | string;
   notes?: string;
 }
