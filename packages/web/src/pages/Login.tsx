@@ -1,12 +1,26 @@
-import { useState, FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, FormEvent } from 'react';
+import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { invitationApi } from '../api/invitation.api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError, loadUser } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const [invitationCode, setInvitationCode] = useState<string | null>(null);
+
+  // Check for invitation code
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    const codeFromState = location.state?.invitationCode;
+    const code = codeFromUrl || codeFromState;
+    if (code) {
+      setInvitationCode(code);
+    }
+  }, [searchParams, location.state]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -14,6 +28,17 @@ export default function Login() {
 
     try {
       await login(email, password);
+
+      // If there's an invitation code, accept it after login
+      if (invitationCode) {
+        try {
+          await invitationApi.acceptInvitation(invitationCode);
+          await loadUser(); // Reload to get updated memberships
+        } catch (err) {
+          console.error('Failed to accept invitation:', err);
+        }
+      }
+
       navigate('/dashboard');
     } catch (err) {
       // Error is already handled in the store

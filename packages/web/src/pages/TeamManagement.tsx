@@ -96,6 +96,13 @@ export default function TeamManagement() {
     setTimeout(() => setSuccess(''), 3000);
   };
 
+  const copyInvitationLink = (code: string) => {
+    const link = `${window.location.origin}/register?code=${code}`;
+    navigator.clipboard.writeText(link);
+    setSuccess(`Invitation link copied! Share this with your employee.`);
+    setTimeout(() => setSuccess(''), 3000);
+  };
+
   const handleRemoveMember = async (membershipId: string, memberName: string) => {
     if (!confirm(`Are you sure you want to remove ${memberName} from the team?`)) return;
 
@@ -320,16 +327,23 @@ export default function TeamManagement() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-3 mb-3">
                             <code className="text-2xl font-mono font-bold text-green-600">
                               {invitation.code}
                             </code>
                             <button
                               onClick={() => copyToClipboard(invitation.code)}
                               className="text-sm text-gray-600 hover:text-green-600"
-                              title="Copy to clipboard"
+                              title="Copy code"
                             >
-                              📋 Copy
+                              📋 Copy Code
+                            </button>
+                            <button
+                              onClick={() => copyInvitationLink(invitation.code)}
+                              className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                              title="Copy registration link"
+                            >
+                              🔗 Copy Link
                             </button>
                             {!invitation.isActive && (
                               <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">
@@ -337,6 +351,9 @@ export default function TeamManagement() {
                               </span>
                             )}
                           </div>
+                          <p className="text-xs text-gray-500 mb-2">
+                            Share the link with your employee - they'll create an account and automatically join your team
+                          </p>
 
                           <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                             <div>

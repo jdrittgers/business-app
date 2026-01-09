@@ -1,16 +1,42 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { invitationApi, InvitationWithBusiness } from '../api/invitation.api';
 import { useAuthStore } from '../store/authStore';
 
 export default function AcceptInvitation() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<'enter-code' | 'confirm' | 'success'>('enter-code');
   const [code, setCode] = useState('');
   const [invitation, setInvitation] = useState<InvitationWithBusiness | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Auto-load code from URL if present
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl) {
+      setCode(codeFromUrl.toUpperCase());
+      // Auto-validate the code
+      validateCodeFromUrl(codeFromUrl.toUpperCase());
+    }
+  }, [searchParams]);
+
+  const validateCodeFromUrl = async (codeValue: string) => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const validatedInvitation = await invitationApi.validateInvitationCode(codeValue);
+      setInvitation(validatedInvitation);
+      setStep('confirm');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Invalid or expired invitation code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleValidateCode = async (e: React.FormEvent) => {
     e.preventDefault();
