@@ -5,7 +5,7 @@ import { InvoiceProductType } from '@prisma/client';
 export const uploadInvoice = async (req: Request, res: Response) => {
   try {
     const { businessId } = req.params;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
 
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -96,7 +96,7 @@ export const updateLineItem = async (req: Request, res: Response) => {
 export const lockPrices = async (req: Request, res: Response) => {
   try {
     const { businessId, id } = req.params;
-    const userId = (req as any).user.id;
+    const userId = (req as any).user.userId;
 
     const invoice = await invoiceService.lockPrices(id, businessId, userId);
 
