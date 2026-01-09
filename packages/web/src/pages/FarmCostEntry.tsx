@@ -9,10 +9,13 @@ import {
   SeedHybrid,
   CostType
 } from '@business-app/shared';
+import { usePermissions } from '../hooks/usePermissions';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
 
 export default function FarmCostEntry() {
   const { farmId } = useParams<{ farmId: string }>();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { canEdit, isEmployee } = usePermissions();
   const navigate = useNavigate();
 
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
@@ -376,11 +379,15 @@ export default function FarmCostEntry() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Read-only banner for employees */}
+        {isEmployee && <ReadOnlyBanner />}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Fertilizer Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Fertilizer Usage</h2>
-            <form onSubmit={handleAddFertilizer} className="space-y-4">
+            {canEdit() && (
+              <form onSubmit={handleAddFertilizer} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fertilizer
@@ -422,6 +429,7 @@ export default function FarmCostEntry() {
                 Add Fertilizer
               </button>
             </form>
+            )}
 
             {farm.fertilizerUsage && farm.fertilizerUsage.length > 0 && (
               <div className="mt-6">
@@ -465,21 +473,23 @@ export default function FarmCostEntry() {
                           <span>{usage.fertilizer.name}: {usage.amountUsed} {usage.fertilizer.unit}</span>
                           <div className="flex items-center space-x-3">
                             <span className="font-semibold">${(usage.amountUsed * usage.fertilizer.pricePerUnit).toFixed(2)}</span>
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => setEditingFertilizer(usage)}
-                                className="text-blue-600 hover:text-blue-800 text-xs"
-                              >
-                                Edit
-                              </button>
-                              <span className="text-gray-300">|</span>
-                              <button
-                                onClick={() => handleDeleteFertilizer(usage.id)}
-                                className="text-red-600 hover:text-red-800 text-xs"
-                              >
-                                Delete
-                              </button>
-                            </div>
+                            {canEdit() && (
+                              <div className="flex space-x-1">
+                                <button
+                                  onClick={() => setEditingFertilizer(usage)}
+                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                >
+                                  Edit
+                                </button>
+                                <span className="text-gray-300">|</span>
+                                <button
+                                  onClick={() => handleDeleteFertilizer(usage.id)}
+                                  className="text-red-600 hover:text-red-800 text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -493,7 +503,8 @@ export default function FarmCostEntry() {
           {/* Chemical Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Chemical Usage</h2>
-            <form onSubmit={handleAddChemical} className="space-y-4">
+            {canEdit() && (
+              <form onSubmit={handleAddChemical} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Chemical
@@ -571,6 +582,7 @@ export default function FarmCostEntry() {
                 Add Chemical
               </button>
             </form>
+            )}
 
             {farm.chemicalUsage && farm.chemicalUsage.length > 0 && (
               <div className="mt-6">
@@ -614,21 +626,23 @@ export default function FarmCostEntry() {
                           <span>{usage.chemical.name}: {usage.amountUsed} {usage.chemical.unit}</span>
                           <div className="flex items-center space-x-3">
                             <span className="font-semibold">${(usage.amountUsed * usage.chemical.pricePerUnit).toFixed(2)}</span>
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => setEditingChemical(usage)}
-                                className="text-blue-600 hover:text-blue-800 text-xs"
-                              >
-                                Edit
-                              </button>
-                              <span className="text-gray-300">|</span>
-                              <button
-                                onClick={() => handleDeleteChemical(usage.id)}
-                                className="text-red-600 hover:text-red-800 text-xs"
-                              >
-                                Delete
-                              </button>
-                            </div>
+                            {canEdit() && (
+                              <div className="flex space-x-1">
+                                <button
+                                  onClick={() => setEditingChemical(usage)}
+                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                >
+                                  Edit
+                                </button>
+                                <span className="text-gray-300">|</span>
+                                <button
+                                  onClick={() => handleDeleteChemical(usage.id)}
+                                  className="text-red-600 hover:text-red-800 text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -642,7 +656,8 @@ export default function FarmCostEntry() {
           {/* Seed Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Seed Usage</h2>
-            <form onSubmit={handleAddSeed} className="space-y-4">
+            {canEdit() && (
+              <form onSubmit={handleAddSeed} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Seed Hybrid
@@ -687,6 +702,7 @@ export default function FarmCostEntry() {
                 Add Seed
               </button>
             </form>
+            )}
 
             {farm.seedUsage && farm.seedUsage.length > 0 && (
               <div className="mt-6">
@@ -732,21 +748,23 @@ export default function FarmCostEntry() {
                             <span className="font-semibold">
                               ${(usage.bagsUsed * usage.seedHybrid.pricePerBag).toFixed(2)}
                             </span>
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => setEditingSeed(usage)}
-                                className="text-blue-600 hover:text-blue-800 text-xs"
-                              >
-                                Edit
-                              </button>
-                              <span className="text-gray-300">|</span>
-                              <button
-                                onClick={() => handleDeleteSeed(usage.id)}
-                                className="text-red-600 hover:text-red-800 text-xs"
-                              >
-                                Delete
-                              </button>
-                            </div>
+                            {canEdit() && (
+                              <div className="flex space-x-1">
+                                <button
+                                  onClick={() => setEditingSeed(usage)}
+                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                >
+                                  Edit
+                                </button>
+                                <span className="text-gray-300">|</span>
+                                <button
+                                  onClick={() => handleDeleteSeed(usage.id)}
+                                  className="text-red-600 hover:text-red-800 text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -765,7 +783,8 @@ export default function FarmCostEntry() {
                 Add any additional costs like land rent, insurance, custom work, fuel, labor, etc.
               </p>
             </div>
-            <form onSubmit={handleAddOtherCost} className="space-y-4">
+            {canEdit() && (
+              <form onSubmit={handleAddOtherCost} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Cost Type *
@@ -845,6 +864,7 @@ export default function FarmCostEntry() {
                 Add Miscellaneous Cost
               </button>
             </form>
+            )}
 
             {farm.otherCosts && farm.otherCosts.length > 0 && (
               <div className="mt-6">
@@ -914,21 +934,23 @@ export default function FarmCostEntry() {
                               <span className="font-semibold">
                                 ${(cost.isPerAcre ? cost.amount * farm.acres : cost.amount).toFixed(2)}
                               </span>
-                              <div className="flex space-x-1">
-                                <button
-                                  onClick={() => setEditingOtherCost(cost)}
-                                  className="text-blue-600 hover:text-blue-800 text-xs"
-                                >
-                                  Edit
-                                </button>
-                                <span className="text-gray-300">|</span>
-                                <button
-                                  onClick={() => handleDeleteOtherCost(cost.id)}
-                                  className="text-red-600 hover:text-red-800 text-xs"
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                              {canEdit() && (
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() => setEditingOtherCost(cost)}
+                                    className="text-blue-600 hover:text-blue-800 text-xs"
+                                  >
+                                    Edit
+                                  </button>
+                                  <span className="text-gray-300">|</span>
+                                  <button
+                                    onClick={() => handleDeleteOtherCost(cost.id)}
+                                    className="text-red-600 hover:text-red-800 text-xs"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                           {cost.description && (
