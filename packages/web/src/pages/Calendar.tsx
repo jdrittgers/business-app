@@ -37,7 +37,7 @@ export default function Calendar() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const handleDateClick = (info: any) => {

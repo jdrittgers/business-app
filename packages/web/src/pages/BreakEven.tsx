@@ -61,7 +61,7 @@ export default function BreakEven() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   if (!user) return null;

@@ -157,7 +157,7 @@ export default function GrainProduction() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const getCommodityIcon = (commodity: CommodityType) => {

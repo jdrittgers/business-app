@@ -37,7 +37,7 @@ export default function Tasks() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const handleClaimTask = async (taskId: string) => {

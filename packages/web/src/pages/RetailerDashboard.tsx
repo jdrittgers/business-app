@@ -236,7 +236,7 @@ export default function RetailerDashboard() {
 
   const handleLogout = () => {
     logout();
-    navigate('/retailer/login');
+    navigate('/');
   };
 
   if (!retailer || !user) {

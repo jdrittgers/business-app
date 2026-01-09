@@ -163,7 +163,7 @@ export default function ProductCatalog() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const toggleProductSelection = (productId: string) => {

@@ -104,7 +104,7 @@ export default function FarmCostEntry() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const handleAddFertilizer = async (e: React.FormEvent) => {

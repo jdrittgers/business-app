@@ -116,7 +116,7 @@ export default function GrainContracts() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   // Calculate number of days between dates

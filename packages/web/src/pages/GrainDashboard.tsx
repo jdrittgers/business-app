@@ -65,7 +65,7 @@ export default function GrainDashboard() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   if (!user) return null;

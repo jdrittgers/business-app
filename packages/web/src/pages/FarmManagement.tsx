@@ -90,7 +90,7 @@ export default function FarmManagement() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const getYieldDefaults = (commodityType: CommodityType) => {
