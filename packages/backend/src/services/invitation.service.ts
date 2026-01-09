@@ -41,7 +41,7 @@ export class InvitationService {
     userId: string,
     data: CreateInvitationRequest
   ): Promise<InvitationResponse> {
-    const { businessId, role, email, expiresInDays = 7, maxUses = 1 } = data;
+    const { businessId, role, email, expiresInDays = 365, maxUses = 999 } = data;
 
     // Verify user is an owner of this business
     const membership = await prisma.businessMember.findUnique({

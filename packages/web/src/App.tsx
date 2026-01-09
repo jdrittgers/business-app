@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore';
 import { useRetailerAuthStore } from './store/retailerAuthStore';
 import { useSocket } from './hooks/useSocket';
 import { registerServiceWorker } from './utils/push-notifications';
+import { UserRole } from '@business-app/shared';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import FarmerRegister from './pages/FarmerRegister';
@@ -24,6 +25,7 @@ import RetailerDashboard from './pages/RetailerDashboard';
 import RetailerProfile from './pages/RetailerProfile';
 import TeamManagement from './pages/TeamManagement';
 import AcceptInvitation from './pages/AcceptInvitation';
+import RequireRole from './components/RequireRole';
 
 function App() {
   const { loadUser, isAuthenticated } = useAuthStore();
@@ -76,19 +78,19 @@ function App() {
       />
       <Route
         path="/breakeven"
-        element={isAuthenticated ? <BreakEven /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><BreakEven /></RequireRole> : <Navigate to="/login" />}
       />
       <Route
         path="/breakeven/products"
-        element={isAuthenticated ? <ProductCatalog /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole> : <Navigate to="/login" />}
       />
       <Route
         path="/breakeven/farms"
-        element={isAuthenticated ? <FarmManagement /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmManagement /></RequireRole> : <Navigate to="/login" />}
       />
       <Route
         path="/breakeven/farms/:farmId/costs"
-        element={isAuthenticated ? <FarmCostEntry /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole> : <Navigate to="/login" />}
       />
       <Route
         path="/input-bids"

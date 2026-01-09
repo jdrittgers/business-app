@@ -103,12 +103,14 @@ export default function Dashboard() {
                       >
                         📝 Contracts
                       </button>
-                      <button
-                        onClick={() => navigate('/breakeven')}
-                        className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium text-sm"
-                      >
-                        💰 Breakeven
-                      </button>
+                      {membership.role !== 'EMPLOYEE' && (
+                        <button
+                          onClick={() => navigate('/breakeven')}
+                          className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 font-medium text-sm"
+                        >
+                          💰 Breakeven
+                        </button>
+                      )}
                       {membership.role === 'OWNER' && (
                         <button
                           onClick={() => navigate('/team')}
