@@ -9,9 +9,12 @@ import {
   ContractType,
   CommodityType
 } from '@business-app/shared';
+import { usePermissions } from '../hooks/usePermissions';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
 
 export default function GrainContracts() {
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { canEdit, isEmployee } = usePermissions();
   const navigate = useNavigate();
 
   const [contracts, setContracts] = useState<GrainContract[]>([]);
@@ -437,23 +440,30 @@ export default function GrainContracts() {
           )}
 
           <div className="bg-white rounded-lg shadow p-6">
+            {/* Read-only banner for employees */}
+            {isEmployee && <ReadOnlyBanner />}
+
             <div className="mb-6 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">Grain Contracts</h2>
 
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setShowEntityModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-                >
-                  + New Entity
-                </button>
+                {canEdit() && (
+                  <>
+                    <button
+                      onClick={() => setShowEntityModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                    >
+                      + New Entity
+                    </button>
 
-                <button
-                  onClick={handleOpenModal}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
-                >
-                  + New Contract
-                </button>
+                    <button
+                      onClick={handleOpenModal}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+                    >
+                      + New Contract
+                    </button>
+                  </>
+                )}
 
                 <select
                   value={selectedBusinessId || ''}
@@ -601,26 +611,28 @@ export default function GrainContracts() {
                         <div className={`px-3 py-1 rounded text-sm font-medium text-center ${contract.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                           {contract.isActive ? 'Active' : 'Inactive'}
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEditModal(contract);
-                            }}
-                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(contract.id);
-                            }}
-                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        {canEdit() && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditModal(contract);
+                              }}
+                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(contract.id);
+                              }}
+                              className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

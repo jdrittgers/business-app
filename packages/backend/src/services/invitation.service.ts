@@ -280,6 +280,37 @@ export class InvitationService {
         throw new Error('You are already a member of this business');
       }
 
+      // Find and delete any temporary businesses created during registration
+      const tempBusinesses = await tx.business.findMany({
+        where: {
+          name: {
+            startsWith: 'Temp-'
+          },
+          members: {
+            some: {
+              userId: userId,
+              role: 'OWNER'
+            }
+          }
+        },
+        select: {
+          id: true
+        }
+      });
+
+      // Delete temporary business memberships and businesses
+      for (const tempBusiness of tempBusinesses) {
+        // Delete all memberships for this temp business
+        await tx.businessMember.deleteMany({
+          where: { businessId: tempBusiness.id }
+        });
+
+        // Delete the temp business itself
+        await tx.business.delete({
+          where: { id: tempBusiness.id }
+        });
+      }
+
       // Create membership
       await tx.businessMember.create({
         data: {
