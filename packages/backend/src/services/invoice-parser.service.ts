@@ -39,9 +39,9 @@ export class InvoiceParserService {
       // Prepare media type for Claude
       const mediaType = this.getClaudeMediaType(mimeType);
 
-      console.log('[InvoiceParser] Calling Claude API with model: claude-3-haiku-20240307');
+      console.log('[InvoiceParser] Calling Claude API with model: claude-sonnet-4-20250514');
       const response = await this.anthropic.messages.create({
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         messages: [{
           role: 'user',
