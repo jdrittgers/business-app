@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { authApi } from '../api/auth.api';
+import { useAuthStore } from '../store/authStore';
 
 export default function FarmerRegister() {
+  const navigate = useNavigate();
+  const { setUser, setAccessToken } = useAuthStore();
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -44,13 +49,16 @@ export default function FarmerRegister() {
     setIsLoading(true);
 
     try {
-      // TODO: Implement farmer registration API call
-      // await authApi.registerFarmer(formData);
-      console.log('Farmer registration:', formData);
+      const { confirmPassword, ...registerData } = formData;
+      const response = await authApi.registerFarmer(registerData);
 
-      // For now, show a message that registration is not yet implemented
-      setError('Farmer registration is coming soon. Please use test credentials to login.');
-      setIsLoading(false);
+      // Store auth data
+      setUser(response.user);
+      setAccessToken(response.accessToken);
+      localStorage.setItem('accessToken', response.accessToken);
+
+      // Redirect to dashboard
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
       setIsLoading(false);

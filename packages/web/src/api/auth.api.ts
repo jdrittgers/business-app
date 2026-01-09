@@ -1,7 +1,30 @@
 import apiClient from './client';
 import { LoginRequest, LoginResponse, UserWithBusinesses } from '@business-app/shared';
 
+export interface RegisterFarmerRequest {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  businessName: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  phone: string;
+  disclaimerAccepted: boolean;
+}
+
+export interface RegisterResponse extends LoginResponse {
+  refreshToken: string;
+}
+
 export const authApi = {
+  registerFarmer: async (data: RegisterFarmerRequest): Promise<LoginResponse> => {
+    const response = await apiClient.post<LoginResponse>('/api/auth/register', data);
+    return response.data;
+  },
+
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     const response = await apiClient.post<LoginResponse>('/api/auth/login', credentials);
     return response.data;

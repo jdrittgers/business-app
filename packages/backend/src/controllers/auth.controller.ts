@@ -6,6 +6,58 @@ import { LoginRequest } from '@business-app/shared';
 const authService = new AuthService();
 
 export class AuthController {
+  async register(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const registerData = req.body;
+
+      // Validate required fields
+      if (!registerData.email || !registerData.password || !registerData.firstName || !registerData.lastName || !registerData.businessName) {
+        res.status(400).json({ error: 'Missing required fields' });
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(registerData.email)) {
+        res.status(400).json({ error: 'Invalid email format' });
+        return;
+      }
+
+      // Validate password length
+      if (registerData.password.length < 6) {
+        res.status(400).json({ error: 'Password must be at least 6 characters' });
+        return;
+      }
+
+      // Validate disclaimer acceptance
+      if (!registerData.disclaimerAccepted) {
+        res.status(400).json({ error: 'You must accept the terms and disclaimer' });
+        return;
+      }
+
+      const result = await authService.registerFarmer(registerData);
+
+      // Send refresh token as HTTP-only cookie
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('already exists')) {
+          res.status(409).json({ error: error.message });
+          return;
+        }
+      }
+      console.error('Registration error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async login(req: AuthRequest, res: Response): Promise<void> {
     try {
       const loginData: LoginRequest = req.body;

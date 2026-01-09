@@ -2,7 +2,13 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import { prisma } from '../prisma/client';
 
-// Middleware to check if user has access to grain contracts (Demo Farm)
+/**
+ * Middleware to check if user has access to grain features
+ *
+ * This middleware ensures the user is a member of at least one business.
+ * Business-specific authorization (checking if user can access a specific business's data)
+ * happens in the service layer.
+ */
 export async function requireGrainAccess(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     if (!req.user) {
@@ -13,44 +19,32 @@ export async function requireGrainAccess(req: AuthRequest, res: Response, next: 
 
     console.log('[Grain Access] Checking access for user:', req.user.userId);
 
-    // Check if user is a member of Demo Farm (or legacy Rittgers Farm names)
-    const demoFarm = await prisma.business.findFirst({
+    // Check if user is a member of at least one business
+    const membership = await prisma.businessMember.findFirst({
       where: {
-        OR: [
-          { name: 'Demo Farm' },
-          { name: 'Rittgers Farm' },
-          { name: 'Rittgers Farms' }
-        ]
-      }
-    });
-
-    console.log('[Grain Access] Found business:', demoFarm?.name || 'NONE');
-
-    if (!demoFarm) {
-      console.error('[Grain Access] No Demo Farm business found in database');
-      res.status(403).json({ error: 'Grain contracts feature not available' });
-      return;
-    }
-
-    const membership = await prisma.businessMember.findUnique({
-      where: {
-        userId_businessId: {
-          userId: req.user.userId,
-          businessId: demoFarm.id
+        userId: req.user.userId
+      },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true
+          }
         }
       }
     });
 
-    console.log('[Grain Access] Membership found:', membership ? 'YES' : 'NO');
-
     if (!membership) {
-      console.error('[Grain Access] User not a member of Demo Farm');
-      res.status(403).json({ error: 'Access denied. Grain contracts are only available to Demo Farm members.' });
+      console.error('[Grain Access] User is not a member of any business');
+      res.status(403).json({
+        error: 'Access denied. You must be a member of a farming operation to access grain features.'
+      });
       return;
     }
 
-    console.log('[Grain Access] Access granted');
-    // User has access, proceed
+    console.log('[Grain Access] Access granted - User is member of:', membership.business.name);
+
+    // User has access to grain features, proceed
     next();
   } catch (error) {
     console.error('Grain access check error:', error);
