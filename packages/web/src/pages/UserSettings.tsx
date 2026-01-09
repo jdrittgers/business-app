@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { invitationApi } from '../api/invitation.api';
+import { userApi } from '../api/user.api';
 
 export default function UserSettings() {
   const { user, logout, loadUser } = useAuthStore();
@@ -90,13 +91,12 @@ export default function UserSettings() {
     setError('');
 
     try {
-      // TODO: Create API endpoint to delete user account
-      alert('Account deletion feature coming soon. Please contact support.');
-      // After successful deletion:
-      // await logout();
-      // navigate('/');
+      await userApi.deleteAccount();
+      alert('Your account has been successfully deleted.');
+      await logout();
+      navigate('/');
     } catch (err: any) {
-      setError('Failed to delete account');
+      setError(err.response?.data?.error || 'Failed to delete account');
     } finally {
       setIsLoading(false);
     }
