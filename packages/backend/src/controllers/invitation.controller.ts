@@ -1,9 +1,12 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { InvitationService } from '../services/invitation.service';
+import { EmailService } from '../services/email.service';
+import { prisma } from '../prisma/client';
 import { UserRole } from '@prisma/client';
 
 const invitationService = new InvitationService();
+const emailService = new EmailService();
 
 /**
  * Create a new invitation code
@@ -179,5 +182,102 @@ export async function acceptInvitation(req: AuthRequest, res: Response): Promise
     }
 
     res.status(500).json({ error: 'Failed to accept invitation' });
+  }
+}
+
+/**
+ * Send invitation email
+ * POST /api/invitations/:invitationId/send-email
+ */
+export async function sendInvitationEmail(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { invitationId } = req.params;
+    const { email } = req.body;
+
+    if (!invitationId) {
+      res.status(400).json({ error: 'Invitation ID is required' });
+      return;
+    }
+
+    if (!email) {
+      res.status(400).json({ error: 'Email address is required' });
+      return;
+    }
+
+    // Get invitation details
+    const invitation = await prisma.businessInvitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!invitation) {
+      res.status(404).json({ error: 'Invitation not found' });
+      return;
+    }
+
+    // Verify user is owner of this business
+    const membership = await prisma.businessMember.findUnique({
+      where: {
+        userId_businessId: {
+          userId: req.user!.userId,
+          businessId: invitation.businessId
+        }
+      },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
+    });
+
+    if (!membership || membership.role !== 'OWNER') {
+      res.status(403).json({ error: 'Only business owners can send invitation emails' });
+      return;
+    }
+
+    if (!invitation.isActive) {
+      res.status(400).json({ error: 'Cannot send email for inactive invitation' });
+      return;
+    }
+
+    // Get app URL from environment
+    const appUrl = process.env.APP_URL || 'http://localhost:5173';
+    const invitationLink = `${appUrl}/register?code=${invitation.code}`;
+
+    // Send email
+    await emailService.sendInvitationEmail({
+      toEmail: email,
+      businessName: invitation.business.name,
+      invitationCode: invitation.code,
+      invitationLink,
+      role: invitation.role,
+      fromName: `${membership.user.firstName} ${membership.user.lastName}`
+    });
+
+    res.json({ message: 'Invitation email sent successfully' });
+  } catch (error: any) {
+    console.error('Send invitation email error:', error);
+
+    if (error.message.includes('Email service not configured')) {
+      res.status(503).json({ error: 'Email service is not configured. Please contact support.' });
+      return;
+    }
+
+    if (error.message.includes('Failed to send email')) {
+      res.status(500).json({ error: 'Failed to send email. Please try again later.' });
+      return;
+    }
+
+    res.status(500).json({ error: 'Failed to send invitation email' });
   }
 }

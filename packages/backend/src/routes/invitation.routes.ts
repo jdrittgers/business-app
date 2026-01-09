@@ -37,4 +37,10 @@ router.post('/accept', (req, res) => invitationController.acceptInvitation(req, 
  */
 router.delete('/:invitationId', (req, res) => invitationController.deactivateInvitation(req, res));
 
+/**
+ * POST /api/invitations/:invitationId/send-email
+ * Send invitation via email (Owner only)
+ */
+router.post('/:invitationId/send-email', (req, res) => invitationController.sendInvitationEmail(req, res));
+
 export default router;

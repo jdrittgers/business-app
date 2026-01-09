@@ -68,5 +68,12 @@ export const invitationApi = {
    */
   deactivateInvitation: async (invitationId: string): Promise<void> => {
     await apiClient.delete(`/api/invitations/${invitationId}`);
+  },
+
+  /**
+   * Send invitation via email (Owner only)
+   */
+  sendInvitationEmail: async (invitationId: string, email: string): Promise<void> => {
+    await apiClient.post(`/api/invitations/${invitationId}/send-email`, { email });
   }
 };
