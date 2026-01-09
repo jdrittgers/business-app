@@ -42,6 +42,9 @@ export class InvoiceParserService {
       console.log('[InvoiceParser] Calling Claude API with model: claude-sonnet-4-20250514');
       console.log('[InvoiceParser] File type:', mimeType, 'Media type:', mediaType);
 
+      // Use 'document' type for PDFs, 'image' type for images
+      const contentType = mimeType === 'application/pdf' ? 'document' : 'image';
+
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
@@ -49,7 +52,7 @@ export class InvoiceParserService {
           role: 'user',
           content: [
             {
-              type: 'image',
+              type: contentType as any,
               source: {
                 type: 'base64',
                 media_type: mediaType,
@@ -101,18 +104,14 @@ export class InvoiceParserService {
     }
   }
 
-  private getClaudeMediaType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' {
+  private getClaudeMediaType(mimeType: string): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'application/pdf' {
     if (mimeType === 'image/jpg' || mimeType === 'image/jpeg') return 'image/jpeg';
     if (mimeType === 'image/png') return 'image/png';
     if (mimeType === 'image/webp') return 'image/webp';
     if (mimeType === 'image/gif') return 'image/gif';
+    if (mimeType === 'application/pdf') return 'application/pdf';
 
-    // PDFs are not directly supported by Claude's vision API
-    if (mimeType === 'application/pdf') {
-      throw new Error('PDF support requires conversion to images. Please upload a JPG or PNG screenshot of your invoice instead.');
-    }
-
-    throw new Error(`Unsupported mime type: ${mimeType}. Supported formats: JPG, PNG, WEBP, GIF`);
+    throw new Error(`Unsupported mime type: ${mimeType}. Supported formats: JPG, PNG, WEBP, GIF, PDF`);
   }
 
   private getParsingPrompt(): string {

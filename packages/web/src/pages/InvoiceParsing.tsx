@@ -61,14 +61,22 @@ export default function InvoiceParsing() {
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await handleFileUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      // Handle multiple files
+      const files = Array.from(e.dataTransfer.files);
+      for (const file of files) {
+        await handleFileUpload(file);
+      }
     }
   }, [businessId]);
 
   const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      await handleFileUpload(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      // Handle multiple files
+      const files = Array.from(e.target.files);
+      for (const file of files) {
+        await handleFileUpload(file);
+      }
     }
   };
 
@@ -149,6 +157,33 @@ export default function InvoiceParsing() {
     } catch (error) {
       console.error('Failed to load invoice details:', error);
       alert('Failed to load invoice details');
+    }
+  };
+
+  const openManualEntryModal = async (invoice: Invoice) => {
+    if (!businessId) return;
+
+    try {
+      const fullInvoice = await invoiceApi.getInvoice(businessId, invoice.id);
+      setSelectedInvoice(fullInvoice);
+      // Start with one empty line item for manual entry
+      setEditingLineItems([{
+        id: 'temp-' + Date.now(),
+        invoiceId: invoice.id,
+        productType: InvoiceProductType.FERTILIZER,
+        productName: '',
+        quantity: 0,
+        unit: '',
+        pricePerUnit: 0,
+        totalPrice: 0,
+        isNewProduct: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }]);
+      setShowReviewModal(true);
+    } catch (error) {
+      console.error('Failed to open manual entry:', error);
+      alert('Failed to open manual entry');
     }
   };
 
@@ -316,7 +351,7 @@ export default function InvoiceParsing() {
           <p className="text-gray-600">Uploading and parsing invoice...</p>
         ) : (
           <>
-            <p className="text-lg text-gray-600 mb-2">Drag and drop invoice file here, or</p>
+            <p className="text-lg text-gray-600 mb-2">Drag and drop invoice files here, or</p>
             <label className="cursor-pointer">
               <span className="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                 Browse Files
@@ -325,10 +360,11 @@ export default function InvoiceParsing() {
                 type="file"
                 className="hidden"
                 accept=".pdf,.jpg,.jpeg,.png"
+                multiple
                 onChange={handleFileInput}
               />
             </label>
-            <p className="text-sm text-gray-500 mt-2">PDF, JPG, or PNG (max 10MB)</p>
+            <p className="text-sm text-gray-500 mt-2">PDF, JPG, or PNG (max 10MB each) - Select multiple files at once</p>
           </>
         )}
       </div>
@@ -375,6 +411,15 @@ export default function InvoiceParsing() {
                         className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-800"
                       >
                         Review
+                      </button>
+                    )}
+
+                    {invoice.status === InvoiceStatus.FAILED && (
+                      <button
+                        onClick={() => openManualEntryModal(invoice)}
+                        className="px-3 py-1 text-sm font-medium text-orange-600 hover:text-orange-800"
+                      >
+                        Manual Entry
                       </button>
                     )}
 

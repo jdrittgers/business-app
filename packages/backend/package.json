@@ -35,7 +35,9 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "pdf-poppler": "^0.2.3",
     "resend": "^6.7.0",
+    "sharp": "^0.34.5",
     "socket.io": "^4.6.1",
     "web-push": "^3.6.7",
     "zod": "^3.22.4"
