@@ -201,6 +201,26 @@ export default function InvoiceParsing() {
     setEditingLineItems(updated);
   };
 
+  const handleAddLineItem = () => {
+    if (!selectedInvoice) return;
+
+    const newItem: InvoiceLineItem = {
+      id: 'temp-' + Date.now(),
+      invoiceId: selectedInvoice.id,
+      productType: InvoiceProductType.FERTILIZER,
+      productName: '',
+      quantity: 0,
+      unit: '',
+      pricePerUnit: 0,
+      totalPrice: 0,
+      isNewProduct: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    setEditingLineItems([...editingLineItems, newItem]);
+  };
+
   const handleSaveChanges = async () => {
     if (!businessId || !selectedInvoice) return;
 
@@ -527,6 +547,13 @@ export default function InvoiceParsing() {
                   ))}
                 </tbody>
               </table>
+
+              <button
+                onClick={handleAddLineItem}
+                className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 border border-blue-600 rounded-md"
+              >
+                + Add Line Item
+              </button>
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
