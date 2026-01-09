@@ -22,6 +22,8 @@ import RetailerLogin from './pages/RetailerLogin';
 import RetailerRegister from './pages/RetailerRegister';
 import RetailerDashboard from './pages/RetailerDashboard';
 import RetailerProfile from './pages/RetailerProfile';
+import TeamManagement from './pages/TeamManagement';
+import AcceptInvitation from './pages/AcceptInvitation';
 
 function App() {
   const { loadUser, isAuthenticated } = useAuthStore();
@@ -43,9 +45,14 @@ function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<FarmerRegister />} />
+      <Route path="/accept-invitation" element={<AcceptInvitation />} />
       <Route
         path="/dashboard"
         element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/team"
+        element={isAuthenticated ? <TeamManagement /> : <Navigate to="/login" />}
       />
       <Route
         path="/calendar"

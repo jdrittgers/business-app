@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 
 export default function FarmerRegister() {
   const navigate = useNavigate();
-  const { setUser, setAccessToken } = useAuthStore();
+  const { loadUser } = useAuthStore();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -52,10 +52,11 @@ export default function FarmerRegister() {
       const { confirmPassword, ...registerData } = formData;
       const response = await authApi.registerFarmer(registerData);
 
-      // Store auth data
-      setUser(response.user);
-      setAccessToken(response.accessToken);
+      // Store access token
       localStorage.setItem('accessToken', response.accessToken);
+
+      // Load user data
+      await loadUser();
 
       // Redirect to dashboard
       navigate('/dashboard');

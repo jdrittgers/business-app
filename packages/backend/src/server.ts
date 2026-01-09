@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
+import invitationRoutes from './routes/invitation.routes';
 import calendarRoutes from './routes/calendar.routes';
 import tasksRoutes from './routes/tasks.routes';
 import pushNotificationRoutes from './routes/push-notification.routes';
@@ -42,6 +43,7 @@ app.use((req, res, next) => {
 
 // Routes - More specific routes first!
 app.use('/api/auth', authRoutes);
+app.use('/api/invitations', invitationRoutes);
 app.use('/api/retailer', retailerAuthRoutes); // Retailer auth routes MUST come before generic /api routes
 app.use('/api', bidRequestRoutes); // Bid request routes before grain routes to avoid middleware conflicts
 app.use('/api', retailerBidRoutes);

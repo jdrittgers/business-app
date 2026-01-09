@@ -12,6 +12,7 @@ datasource db {
 
 enum UserRole {
   OWNER
+  MANAGER
   EMPLOYEE
   RETAILER
 }
@@ -73,6 +74,8 @@ model User {
   priceAlerts         PriceAlert[]
   retailerProfile     Retailer?
   createdBidRequests  BidRequest[]
+  createdInvitations  BusinessInvitation[] @relation("InvitationCreator")
+  usedInvitations     BusinessInvitation[] @relation("InvitationUser")
 
   @@map("users")
 }
@@ -101,6 +104,7 @@ model Business {
   chemicals      Chemical[]
   seedHybrids    SeedHybrid[]
   bidRequests    BidRequest[]
+  invitations    BusinessInvitation[]
 
   @@index([latitude, longitude])
   @@map("businesses")
@@ -121,6 +125,32 @@ model BusinessMember {
   @@index([userId])
   @@index([businessId])
   @@map("business_members")
+}
+
+model BusinessInvitation {
+  id             String    @id @default(uuid())
+  businessId     String    @map("business_id")
+  code           String    @unique // 8-character alphanumeric code
+  role           UserRole  // Role the invitee will have (MANAGER or EMPLOYEE)
+  createdBy      String    @map("created_by")
+  email          String?   // Optional: specific email to restrict invitation
+  expiresAt      DateTime  @map("expires_at")
+  usedAt         DateTime? @map("used_at")
+  usedBy         String?   @map("used_by")
+  isActive       Boolean   @default(true) @map("is_active")
+  maxUses        Int       @default(1) @map("max_uses") // How many times can this code be used
+  currentUses    Int       @default(0) @map("current_uses")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  creator  User     @relation("InvitationCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  user     User?    @relation("InvitationUser", fields: [usedBy], references: [id])
+
+  @@index([businessId])
+  @@index([code])
+  @@index([createdBy])
+  @@map("business_invitations")
 }
 
 model CalendarEvent {

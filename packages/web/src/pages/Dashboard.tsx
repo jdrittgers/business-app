@@ -109,6 +109,14 @@ export default function Dashboard() {
                       >
                         💰 Breakeven
                       </button>
+                      {membership.role === 'OWNER' && (
+                        <button
+                          onClick={() => navigate('/team')}
+                          className="bg-teal-600 text-white px-4 py-2 rounded-md hover:bg-teal-700 font-medium text-sm"
+                        >
+                          👥 Team Management
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
