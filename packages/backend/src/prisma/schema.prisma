@@ -593,6 +593,7 @@ model BidRequest {
   title               String
   description         String?
   status              BidRequestStatus   @default(OPEN)
+  bidDeadline         DateTime?          @map("bid_deadline")
   desiredDeliveryDate DateTime?          @map("desired_delivery_date")
   notes               String?
   createdAt           DateTime           @default(now()) @map("created_at")
