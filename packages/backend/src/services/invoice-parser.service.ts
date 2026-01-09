@@ -26,6 +26,7 @@ export class InvoiceParserService {
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY environment variable not configured');
     }
+    console.log('[InvoiceParser] Initializing with API key:', apiKey.substring(0, 10) + '...');
     this.anthropic = new Anthropic({ apiKey });
   }
 
@@ -38,8 +39,9 @@ export class InvoiceParserService {
       // Prepare media type for Claude
       const mediaType = this.getClaudeMediaType(mimeType);
 
+      console.log('[InvoiceParser] Calling Claude API with model: claude-3-haiku-20240307');
       const response = await this.anthropic.messages.create({
-        model: 'claude-3-opus-20240229',
+        model: 'claude-3-haiku-20240307',
         max_tokens: 4096,
         messages: [{
           role: 'user',
