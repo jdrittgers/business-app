@@ -4,7 +4,13 @@ import * as invitationController from '../controllers/invitation.controller';
 
 const router = Router();
 
-// All invitation routes require authentication
+/**
+ * GET /api/invitations/validate/:code
+ * Validate an invitation code (PUBLIC - no auth required for new users)
+ */
+router.get('/validate/:code', (req, res) => invitationController.validateInvitationCode(req, res));
+
+// All other invitation routes require authentication
 router.use(authenticate);
 
 /**
@@ -18,12 +24,6 @@ router.post('/', (req, res) => invitationController.createInvitation(req, res));
  * Get all invitations for a business (Owner only)
  */
 router.get('/business/:businessId', (req, res) => invitationController.getBusinessInvitations(req, res));
-
-/**
- * GET /api/invitations/validate/:code
- * Validate an invitation code (Public for logged-in users)
- */
-router.get('/validate/:code', (req, res) => invitationController.validateInvitationCode(req, res));
 
 /**
  * POST /api/invitations/accept
