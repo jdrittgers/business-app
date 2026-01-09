@@ -92,6 +92,12 @@ export default function Dashboard() {
                         📦 Input Bids
                       </button>
                       <button
+                        onClick={() => navigate('/invoice-parsing')}
+                        className="bg-pink-600 text-white px-4 py-2 rounded-md hover:bg-pink-700 font-medium text-sm"
+                      >
+                        📄 Invoice Parsing
+                      </button>
+                      <button
                         onClick={() => navigate('/grain-contracts/dashboard')}
                         className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 font-medium text-sm"
                       >
