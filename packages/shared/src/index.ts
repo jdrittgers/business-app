@@ -6,4 +6,5 @@ export * from './types/grain';
 export * from './types/breakeven';
 export * from './types/bidding';
 export * from './types/invoice';
+export * from './types/grain-bins';
 export * from './utils/distance';
