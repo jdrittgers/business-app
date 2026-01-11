@@ -108,7 +108,7 @@ function App() {
         element={isAuthenticated ? <InvoiceParsing /> : <Navigate to="/login" />}
       />
       <Route
-        path="/grain-bins"
+        path="/grain-contracts/bins"
         element={isAuthenticated ? <GrainBins /> : <Navigate to="/login" />}
       />
 

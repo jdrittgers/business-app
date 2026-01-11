@@ -367,10 +367,10 @@ export default function GrainBins() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/grain-contracts/dashboard')}
             className="text-blue-600 hover:text-blue-800 mb-4 flex items-center"
           >
-            ← Back to Dashboard
+            ← Back to Grain Dashboard
           </button>
           <h1 className="text-3xl font-bold text-gray-900">Grain Bin Storage</h1>
           <p className="mt-2 text-gray-600">Manage your grain bins and track inventory</p>
