@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { grainBinsApi } from '../api/grain-bins.api';
 import { scaleTicketsApi } from '../api/scale-tickets.api';
+import { grainContractsApi } from '../api/grain-contracts.api';
 import {
   GrainBin,
   ScaleTicket,
@@ -178,24 +179,20 @@ export default function GrainBins() {
 
     try {
       setLoading(true);
-      const [binsData, ticketsData] = await Promise.all([
+      const [binsData, ticketsData, entitiesData] = await Promise.all([
         grainBinsApi.getBinsByBusiness(businessId),
-        scaleTicketsApi.getScaleTickets(businessId)
+        scaleTicketsApi.getScaleTickets(businessId),
+        grainContractsApi.getGrainEntities(businessId)
       ]);
 
       setBins(binsData);
       setScaleTickets(ticketsData);
 
-      // Extract unique grain entities from bins
-      const entities = binsData.reduce((acc: Array<{ id: string; name: string }>, bin) => {
-        if (!acc.find(e => e.id === bin.grainEntityId)) {
-          acc.push({
-            id: bin.grainEntityId,
-            name: bin.grainEntityName || bin.grainEntityId
-          });
-        }
-        return acc;
-      }, []);
+      // Map entities to the format needed by BinModal
+      const entities = entitiesData.map(entity => ({
+        id: entity.id,
+        name: entity.name
+      }));
       setGrainEntities(entities);
     } catch (error) {
       console.error('Failed to load data:', error);
