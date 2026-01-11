@@ -27,6 +27,7 @@ import TeamManagement from './pages/TeamManagement';
 import AcceptInvitation from './pages/AcceptInvitation';
 import UserSettings from './pages/UserSettings';
 import InvoiceParsing from './pages/InvoiceParsing';
+import GrainBins from './pages/GrainBins';
 import RequireRole from './components/RequireRole';
 
 function App() {
@@ -105,6 +106,10 @@ function App() {
       <Route
         path="/invoice-parsing"
         element={isAuthenticated ? <InvoiceParsing /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/grain-bins"
+        element={isAuthenticated ? <GrainBins /> : <Navigate to="/login" />}
       />
 
       {/* Retailer Routes */}
