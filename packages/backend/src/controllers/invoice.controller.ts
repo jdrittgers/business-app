@@ -63,7 +63,7 @@ export const getInvoice = async (req: Request, res: Response) => {
 export const updateLineItem = async (req: Request, res: Response) => {
   try {
     const { businessId, lineItemId } = req.params;
-    const { productName, productType, quantity, unit, pricePerUnit, totalPrice } = req.body;
+    const { productName, productType, quantity, unit, pricePerUnit, totalPrice, ratePerAcre } = req.body;
 
     const updatedLineItem = await invoiceService.updateLineItem(lineItemId, businessId, {
       productName,
@@ -71,7 +71,8 @@ export const updateLineItem = async (req: Request, res: Response) => {
       quantity: quantity !== undefined ? parseFloat(quantity) : undefined,
       unit,
       pricePerUnit: pricePerUnit !== undefined ? parseFloat(pricePerUnit) : undefined,
-      totalPrice: totalPrice !== undefined ? parseFloat(totalPrice) : undefined
+      totalPrice: totalPrice !== undefined ? parseFloat(totalPrice) : undefined,
+      ratePerAcre: ratePerAcre !== undefined && ratePerAcre !== '' ? parseFloat(ratePerAcre) : undefined
     });
 
     res.json(updatedLineItem);

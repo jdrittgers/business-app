@@ -327,6 +327,19 @@ export default function InvoiceParsing() {
   const addFertilizerOrChemical = async (lineItem: InvoiceLineItem) => {
     if (!businessId) return;
 
+    // Check if ratePerAcre is available - if so, ask user to confirm
+    if (lineItem.ratePerAcre && lineItem.ratePerAcre > 0) {
+      const confirmed = window.confirm(
+        `Using Rate per Acre for product pricing:\n\n` +
+        `Product: ${lineItem.productName}\n` +
+        `Rate per Acre: ${lineItem.ratePerAcre} ${lineItem.unit}/acre\n` +
+        `Price: $${Number(lineItem.pricePerUnit).toFixed(2)}/${lineItem.unit}\n\n` +
+        `This will add the product with rate-based pricing for breakeven calculations.\n\n` +
+        `Continue?`
+      );
+      if (!confirmed) return;
+    }
+
     try {
       const productData = {
         name: lineItem.productName,
@@ -336,10 +349,12 @@ export default function InvoiceParsing() {
 
       if (lineItem.productType === InvoiceProductType.FERTILIZER) {
         await breakevenApi.createFertilizer(businessId, productData);
-        alert(`✅ Added "${lineItem.productName}" to Fertilizers!`);
+        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.unit}/acre)` : '';
+        alert(`✅ Added "${lineItem.productName}" to Fertilizers!${rateInfo}`);
       } else if (lineItem.productType === InvoiceProductType.CHEMICAL) {
         await breakevenApi.createChemical(businessId, productData);
-        alert(`✅ Added "${lineItem.productName}" to Chemicals!`);
+        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.unit}/acre)` : '';
+        alert(`✅ Added "${lineItem.productName}" to Chemicals!${rateInfo}`);
       }
     } catch (error: any) {
       console.error('Failed to add product:', error);
@@ -557,19 +572,26 @@ export default function InvoiceParsing() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price/Unit</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Qty (Total)
+                      <div className="text-xs font-normal text-gray-400 normal-case">For bids</div>
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Rate/Acre
+                      <div className="text-xs font-normal text-gray-400 normal-case">For products</div>
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price/Unit</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {editingLineItems.map((item, index) => (
                     <tr key={item.id}>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <select
                           value={item.productType}
                           onChange={(e) => handleLineItemChange(index, 'productType', e.target.value as InvoiceProductType)}
@@ -581,7 +603,7 @@ export default function InvoiceParsing() {
                           <option value={InvoiceProductType.SEED}>Seed</option>
                         </select>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <input
                           type="text"
                           value={item.productName}
@@ -590,16 +612,29 @@ export default function InvoiceParsing() {
                           disabled={!!item.priceLockedAt}
                         />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <input
                           type="number"
+                          step="0.01"
                           value={Number(item.quantity)}
                           onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)}
                           className="text-sm border-gray-300 rounded-md w-20"
                           disabled={!!item.priceLockedAt}
+                          placeholder="Total qty"
                         />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={item.ratePerAcre !== undefined ? Number(item.ratePerAcre) : ''}
+                          onChange={(e) => handleLineItemChange(index, 'ratePerAcre', e.target.value)}
+                          className="text-sm border-gray-300 rounded-md w-20"
+                          disabled={!!item.priceLockedAt}
+                          placeholder="Rate"
+                        />
+                      </td>
+                      <td className="px-2 py-3">
                         <input
                           type="text"
                           value={item.unit}
@@ -608,7 +643,7 @@ export default function InvoiceParsing() {
                           disabled={!!item.priceLockedAt}
                         />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <input
                           type="number"
                           step="0.01"
@@ -618,10 +653,10 @@ export default function InvoiceParsing() {
                           disabled={!!item.priceLockedAt}
                         />
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-900">
+                      <td className="px-2 py-3 text-sm text-gray-900">
                         ${Number(item.totalPrice).toFixed(2)}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-3">
                         <button
                           onClick={() => handleAddToProducts(item)}
                           className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded"
