@@ -110,6 +110,12 @@ export default function GrainDashboard() {
                 Contracts
               </button>
               <button
+                onClick={() => navigate('/grain-contracts/bins')}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Grain Bins
+              </button>
+              <button
                 onClick={() => navigate('/breakeven')}
                 className="text-sm text-blue-600 hover:text-blue-700"
               >
