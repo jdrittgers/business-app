@@ -21,6 +21,7 @@ export interface InvoiceLineItem {
   pricePerUnit: number;
   totalPrice: number;
   ratePerAcre?: number;
+  rateUnit?: string;
   matchedProductId?: string;
   matchedProductType?: InvoiceProductType;
   isNewProduct: boolean;
@@ -66,6 +67,7 @@ export interface UpdateInvoiceLineItemRequest {
   pricePerUnit?: number;
   totalPrice?: number;
   ratePerAcre?: number;
+  rateUnit?: string;
 }
 
 export interface PurchaseHistory {

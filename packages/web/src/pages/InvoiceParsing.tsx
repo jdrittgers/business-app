@@ -329,10 +329,11 @@ export default function InvoiceParsing() {
 
     // Check if ratePerAcre is available - if so, ask user to confirm
     if (lineItem.ratePerAcre && lineItem.ratePerAcre > 0) {
+      const rateUnit = lineItem.rateUnit || lineItem.unit;
       const confirmed = window.confirm(
         `Using Rate per Acre for product pricing:\n\n` +
         `Product: ${lineItem.productName}\n` +
-        `Rate per Acre: ${lineItem.ratePerAcre} ${lineItem.unit}/acre\n` +
+        `Rate per Acre: ${lineItem.ratePerAcre} ${rateUnit}/acre\n` +
         `Price: $${Number(lineItem.pricePerUnit).toFixed(2)}/${lineItem.unit}\n\n` +
         `This will add the product with rate-based pricing for breakeven calculations.\n\n` +
         `Continue?`
@@ -349,11 +350,11 @@ export default function InvoiceParsing() {
 
       if (lineItem.productType === InvoiceProductType.FERTILIZER) {
         await breakevenApi.createFertilizer(businessId, productData);
-        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.unit}/acre)` : '';
+        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.rateUnit || lineItem.unit}/acre)` : '';
         alert(`✅ Added "${lineItem.productName}" to Fertilizers!${rateInfo}`);
       } else if (lineItem.productType === InvoiceProductType.CHEMICAL) {
         await breakevenApi.createChemical(businessId, productData);
-        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.unit}/acre)` : '';
+        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.rateUnit || lineItem.unit}/acre)` : '';
         alert(`✅ Added "${lineItem.productName}" to Chemicals!${rateInfo}`);
       }
     } catch (error: any) {
@@ -582,7 +583,10 @@ export default function InvoiceParsing() {
                       Rate/Acre
                       <div className="text-xs font-normal text-gray-400 normal-case">For products</div>
                     </th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Rate Unit
+                    </th>
+                    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Unit</th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price/Unit</th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                     <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -633,6 +637,21 @@ export default function InvoiceParsing() {
                           disabled={!!item.priceLockedAt}
                           placeholder="Rate"
                         />
+                      </td>
+                      <td className="px-2 py-3">
+                        <select
+                          value={item.rateUnit || ''}
+                          onChange={(e) => handleLineItemChange(index, 'rateUnit', e.target.value)}
+                          className="text-sm border-gray-300 rounded-md w-24"
+                          disabled={!!item.priceLockedAt}
+                        >
+                          <option value="">Select...</option>
+                          <option value="OZ">oz</option>
+                          <option value="PT">pint</option>
+                          <option value="QT">quart</option>
+                          <option value="GAL">gallon</option>
+                          <option value="LB">lb</option>
+                        </select>
                       </td>
                       <td className="px-2 py-3">
                         <input

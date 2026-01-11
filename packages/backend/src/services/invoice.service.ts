@@ -145,6 +145,7 @@ export class InvoiceService {
       pricePerUnit?: number;
       totalPrice?: number;
       ratePerAcre?: number;
+      rateUnit?: string;
     }
   ) {
     const lineItem = await prisma.invoiceLineItem.findFirst({
@@ -171,6 +172,9 @@ export class InvoiceService {
     if (data.pricePerUnit !== undefined) updateData.pricePerUnit = new Decimal(data.pricePerUnit);
     if (data.ratePerAcre !== undefined) {
       updateData.ratePerAcre = data.ratePerAcre ? new Decimal(data.ratePerAcre) : null;
+    }
+    if (data.rateUnit !== undefined) {
+      updateData.rateUnit = data.rateUnit || null;
     }
 
     // Recalculate total price if quantity or pricePerUnit changed
