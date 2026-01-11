@@ -52,6 +52,13 @@ enum BidRequestStatus {
   CLOSED
 }
 
+enum ScaleTicketStatus {
+  PENDING
+  PARSED
+  FAILED
+  PROCESSED
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -77,6 +84,8 @@ model User {
   createdInvitations  BusinessInvitation[] @relation("InvitationCreator")
   usedInvitations     BusinessInvitation[] @relation("InvitationUser")
   uploadedInvoices    Invoice[]       @relation("InvoiceUploader")
+  uploadedScaleTickets ScaleTicket[]  @relation("ScaleTicketUploader")
+  binTransactions     BinTransaction[] @relation("BinTransactionCreator")
 
   @@map("users")
 }
@@ -108,6 +117,7 @@ model Business {
   invitations    BusinessInvitation[]
   invoices       Invoice[]
   purchaseHistory PurchaseHistory[]
+  scaleTickets   ScaleTicket[]
 
   @@index([latitude, longitude])
   @@map("businesses")
@@ -262,6 +272,7 @@ model GrainEntity {
   contracts   GrainContract[]
   productions CropYearProduction[]
   farms       Farm[]
+  grainBins   GrainBin[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -300,6 +311,7 @@ model GrainContract {
   grainEntity        GrainEntity           @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
   createdByUser      User                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   accumulatorDetails AccumulatorDetails?
+  binTransactions    BinTransaction[]
 
   @@index([grainEntityId, cropYear])
   @@index([contractType, isActive])
@@ -784,4 +796,91 @@ model PurchaseHistory {
   @@index([businessId, productType])
   @@index([productId])
   @@index([purchasedAt])
+}
+
+// ===== Grain Bin Storage Tracker Models =====
+
+model GrainBin {
+  id              String        @id @default(uuid())
+  grainEntityId   String        @map("grain_entity_id")
+  name            String        // "North Bin", "West Storage"
+  capacity        Decimal       @db.Decimal(12, 2)
+  currentBushels  Decimal       @default(0) @map("current_bushels") @db.Decimal(12, 2)
+  commodityType   CommodityType @map("commodity_type")
+  cropYear        Int           @map("crop_year") // 2023, 2024, 2025
+  notes           String?
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  grainEntity     GrainEntity   @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+  scaleTickets    ScaleTicket[]
+  binTransactions BinTransaction[]
+
+  @@index([grainEntityId, commodityType])
+  @@index([cropYear])
+  @@map("grain_bins")
+}
+
+model ScaleTicket {
+  id              String             @id @default(uuid())
+  businessId      String             @map("business_id")
+  uploadedBy      String             @map("uploaded_by")
+  binId           String?            @map("bin_id")
+  fileName        String             @map("file_name")
+  filePath        String             @map("file_path")
+  fileSize        Int                @map("file_size")
+  mimeType        String             @map("mime_type")
+  status          ScaleTicketStatus  @default(PENDING)
+
+  // Parsed data
+  loadNumber      String?            @map("load_number")
+  ticketDate      DateTime?          @map("ticket_date")
+  netBushels      Decimal?           @map("net_bushels") @db.Decimal(12, 2)
+  moisture        Decimal?           @db.Decimal(5, 2)
+  testWeight      Decimal?           @map("test_weight") @db.Decimal(5, 2)
+  commodityType   CommodityType?     @map("commodity_type")
+  buyer           String?
+
+  parsedData      Json?              @map("parsed_data")
+  parseError      String?            @map("parse_error")
+  parsedAt        DateTime?          @map("parsed_at")
+  processedAt     DateTime?          @map("processed_at")
+
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  business        Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  uploader        User               @relation("ScaleTicketUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  bin             GrainBin?          @relation(fields: [binId], references: [id], onDelete: SetNull)
+  binTransaction  BinTransaction?
+
+  @@map("scale_tickets")
+  @@index([businessId, status])
+  @@index([binId])
+}
+
+model BinTransaction {
+  id              String              @id @default(uuid())
+  binId           String              @map("bin_id")
+  type            String              // "ADDITION", "REMOVAL", "SALE", "ADJUSTMENT"
+  bushels         Decimal             @db.Decimal(12, 2)
+  description     String?
+  scaleTicketId   String?             @unique @map("scale_ticket_id")
+  grainContractId String?             @map("grain_contract_id")
+  createdBy       String              @map("created_by")
+  transactionDate DateTime            @default(now()) @map("transaction_date")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  bin             GrainBin            @relation(fields: [binId], references: [id], onDelete: Cascade)
+  scaleTicket     ScaleTicket?        @relation(fields: [scaleTicketId], references: [id], onDelete: SetNull)
+  grainContract   GrainContract?      @relation(fields: [grainContractId], references: [id], onDelete: SetNull)
+  user            User                @relation("BinTransactionCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@map("bin_transactions")
+  @@index([binId])
+  @@index([transactionDate])
 }
