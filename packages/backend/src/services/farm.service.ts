@@ -74,6 +74,8 @@ export class FarmService {
       fertilizerUsage: farm.fertilizerUsage?.map(fu => ({
         ...fu,
         amountUsed: Number(fu.amountUsed),
+        ratePerAcre: fu.ratePerAcre ? Number(fu.ratePerAcre) : undefined,
+        acresApplied: fu.acresApplied ? Number(fu.acresApplied) : undefined,
         fertilizer: fu.fertilizer ? {
           ...fu.fertilizer,
           pricePerUnit: Number(fu.fertilizer.pricePerUnit),
@@ -83,6 +85,8 @@ export class FarmService {
       chemicalUsage: farm.chemicalUsage?.map(cu => ({
         ...cu,
         amountUsed: Number(cu.amountUsed),
+        ratePerAcre: cu.ratePerAcre ? Number(cu.ratePerAcre) : undefined,
+        acresApplied: cu.acresApplied ? Number(cu.acresApplied) : undefined,
         chemical: cu.chemical ? {
           ...cu.chemical,
           pricePerUnit: Number(cu.chemical.pricePerUnit),
@@ -92,6 +96,8 @@ export class FarmService {
       seedUsage: farm.seedUsage?.map(su => ({
         ...su,
         bagsUsed: Number(su.bagsUsed),
+        ratePerAcre: su.ratePerAcre ? Number(su.ratePerAcre) : undefined,
+        acresApplied: su.acresApplied ? Number(su.acresApplied) : undefined,
         seedHybrid: su.seedHybrid ? {
           ...su.seedHybrid,
           pricePerBag: Number(su.seedHybrid.pricePerBag),
@@ -195,11 +201,23 @@ export class FarmService {
     });
     if (!fertilizer) throw new Error('Fertilizer not found');
 
+    // Calculate amountUsed from rate and acres if provided
+    let amountUsed = data.amountUsed;
+    if (data.ratePerAcre && data.acresApplied) {
+      amountUsed = data.ratePerAcre * data.acresApplied;
+    }
+
+    if (!amountUsed) {
+      throw new Error('Must provide either amountUsed or both ratePerAcre and acresApplied');
+    }
+
     const usage = await prisma.farmFertilizerUsage.create({
       data: {
         farmId: data.farmId,
         fertilizerId: data.fertilizerId,
-        amountUsed: data.amountUsed
+        amountUsed,
+        ratePerAcre: data.ratePerAcre,
+        acresApplied: data.acresApplied
       },
       include: {
         fertilizer: true
@@ -209,6 +227,8 @@ export class FarmService {
     return {
       ...usage,
       amountUsed: Number(usage.amountUsed),
+      ratePerAcre: usage.ratePerAcre ? Number(usage.ratePerAcre) : undefined,
+      acresApplied: usage.acresApplied ? Number(usage.acresApplied) : undefined,
       fertilizer: {
         ...usage.fertilizer,
         pricePerUnit: Number(usage.fertilizer.pricePerUnit)
@@ -216,7 +236,7 @@ export class FarmService {
     };
   }
 
-  async updateFertilizerUsage(id: string, businessId: string, amountUsed: number) {
+  async updateFertilizerUsage(id: string, businessId: string, data: { amountUsed?: number; ratePerAcre?: number; acresApplied?: number }) {
     // Verify usage belongs to farm owned by business
     const usage = await prisma.farmFertilizerUsage.findFirst({
       where: {
@@ -229,9 +249,19 @@ export class FarmService {
 
     if (!usage) throw new Error('Fertilizer usage not found');
 
+    // Calculate amountUsed from rate and acres if provided
+    let amountUsed = data.amountUsed;
+    if (data.ratePerAcre !== undefined && data.acresApplied !== undefined) {
+      amountUsed = data.ratePerAcre * data.acresApplied;
+    }
+
     const updated = await prisma.farmFertilizerUsage.update({
       where: { id },
-      data: { amountUsed },
+      data: {
+        ...(amountUsed !== undefined && { amountUsed }),
+        ...(data.ratePerAcre !== undefined && { ratePerAcre: data.ratePerAcre }),
+        ...(data.acresApplied !== undefined && { acresApplied: data.acresApplied })
+      },
       include: {
         fertilizer: true
       }
@@ -240,6 +270,8 @@ export class FarmService {
     return {
       ...updated,
       amountUsed: Number(updated.amountUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
       fertilizer: {
         ...updated.fertilizer,
         pricePerUnit: Number(updated.fertilizer.pricePerUnit)
@@ -276,11 +308,23 @@ export class FarmService {
     });
     if (!chemical) throw new Error('Chemical not found');
 
+    // Calculate amountUsed from rate and acres if provided
+    let amountUsed = data.amountUsed;
+    if (data.ratePerAcre && data.acresApplied) {
+      amountUsed = data.ratePerAcre * data.acresApplied;
+    }
+
+    if (!amountUsed) {
+      throw new Error('Must provide either amountUsed or both ratePerAcre and acresApplied');
+    }
+
     const usage = await prisma.farmChemicalUsage.create({
       data: {
         farmId: data.farmId,
         chemicalId: data.chemicalId,
-        amountUsed: data.amountUsed
+        amountUsed,
+        ratePerAcre: data.ratePerAcre,
+        acresApplied: data.acresApplied
       },
       include: {
         chemical: true
@@ -290,6 +334,8 @@ export class FarmService {
     return {
       ...usage,
       amountUsed: Number(usage.amountUsed),
+      ratePerAcre: usage.ratePerAcre ? Number(usage.ratePerAcre) : undefined,
+      acresApplied: usage.acresApplied ? Number(usage.acresApplied) : undefined,
       chemical: {
         ...usage.chemical,
         pricePerUnit: Number(usage.chemical.pricePerUnit)
@@ -297,7 +343,7 @@ export class FarmService {
     };
   }
 
-  async updateChemicalUsage(id: string, businessId: string, amountUsed: number) {
+  async updateChemicalUsage(id: string, businessId: string, data: { amountUsed?: number; ratePerAcre?: number; acresApplied?: number }) {
     // Verify usage belongs to farm owned by business
     const usage = await prisma.farmChemicalUsage.findFirst({
       where: {
@@ -310,9 +356,19 @@ export class FarmService {
 
     if (!usage) throw new Error('Chemical usage not found');
 
+    // Calculate amountUsed from rate and acres if provided
+    let amountUsed = data.amountUsed;
+    if (data.ratePerAcre !== undefined && data.acresApplied !== undefined) {
+      amountUsed = data.ratePerAcre * data.acresApplied;
+    }
+
     const updated = await prisma.farmChemicalUsage.update({
       where: { id },
-      data: { amountUsed },
+      data: {
+        ...(amountUsed !== undefined && { amountUsed }),
+        ...(data.ratePerAcre !== undefined && { ratePerAcre: data.ratePerAcre }),
+        ...(data.acresApplied !== undefined && { acresApplied: data.acresApplied })
+      },
       include: {
         chemical: true
       }
@@ -321,6 +377,8 @@ export class FarmService {
     return {
       ...updated,
       amountUsed: Number(updated.amountUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
       chemical: {
         ...updated.chemical,
         pricePerUnit: Number(updated.chemical.pricePerUnit)
@@ -357,11 +415,26 @@ export class FarmService {
     });
     if (!seedHybrid) throw new Error('Seed hybrid not found');
 
+    // Calculate bagsUsed from population and acres if provided
+    // ratePerAcre = population (seeds per acre, e.g., 32000)
+    // bagsUsed = (population * acres) / seedsPerBag
+    let bagsUsed = data.bagsUsed;
+    if (data.ratePerAcre && data.acresApplied) {
+      const totalSeeds = data.ratePerAcre * data.acresApplied;
+      bagsUsed = totalSeeds / Number(seedHybrid.seedsPerBag);
+    }
+
+    if (!bagsUsed) {
+      throw new Error('Must provide either bagsUsed or both ratePerAcre and acresApplied');
+    }
+
     const usage = await prisma.farmSeedUsage.create({
       data: {
         farmId: data.farmId,
         seedHybridId: data.seedHybridId,
-        bagsUsed: data.bagsUsed
+        bagsUsed,
+        ratePerAcre: data.ratePerAcre,
+        acresApplied: data.acresApplied
       },
       include: {
         seedHybrid: true
@@ -371,6 +444,8 @@ export class FarmService {
     return {
       ...usage,
       bagsUsed: Number(usage.bagsUsed),
+      ratePerAcre: usage.ratePerAcre ? Number(usage.ratePerAcre) : undefined,
+      acresApplied: usage.acresApplied ? Number(usage.acresApplied) : undefined,
       seedHybrid: {
         ...usage.seedHybrid,
         pricePerBag: Number(usage.seedHybrid.pricePerBag),
@@ -379,7 +454,7 @@ export class FarmService {
     };
   }
 
-  async updateSeedUsage(id: string, businessId: string, bagsUsed: number) {
+  async updateSeedUsage(id: string, businessId: string, data: { bagsUsed?: number; ratePerAcre?: number; acresApplied?: number }) {
     // Verify usage belongs to farm owned by business
     const usage = await prisma.farmSeedUsage.findFirst({
       where: {
@@ -387,14 +462,28 @@ export class FarmService {
         farm: {
           grainEntity: { businessId }
         }
+      },
+      include: {
+        seedHybrid: true
       }
     });
 
     if (!usage) throw new Error('Seed usage not found');
 
+    // Calculate bagsUsed from population and acres if provided
+    let bagsUsed = data.bagsUsed;
+    if (data.ratePerAcre !== undefined && data.acresApplied !== undefined) {
+      const totalSeeds = data.ratePerAcre * data.acresApplied;
+      bagsUsed = totalSeeds / Number(usage.seedHybrid.seedsPerBag);
+    }
+
     const updated = await prisma.farmSeedUsage.update({
       where: { id },
-      data: { bagsUsed },
+      data: {
+        ...(bagsUsed !== undefined && { bagsUsed }),
+        ...(data.ratePerAcre !== undefined && { ratePerAcre: data.ratePerAcre }),
+        ...(data.acresApplied !== undefined && { acresApplied: data.acresApplied })
+      },
       include: {
         seedHybrid: true
       }
@@ -403,6 +492,8 @@ export class FarmService {
     return {
       ...updated,
       bagsUsed: Number(updated.bagsUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
       seedHybrid: {
         ...updated.seedHybrid,
         pricePerBag: Number(updated.seedHybrid.pricePerBag),

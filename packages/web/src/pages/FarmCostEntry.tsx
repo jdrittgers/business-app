@@ -28,13 +28,28 @@ export default function FarmCostEntry() {
   const [error, setError] = useState<string | null>(null);
 
   // Form states
-  const [fertilizerForm, setFertilizerForm] = useState({ fertilizerId: '', amountUsed: '' });
+  const [fertilizerForm, setFertilizerForm] = useState({
+    fertilizerId: '',
+    ratePerAcre: '',
+    useAllAcres: true,
+    acresApplied: '',
+    amountUsed: ''
+  });
   const [chemicalForm, setChemicalForm] = useState({
     chemicalId: '',
+    ratePerAcre: '',
+    useAllAcres: true,
+    acresApplied: '',
     amountUsed: '',
     usageUnit: 'GAL' as 'GAL' | 'OZ' | 'QUART' | 'PINT'
   });
-  const [seedForm, setSeedForm] = useState({ seedHybridId: '', bagsUsed: '' });
+  const [seedForm, setSeedForm] = useState({
+    seedHybridId: '',
+    ratePerAcre: '',
+    useAllAcres: true,
+    acresApplied: '',
+    bagsUsed: ''
+  });
   const [otherCostForm, setOtherCostForm] = useState({
     costType: 'LAND_RENT' as CostType,
     amount: '',
@@ -112,15 +127,19 @@ export default function FarmCostEntry() {
 
   const handleAddFertilizer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBusinessId || !farmId) return;
+    if (!selectedBusinessId || !farmId || !farm) return;
 
     try {
+      const acresApplied = fertilizerForm.useAllAcres ? farm.acres : parseFloat(fertilizerForm.acresApplied);
+      const ratePerAcre = parseFloat(fertilizerForm.ratePerAcre);
+
       await breakevenApi.addFertilizerUsage(selectedBusinessId, {
         farmId,
         fertilizerId: fertilizerForm.fertilizerId,
-        amountUsed: parseFloat(fertilizerForm.amountUsed)
+        ratePerAcre,
+        acresApplied
       });
-      setFertilizerForm({ fertilizerId: '', amountUsed: '' });
+      setFertilizerForm({ fertilizerId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', amountUsed: '' });
       await loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to add fertilizer usage');
@@ -129,26 +148,28 @@ export default function FarmCostEntry() {
 
   const handleAddChemical = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBusinessId || !farmId) return;
+    if (!selectedBusinessId || !farmId || !farm) return;
 
     try {
-      let amountInGallons = parseFloat(chemicalForm.amountUsed);
+      const acresApplied = chemicalForm.useAllAcres ? farm.acres : parseFloat(chemicalForm.acresApplied);
+      let ratePerAcre = parseFloat(chemicalForm.ratePerAcre);
 
-      // Convert to gallons based on unit
+      // Convert rate to gallons based on unit
       if (chemicalForm.usageUnit === 'OZ') {
-        amountInGallons = amountInGallons / 128; // 128 oz = 1 gallon
+        ratePerAcre = ratePerAcre / 128; // 128 oz = 1 gallon
       } else if (chemicalForm.usageUnit === 'QUART') {
-        amountInGallons = amountInGallons / 4; // 4 quarts = 1 gallon
+        ratePerAcre = ratePerAcre / 4; // 4 quarts = 1 gallon
       } else if (chemicalForm.usageUnit === 'PINT') {
-        amountInGallons = amountInGallons / 8; // 8 pints = 1 gallon
+        ratePerAcre = ratePerAcre / 8; // 8 pints = 1 gallon
       }
 
       await breakevenApi.addChemicalUsage(selectedBusinessId, {
         farmId,
         chemicalId: chemicalForm.chemicalId,
-        amountUsed: amountInGallons
+        ratePerAcre,
+        acresApplied
       });
-      setChemicalForm({ chemicalId: '', amountUsed: '', usageUnit: 'GAL' });
+      setChemicalForm({ chemicalId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', amountUsed: '', usageUnit: 'GAL' });
       await loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to add chemical usage');
@@ -157,15 +178,19 @@ export default function FarmCostEntry() {
 
   const handleAddSeed = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBusinessId || !farmId) return;
+    if (!selectedBusinessId || !farmId || !farm) return;
 
     try {
+      const acresApplied = seedForm.useAllAcres ? farm.acres : parseFloat(seedForm.acresApplied);
+      const ratePerAcre = parseFloat(seedForm.ratePerAcre); // Population (seeds per acre)
+
       await breakevenApi.addSeedUsage(selectedBusinessId, {
         farmId,
         seedHybridId: seedForm.seedHybridId,
-        bagsUsed: parseFloat(seedForm.bagsUsed)
+        ratePerAcre,
+        acresApplied
       });
-      setSeedForm({ seedHybridId: '', bagsUsed: '' });
+      setSeedForm({ seedHybridId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', bagsUsed: '' });
       await loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to add seed usage');
@@ -409,18 +434,59 @@ export default function FarmCostEntry() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount Used
+                  Rate per Acre
                 </label>
                 <input
                   type="number"
                   step="0.01"
-                  value={fertilizerForm.amountUsed}
-                  onChange={(e) => setFertilizerForm({ ...fertilizerForm, amountUsed: e.target.value })}
+                  value={fertilizerForm.ratePerAcre}
+                  onChange={(e) => setFertilizerForm({ ...fertilizerForm, ratePerAcre: e.target.value })}
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="Enter amount (lbs or gals)"
+                  placeholder="e.g., 150 (lbs/acre or gal/acre)"
                   required
                 />
               </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="fertilizerAllAcres"
+                    checked={fertilizerForm.useAllAcres}
+                    onChange={(e) => setFertilizerForm({ ...fertilizerForm, useAllAcres: e.target.checked })}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                  <label htmlFor="fertilizerAllAcres" className="ml-2 text-sm text-gray-700">
+                    Apply to all {farm?.acres.toLocaleString()} acres
+                  </label>
+                </div>
+                {!fertilizerForm.useAllAcres && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={fertilizerForm.acresApplied}
+                    onChange={(e) => setFertilizerForm({ ...fertilizerForm, acresApplied: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="Enter acres applied"
+                    required
+                  />
+                )}
+              </div>
+
+              {fertilizerForm.ratePerAcre && (fertilizerForm.useAllAcres || fertilizerForm.acresApplied) && farm && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">Total Amount:</span>{' '}
+                    {(parseFloat(fertilizerForm.ratePerAcre) *
+                      (fertilizerForm.useAllAcres ? farm.acres : parseFloat(fertilizerForm.acresApplied || '0'))
+                    ).toFixed(2)}{' '}
+                    {fertilizers.find(f => f.id === fertilizerForm.fertilizerId)?.unit || 'units'}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {parseFloat(fertilizerForm.ratePerAcre).toFixed(2)} × {fertilizerForm.useAllAcres ? farm.acres : fertilizerForm.acresApplied} acres
+                  </p>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -545,17 +611,17 @@ export default function FarmCostEntry() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount Used ({
+                  Rate per Acre ({
                     chemicalForm.usageUnit === 'GAL' ? 'gallons' :
                     chemicalForm.usageUnit === 'QUART' ? 'quarts' :
                     chemicalForm.usageUnit === 'PINT' ? 'pints' : 'ounces'
-                  })
+                  }/acre)
                 </label>
                 <input
                   type="number"
                   step="0.01"
-                  value={chemicalForm.amountUsed}
-                  onChange={(e) => setChemicalForm({ ...chemicalForm, amountUsed: e.target.value })}
+                  value={chemicalForm.ratePerAcre}
+                  onChange={(e) => setChemicalForm({ ...chemicalForm, ratePerAcre: e.target.value })}
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   placeholder={
                     chemicalForm.usageUnit === 'GAL' ? 'e.g., 2.5' :
@@ -564,16 +630,59 @@ export default function FarmCostEntry() {
                   }
                   required
                 />
-                {chemicalForm.amountUsed && chemicalForm.usageUnit !== 'GAL' && (
+                {chemicalForm.ratePerAcre && chemicalForm.usageUnit !== 'GAL' && (
                   <p className="mt-1 text-xs text-blue-600">
                     = {(
-                      chemicalForm.usageUnit === 'OZ' ? parseFloat(chemicalForm.amountUsed) / 128 :
-                      chemicalForm.usageUnit === 'QUART' ? parseFloat(chemicalForm.amountUsed) / 4 :
-                      parseFloat(chemicalForm.amountUsed) / 8
-                    ).toFixed(4)} gallons
+                      chemicalForm.usageUnit === 'OZ' ? parseFloat(chemicalForm.ratePerAcre) / 128 :
+                      chemicalForm.usageUnit === 'QUART' ? parseFloat(chemicalForm.ratePerAcre) / 4 :
+                      parseFloat(chemicalForm.ratePerAcre) / 8
+                    ).toFixed(4)} gallons/acre
                   </p>
                 )}
               </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="chemicalAllAcres"
+                    checked={chemicalForm.useAllAcres}
+                    onChange={(e) => setChemicalForm({ ...chemicalForm, useAllAcres: e.target.checked })}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                  />
+                  <label htmlFor="chemicalAllAcres" className="ml-2 text-sm text-gray-700">
+                    Apply to all {farm?.acres.toLocaleString()} acres
+                  </label>
+                </div>
+                {!chemicalForm.useAllAcres && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={chemicalForm.acresApplied}
+                    onChange={(e) => setChemicalForm({ ...chemicalForm, acresApplied: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+                    placeholder="Enter acres applied"
+                    required
+                  />
+                )}
+              </div>
+
+              {chemicalForm.ratePerAcre && (chemicalForm.useAllAcres || chemicalForm.acresApplied) && farm && (
+                <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">Total Amount:</span>{' '}
+                    {(parseFloat(chemicalForm.ratePerAcre) *
+                      (chemicalForm.useAllAcres ? farm.acres : parseFloat(chemicalForm.acresApplied || '0'))
+                    ).toFixed(2)}{' '}
+                    {chemicalForm.usageUnit === 'GAL' ? 'gallons' :
+                     chemicalForm.usageUnit === 'QUART' ? 'quarts' :
+                     chemicalForm.usageUnit === 'PINT' ? 'pints' : 'ounces'}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {parseFloat(chemicalForm.ratePerAcre).toFixed(2)} × {chemicalForm.useAllAcres ? farm.acres : chemicalForm.acresApplied} acres
+                  </p>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -679,21 +788,67 @@ export default function FarmCostEntry() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Number of Bags Used
+                  Population (seeds per acre)
                 </label>
                 <input
                   type="number"
-                  step="0.5"
-                  value={seedForm.bagsUsed}
-                  onChange={(e) => setSeedForm({ ...seedForm, bagsUsed: e.target.value })}
+                  step="1"
+                  value={seedForm.ratePerAcre}
+                  onChange={(e) => setSeedForm({ ...seedForm, ratePerAcre: e.target.value })}
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="e.g., 10"
+                  placeholder="e.g., 32000"
                   required
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Enter the total number of bags of this hybrid used on this field
+                  Enter the seeding rate (seeds per acre)
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="seedAllAcres"
+                    checked={seedForm.useAllAcres}
+                    onChange={(e) => setSeedForm({ ...seedForm, useAllAcres: e.target.checked })}
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+                  />
+                  <label htmlFor="seedAllAcres" className="ml-2 text-sm text-gray-700">
+                    Apply to all {farm?.acres.toLocaleString()} acres
+                  </label>
+                </div>
+                {!seedForm.useAllAcres && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={seedForm.acresApplied}
+                    onChange={(e) => setSeedForm({ ...seedForm, acresApplied: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500"
+                    placeholder="Enter acres planted"
+                    required
+                  />
+                )}
+              </div>
+
+              {seedForm.ratePerAcre && (seedForm.useAllAcres || seedForm.acresApplied) && seedForm.seedHybridId && farm && (
+                <div className="bg-purple-50 border border-purple-200 rounded-md p-3">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">Total Bags:</span>{' '}
+                    {(() => {
+                      const selectedSeed = seedHybrids.find(s => s.id === seedForm.seedHybridId);
+                      if (!selectedSeed) return '0';
+                      const acres = seedForm.useAllAcres ? farm.acres : parseFloat(seedForm.acresApplied || '0');
+                      const totalSeeds = parseFloat(seedForm.ratePerAcre) * acres;
+                      const bags = totalSeeds / selectedSeed.seedsPerBag;
+                      return bags.toFixed(2);
+                    })()}{' '}
+                    bags
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {parseFloat(seedForm.ratePerAcre).toLocaleString()} seeds/acre × {seedForm.useAllAcres ? farm.acres : seedForm.acresApplied} acres
+                  </p>
+                </div>
+              )}
 
               <button
                 type="submit"

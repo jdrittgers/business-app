@@ -146,6 +146,8 @@ export interface FarmFertilizerUsage {
   farmId: string;
   fertilizerId: string;
   amountUsed: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
   createdAt: Date;
   updatedAt: Date;
   fertilizer?: Fertilizer;
@@ -154,11 +156,15 @@ export interface FarmFertilizerUsage {
 export interface CreateFarmFertilizerUsageRequest {
   farmId: string;
   fertilizerId: string;
-  amountUsed: number;
+  amountUsed?: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
 }
 
 export interface UpdateFarmFertilizerUsageRequest {
   amountUsed?: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
 }
 
 export interface FarmChemicalUsage {
@@ -166,6 +172,8 @@ export interface FarmChemicalUsage {
   farmId: string;
   chemicalId: string;
   amountUsed: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
   createdAt: Date;
   updatedAt: Date;
   chemical?: Chemical;
@@ -174,11 +182,15 @@ export interface FarmChemicalUsage {
 export interface CreateFarmChemicalUsageRequest {
   farmId: string;
   chemicalId: string;
-  amountUsed: number;
+  amountUsed?: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
 }
 
 export interface UpdateFarmChemicalUsageRequest {
   amountUsed?: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
 }
 
 export interface FarmSeedUsage {
@@ -186,6 +198,8 @@ export interface FarmSeedUsage {
   farmId: string;
   seedHybridId: string;
   bagsUsed: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
   createdAt: Date;
   updatedAt: Date;
   seedHybrid?: SeedHybrid;
@@ -194,11 +208,15 @@ export interface FarmSeedUsage {
 export interface CreateFarmSeedUsageRequest {
   farmId: string;
   seedHybridId: string;
-  bagsUsed: number;
+  bagsUsed?: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
 }
 
 export interface UpdateFarmSeedUsageRequest {
   bagsUsed?: number;
+  ratePerAcre?: number;
+  acresApplied?: number;
 }
 
 export interface FarmOtherCost {

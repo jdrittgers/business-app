@@ -226,8 +226,12 @@ router.post('/businesses/:businessId/farms/fertilizer-usage', async (req: AuthRe
 
 router.put('/businesses/:businessId/farms/fertilizer-usage/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { amountUsed } = req.body;
-    const usage = await farmService.updateFertilizerUsage(req.params.id, req.params.businessId, amountUsed);
+    const { amountUsed, ratePerAcre, acresApplied } = req.body;
+    const usage = await farmService.updateFertilizerUsage(req.params.id, req.params.businessId, {
+      amountUsed,
+      ratePerAcre,
+      acresApplied
+    });
     res.json(usage);
   } catch (error: any) {
     console.error('Error updating fertilizer usage:', error);
@@ -258,8 +262,12 @@ router.post('/businesses/:businessId/farms/chemical-usage', async (req: AuthRequ
 
 router.put('/businesses/:businessId/farms/chemical-usage/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { amountUsed } = req.body;
-    const usage = await farmService.updateChemicalUsage(req.params.id, req.params.businessId, amountUsed);
+    const { amountUsed, ratePerAcre, acresApplied } = req.body;
+    const usage = await farmService.updateChemicalUsage(req.params.id, req.params.businessId, {
+      amountUsed,
+      ratePerAcre,
+      acresApplied
+    });
     res.json(usage);
   } catch (error: any) {
     console.error('Error updating chemical usage:', error);
@@ -290,8 +298,12 @@ router.post('/businesses/:businessId/farms/seed-usage', async (req: AuthRequest,
 
 router.put('/businesses/:businessId/farms/seed-usage/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const { population } = req.body;
-    const usage = await farmService.updateSeedUsage(req.params.id, req.params.businessId, population);
+    const { bagsUsed, ratePerAcre, acresApplied } = req.body;
+    const usage = await farmService.updateSeedUsage(req.params.id, req.params.businessId, {
+      bagsUsed,
+      ratePerAcre,
+      acresApplied
+    });
     res.json(usage);
   } catch (error: any) {
     console.error('Error updating seed usage:', error);

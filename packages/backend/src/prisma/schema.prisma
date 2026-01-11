@@ -507,7 +507,9 @@ model FarmFertilizerUsage {
   id           String   @id @default(uuid())
   farmId       String   @map("farm_id")
   fertilizerId String   @map("fertilizer_id")
-  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Pounds or gallons
+  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
+  ratePerAcre  Decimal? @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 150 lbs/acre)
+  acresApplied Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this fertilizer was applied to
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -524,7 +526,9 @@ model FarmChemicalUsage {
   id           String   @id @default(uuid())
   farmId       String   @map("farm_id")
   chemicalId   String   @map("chemical_id")
-  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Pounds or gallons
+  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
+  ratePerAcre  Decimal? @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 2.5 gal/acre)
+  acresApplied Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this chemical was applied to
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -541,7 +545,9 @@ model FarmSeedUsage {
   id             String   @id @default(uuid())
   farmId         String   @map("farm_id")
   seedHybridId   String   @map("seed_hybrid_id")
-  bagsUsed       Decimal  @map("bags_used") @db.Decimal(10, 2) // Number of bags used
+  bagsUsed       Decimal  @map("bags_used") @db.Decimal(10, 2) // Total bags used (calculated from population * acresApplied / seedsPerBag)
+  ratePerAcre    Decimal? @map("rate_per_acre") @db.Decimal(10, 2) // Seeding rate (population - seeds per acre, e.g., 32000)
+  acresApplied   Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this seed was applied to
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
