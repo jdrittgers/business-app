@@ -151,36 +151,28 @@ export default function GrainDashboard() {
         {/* Dashboard Content */}
         {!isLoading && summary && (
           <div className="space-y-8">
-            {/* Summary Cards */}
+            {/* Summary Cards - By Commodity */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <DashboardCard
-                title="Total Projected"
-                value={summary.totalProjected.toLocaleString()}
-                subtitle="bushels"
-                color="blue"
-                icon={<span className="text-2xl">🌾</span>}
-              />
-              <DashboardCard
-                title="Total Sold"
-                value={summary.totalSold.toLocaleString()}
-                subtitle="bushels"
-                color="green"
-                icon={<span className="text-2xl">✅</span>}
-              />
-              <DashboardCard
-                title="Remaining"
-                value={summary.totalRemaining.toLocaleString()}
-                subtitle="bushels"
-                color="yellow"
-                icon={<span className="text-2xl">📦</span>}
-              />
-              <DashboardCard
-                title="Percentage Sold"
-                value={`${summary.percentageSold.toFixed(1)}%`}
-                subtitle="of total"
-                color={summary.percentageSold >= 75 ? 'green' : summary.percentageSold >= 50 ? 'yellow' : 'red'}
-                icon={<span className="text-2xl">📊</span>}
-              />
+              {summary.byCommodity.flatMap((commodity) => [
+                <DashboardCard
+                  key={`${commodity.commodityType}-sold`}
+                  title={`${commodity.commodityType} Sold`}
+                  value={commodity.sold.toLocaleString()}
+                  subtitle="bushels"
+                  color="green"
+                  icon={<span className="text-2xl">
+                    {commodity.commodityType === 'CORN' ? '🌽' : commodity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
+                  </span>}
+                />,
+                <DashboardCard
+                  key={`${commodity.commodityType}-remaining`}
+                  title={`${commodity.commodityType} Remaining`}
+                  value={commodity.remaining.toLocaleString()}
+                  subtitle="bushels"
+                  color="yellow"
+                  icon={<span className="text-2xl">📦</span>}
+                />
+              ])}
             </div>
 
             {/* Average Price Cards - One per Commodity */}
