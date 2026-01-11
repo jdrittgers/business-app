@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { invoiceApi } from '../api/invoice.api';
+import { breakevenApi } from '../api/breakeven.api';
 import {
   Invoice,
   InvoiceStatus,
   InvoiceLineItem,
   InvoiceProductType,
-  UpdateInvoiceLineItemRequest
+  UpdateInvoiceLineItemRequest,
+  UnitType,
+  CommodityType
 } from '@business-app/shared';
 
 export default function InvoiceParsing() {
@@ -22,6 +25,17 @@ export default function InvoiceParsing() {
   const [editingLineItems, setEditingLineItems] = useState<InvoiceLineItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [locking, setLocking] = useState(false);
+
+  // Product creation from line items
+  const [showSeedModal, setShowSeedModal] = useState(false);
+  const [selectedLineItem, setSelectedLineItem] = useState<InvoiceLineItem | null>(null);
+  const [seedFormData, setSeedFormData] = useState<{
+    commodityType: CommodityType;
+    seedsPerBag: string;
+  }>({
+    commodityType: CommodityType.CORN,
+    seedsPerBag: ''
+  });
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
 
@@ -298,6 +312,69 @@ export default function InvoiceParsing() {
     navigate('/input-bids');
   };
 
+  const handleAddToProducts = (lineItem: InvoiceLineItem) => {
+    if (lineItem.productType === InvoiceProductType.SEED) {
+      // Seeds need additional info
+      setSelectedLineItem(lineItem);
+      setSeedFormData({ commodityType: CommodityType.CORN, seedsPerBag: '' });
+      setShowSeedModal(true);
+    } else {
+      // Fertilizers and chemicals can be added directly
+      addFertilizerOrChemical(lineItem);
+    }
+  };
+
+  const addFertilizerOrChemical = async (lineItem: InvoiceLineItem) => {
+    if (!businessId) return;
+
+    try {
+      const productData = {
+        name: lineItem.productName,
+        pricePerUnit: Number(lineItem.pricePerUnit),
+        unit: lineItem.unit as UnitType
+      };
+
+      if (lineItem.productType === InvoiceProductType.FERTILIZER) {
+        await breakevenApi.createFertilizer(businessId, productData);
+        alert(`✅ Added "${lineItem.productName}" to Fertilizers!`);
+      } else if (lineItem.productType === InvoiceProductType.CHEMICAL) {
+        await breakevenApi.createChemical(businessId, productData);
+        alert(`✅ Added "${lineItem.productName}" to Chemicals!`);
+      }
+    } catch (error: any) {
+      console.error('Failed to add product:', error);
+      alert(error.response?.data?.error || 'Failed to add product to catalog');
+    }
+  };
+
+  const handleAddSeedProduct = async () => {
+    if (!businessId || !selectedLineItem) return;
+
+    if (!seedFormData.seedsPerBag) {
+      alert('Please enter seeds per bag');
+      return;
+    }
+
+    try {
+      const seedData = {
+        name: selectedLineItem.productName,
+        commodityType: seedFormData.commodityType,
+        pricePerBag: Number(selectedLineItem.pricePerUnit),
+        seedsPerBag: parseInt(seedFormData.seedsPerBag)
+      };
+
+      await breakevenApi.createSeedHybrid(businessId, seedData);
+      alert(`✅ Added "${selectedLineItem.productName}" to Seed Hybrids!`);
+
+      setShowSeedModal(false);
+      setSelectedLineItem(null);
+      setSeedFormData({ commodityType: CommodityType.CORN, seedsPerBag: '' });
+    } catch (error: any) {
+      console.error('Failed to add seed:', error);
+      alert(error.response?.data?.error || 'Failed to add seed to catalog');
+    }
+  };
+
   const handleDeleteInvoice = async (invoiceId: string) => {
     if (!businessId) return;
 
@@ -486,6 +563,7 @@ export default function InvoiceParsing() {
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price/Unit</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -543,6 +621,16 @@ export default function InvoiceParsing() {
                       <td className="px-3 py-3 text-sm text-gray-900">
                         ${Number(item.totalPrice).toFixed(2)}
                       </td>
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={() => handleAddToProducts(item)}
+                          className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded"
+                          disabled={!!item.priceLockedAt}
+                          title="Add to product catalog"
+                        >
+                          Add to Products
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -595,6 +683,75 @@ export default function InvoiceParsing() {
                   Create Bid Request
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seed Product Modal */}
+      {showSeedModal && selectedLineItem && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Add Seed to Product Catalog
+            </h3>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Product: <span className="font-medium">{selectedLineItem.productName}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                Price per Bag: <span className="font-medium">${Number(selectedLineItem.pricePerUnit).toFixed(2)}</span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Commodity Type *
+                </label>
+                <select
+                  value={seedFormData.commodityType}
+                  onChange={(e) => setSeedFormData({ ...seedFormData, commodityType: e.target.value as CommodityType })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                >
+                  <option value="CORN">Corn</option>
+                  <option value="SOYBEANS">Soybeans</option>
+                  <option value="WHEAT">Wheat</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Seeds per Bag *
+                </label>
+                <input
+                  type="number"
+                  value={seedFormData.seedsPerBag}
+                  onChange={(e) => setSeedFormData({ ...seedFormData, seedsPerBag: e.target.value })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="e.g., 80000"
+                  min="1"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowSeedModal(false);
+                  setSelectedLineItem(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSeedProduct}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+              >
+                Add to Catalog
+              </button>
             </div>
           </div>
         </div>
