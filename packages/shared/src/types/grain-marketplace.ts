@@ -1,5 +1,7 @@
 import { GrainBin } from './grain-bins';
-import { Business, GrainEntity } from './index';
+import { Retailer } from './bidding';
+import { Business } from './business';
+import { GrainEntity } from './grain';
 
 export enum GrainPurchaseOfferStatus {
   PENDING = 'PENDING',
@@ -7,23 +9,6 @@ export enum GrainPurchaseOfferStatus {
   REJECTED = 'REJECTED',
   EXPIRED = 'EXPIRED',
   COMPLETED = 'COMPLETED'
-}
-
-export interface Retailer {
-  id: string;
-  userId: string;
-  companyName: string;
-  businessLicense?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  latitude?: number;
-  longitude?: number;
-  radiusPreference: number;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface RetailerWithUser extends Retailer {
