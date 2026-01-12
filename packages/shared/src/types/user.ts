@@ -1,3 +1,5 @@
+import { Business } from './business';
+
 export enum UserRole {
   OWNER = 'OWNER',
   MANAGER = 'MANAGER',
@@ -24,10 +26,7 @@ export interface BusinessMembership {
   userId: string;
   businessId: string;
   role: UserRole;
-  business: {
-    id: string;
-    name: string;
-  };
+  business: Business;
 }
 
 export interface AuthTokenPayload {
