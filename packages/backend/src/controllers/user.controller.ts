@@ -1,6 +1,77 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../prisma/client';
+import axios from 'axios';
+
+/**
+ * Update business location
+ * PUT /api/user/businesses/:businessId/location
+ */
+export async function updateBusinessLocation(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const userId = req.user!.userId;
+    const { businessId } = req.params;
+    const { zipCode } = req.body;
+
+    // Check if user has permission (must be OWNER or MANAGER)
+    const membership = await prisma.businessMember.findFirst({
+      where: {
+        userId,
+        businessId,
+        role: { in: ['OWNER', 'MANAGER'] }
+      }
+    });
+
+    if (!membership) {
+      res.status(403).json({ error: 'You do not have permission to update this business' });
+      return;
+    }
+
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+
+    // Geocode ZIP code if provided
+    if (zipCode) {
+      try {
+        const geocodeResponse = await axios.get(
+          `https://api.mapbox.com/search/geocode/v6/forward`,
+          {
+            params: {
+              q: zipCode,
+              country: 'US',
+              types: 'postcode',
+              access_token: process.env.MAPBOX_API_KEY
+            }
+          }
+        );
+
+        if (geocodeResponse.data.features && geocodeResponse.data.features.length > 0) {
+          const coords = geocodeResponse.data.features[0].geometry.coordinates;
+          longitude = coords[0];
+          latitude = coords[1];
+        }
+      } catch (geocodeError) {
+        console.error('Geocoding error:', geocodeError);
+        // Continue without coordinates if geocoding fails
+      }
+    }
+
+    // Update business
+    const updatedBusiness = await prisma.business.update({
+      where: { id: businessId },
+      data: {
+        zipCode,
+        latitude,
+        longitude
+      }
+    });
+
+    res.json(updatedBusiness);
+  } catch (error: any) {
+    console.error('Update business location error:', error);
+    res.status(500).json({ error: 'Failed to update business location' });
+  }
+}
 
 /**
  * Delete user account

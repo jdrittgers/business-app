@@ -23,6 +23,10 @@ export default function UserSettings() {
     lastName: user?.lastName || ''
   });
 
+  // Business location state
+  const [editingBusinessId, setEditingBusinessId] = useState<string | null>(null);
+  const [businessZipCode, setBusinessZipCode] = useState('');
+
   const handleJoinBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -72,6 +76,29 @@ export default function UserSettings() {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       setError('Failed to update profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateBusinessLocation = async (businessId: string, zipCode: string) => {
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await userApi.updateBusinessLocation(businessId, zipCode);
+      setSuccess('Business location updated successfully!');
+
+      // Reload user data to get updated business info
+      await loadUser();
+
+      setEditingBusinessId(null);
+      setBusinessZipCode('');
+
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update business location');
     } finally {
       setIsLoading(false);
     }
@@ -271,7 +298,7 @@ export default function UserSettings() {
                         className="border border-gray-300 rounded-lg p-4"
                       >
                         <div className="flex justify-between items-start">
-                          <div>
+                          <div className="flex-1">
                             <h3 className="text-lg font-semibold text-gray-900">
                               {membership.business.name}
                             </h3>
@@ -284,6 +311,70 @@ export default function UserSettings() {
                                 {membership.role}
                               </span>
                             </div>
+
+                            {/* Location info */}
+                            {editingBusinessId === membership.businessId ? (
+                              <div className="mt-3 space-y-2">
+                                <input
+                                  type="text"
+                                  value={businessZipCode}
+                                  onChange={(e) => setBusinessZipCode(e.target.value)}
+                                  placeholder="ZIP Code"
+                                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  maxLength={5}
+                                  pattern="\d{5}"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleUpdateBusinessLocation(membership.businessId, businessZipCode)}
+                                    disabled={isLoading || businessZipCode.length !== 5}
+                                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    {isLoading ? 'Saving...' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingBusinessId(null);
+                                      setBusinessZipCode('');
+                                    }}
+                                    className="px-3 py-1 border border-gray-300 text-sm rounded hover:bg-gray-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-2">
+                                {membership.business.latitude && membership.business.longitude ? (
+                                  <div className="text-sm text-gray-600">
+                                    📍 Location set: {membership.business.zipCode || 'Custom'}
+                                    {(membership.role === 'OWNER' || membership.role === 'MANAGER') && (
+                                      <button
+                                        onClick={() => {
+                                          setEditingBusinessId(membership.businessId);
+                                          setBusinessZipCode(membership.business.zipCode || '');
+                                        }}
+                                        className="ml-2 text-green-600 hover:text-green-700"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  (membership.role === 'OWNER' || membership.role === 'MANAGER') && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingBusinessId(membership.businessId);
+                                        setBusinessZipCode('');
+                                      }}
+                                      className="text-sm text-green-600 hover:text-green-700"
+                                    >
+                                      + Set Location (required for grain marketplace)
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {membership.business.name.startsWith('Temp-') && (

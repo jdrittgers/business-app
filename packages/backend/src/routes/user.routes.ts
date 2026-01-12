@@ -8,6 +8,12 @@ const router = Router();
 router.use(authenticate);
 
 /**
+ * PUT /api/user/businesses/:businessId/location
+ * Update business location
+ */
+router.put('/businesses/:businessId/location', (req, res) => userController.updateBusinessLocation(req, res));
+
+/**
  * DELETE /api/user/account
  * Delete user account
  */

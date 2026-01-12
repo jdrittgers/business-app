@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRetailerAuthStore } from '../store/retailerAuthStore';
 import { grainMarketplaceApi } from '../api/grain-marketplace.api';
 import { GrainBinWithDistance, GrainPurchaseOfferWithDetails, GrainPurchaseOfferStatus } from '@business-app/shared';
 import { GrainBinVisual } from '../components/grain/GrainBinVisual';
 
 const RetailerGrainMarketplace: React.FC = () => {
+  const navigate = useNavigate();
   const { retailer, user } = useRetailerAuthStore();
   const [bins, setBins] = useState<GrainBinWithDistance[]>([]);
   const [myOffers, setMyOffers] = useState<GrainPurchaseOfferWithDetails[]>([]);
@@ -34,11 +36,25 @@ const RetailerGrainMarketplace: React.FC = () => {
   const loadData = async () => {
     if (!retailer) return;
 
+    // Skip search if no location is set, but still load offers
+    if (!retailer.latitude || !retailer.longitude) {
+      setLoading(false);
+      setBins([]);
+      try {
+        const offersData = await grainMarketplaceApi.getRetailerOffers(retailer.id);
+        setMyOffers(offersData);
+      } catch (error) {
+        console.error('Error loading offers:', error);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
-      // Use retailer's location, or default to Chicago area if not set
-      const latitude = retailer.latitude ? Number(retailer.latitude) : 41.8781;
-      const longitude = retailer.longitude ? Number(retailer.longitude) : -87.6298;
+      const latitude = Number(retailer.latitude);
+      const longitude = Number(retailer.longitude);
+
+      console.log('Searching bins with:', { latitude, longitude, radius, commodityFilter });
 
       const [binsData, offersData] = await Promise.all([
         grainMarketplaceApi.searchBins({
@@ -50,6 +66,7 @@ const RetailerGrainMarketplace: React.FC = () => {
         grainMarketplaceApi.getRetailerOffers(retailer.id)
       ]);
 
+      console.log('Found bins:', binsData.length);
       setBins(binsData);
       setMyOffers(offersData);
     } catch (error) {
@@ -143,14 +160,35 @@ const RetailerGrainMarketplace: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="border-b border-gray-200 pb-4">
-        <h1 className="text-3xl font-bold text-gray-900">Grain Marketplace</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Browse available grain inventory and submit purchase offers
-        </p>
+      <div className="bg-indigo-700 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate('/retailer/dashboard')}
+                className="text-indigo-200 hover:text-white"
+              >
+                ← Back to Dashboard
+              </button>
+              <div>
+                <h1 className="text-3xl font-bold">Grain Marketplace</h1>
+                <p className="mt-1 text-indigo-200">
+                  Browse available grain inventory and submit purchase offers
+                </p>
+              </div>
+            </div>
+            {!retailer?.latitude && !retailer?.longitude && (
+              <div className="bg-yellow-500 text-yellow-900 px-4 py-2 rounded-md text-sm">
+                ⚠️ Set your location in <button onClick={() => navigate('/retailer/profile')} className="underline font-medium">Profile Settings</button> to see bins
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
       {/* Search Filters */}
       <div className="bg-white rounded-lg shadow p-6">
@@ -436,6 +474,7 @@ const RetailerGrainMarketplace: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
