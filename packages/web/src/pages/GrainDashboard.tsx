@@ -2,17 +2,20 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { analyticsApi } from '../api/analytics.api';
-import { DashboardSummary } from '@business-app/shared';
+import { grainBinsApi } from '../api/grain-bins.api';
+import { DashboardSummary, GrainBin } from '@business-app/shared';
 import DashboardCard from '../components/grain/DashboardCard';
 import ProgressBar from '../components/grain/ProgressBar';
 import PieChart from '../components/grain/PieChart';
 import MarketPriceWidget from '../components/grain/MarketPriceWidget';
+import { GrainBinVisual } from '../components/grain/GrainBinVisual';
 
 export default function GrainDashboard() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [bins, setBins] = useState<GrainBin[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +55,14 @@ export default function GrainDashboard() {
     setError(null);
 
     try {
-      const dashboardData = await analyticsApi.getDashboardSummary(selectedBusinessId, {
-        year: filterYear
-      });
+      const [dashboardData, binsData] = await Promise.all([
+        analyticsApi.getDashboardSummary(selectedBusinessId, {
+          year: filterYear
+        }),
+        grainBinsApi.getBinsByBusiness(selectedBusinessId)
+      ]);
       setSummary(dashboardData);
+      setBins(binsData);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -246,6 +253,57 @@ export default function GrainDashboard() {
                 );
               })}
             </div>
+
+            {/* Grain Bin Storage Visual */}
+            {bins.length > 0 && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Grain Bin Storage</h3>
+                    <p className="text-sm text-gray-500">Current inventory levels by bin</p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/grain-contracts/bins')}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Manage Bins
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                  {bins
+                    .filter(bin => bin.isActive)
+                    .sort((a, b) => {
+                      // Sort by commodity type, then by fill percentage (most full first)
+                      if (a.commodityType !== b.commodityType) {
+                        return a.commodityType.localeCompare(b.commodityType);
+                      }
+                      const fillA = (a.currentBushels / a.capacity) * 100;
+                      const fillB = (b.currentBushels / b.capacity) * 100;
+                      return fillB - fillA;
+                    })
+                    .map(bin => (
+                      <GrainBinVisual
+                        key={bin.id}
+                        bin={bin}
+                        onClick={() => navigate('/grain-contracts/bins')}
+                      />
+                    ))}
+                </div>
+
+                {bins.filter(b => b.isActive).length === 0 && (
+                  <div className="text-center py-12">
+                    <p className="text-gray-500 mb-4">No active grain bins yet</p>
+                    <button
+                      onClick={() => navigate('/grain-contracts/bins')}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Create Your First Bin
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Market Prices & Commodity Breakdown */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

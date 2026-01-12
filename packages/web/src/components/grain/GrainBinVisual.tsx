@@ -6,22 +6,28 @@ interface GrainBinVisualProps {
   onClick?: () => void;
 }
 
-// Commodity colors
+// Commodity colors and patterns
 const COMMODITY_COLORS = {
   CORN: {
     fill: '#fbbf24', // Yellow
     fillDark: '#f59e0b',
-    stroke: '#92400e'
+    fillLight: '#fde68a',
+    stroke: '#92400e',
+    patternId: 'cornPattern'
   },
   SOYBEANS: {
-    fill: '#10b981', // Green
-    fillDark: '#059669',
-    stroke: '#064e3b'
+    fill: '#86a855', // Olive/bean green
+    fillDark: '#6b8839',
+    fillLight: '#a3c075',
+    stroke: '#4a5928',
+    patternId: 'soybeanPattern'
   },
   WHEAT: {
     fill: '#f59e0b', // Amber
     fillDark: '#d97706',
-    stroke: '#78350f'
+    fillLight: '#fbbf24',
+    stroke: '#78350f',
+    patternId: 'wheatPattern'
   }
 };
 
@@ -29,20 +35,21 @@ export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick }) 
   const fillPercentage = bin.fillPercentage || Math.round((bin.currentBushels / bin.capacity) * 100);
   const colors = COMMODITY_COLORS[bin.commodityType];
 
-  // SVG dimensions
-  const width = 120;
-  const height = 200;
-  const cylinderWidth = 80;
-  const ellipseRy = 12; // Height of ellipse
-  const bodyHeight = height - ellipseRy * 3; // Space for top and bottom ellipses
+  // SVG dimensions for agricultural bin shape
+  const width = 140;
+  const height = 220;
+  const binWidth = 100;
+  const roofHeight = 35; // Conical roof height
+  const bodyHeight = 150; // Main cylindrical body
+  const baseY = roofHeight; // Where body starts
 
   // Calculate fill height
   const fillHeight = (bodyHeight * fillPercentage) / 100;
-  const fillY = height - ellipseRy - fillHeight;
+  const fillY = baseY + bodyHeight - fillHeight;
 
   return (
     <div
-      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
       onClick={onClick}
     >
       {/* Bin name and crop year */}
@@ -51,68 +58,150 @@ export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick }) 
         <p className="text-sm text-gray-500">{bin.cropYear} Crop</p>
       </div>
 
-      {/* SVG Cylinder */}
+      {/* SVG Agricultural Bin */}
       <svg
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        className="mb-2"
+        className="mb-2 drop-shadow-md"
       >
-        {/* Outer cylinder body (background) */}
-        <rect
-          x={(width - cylinderWidth) / 2}
-          y={ellipseRy}
-          width={cylinderWidth}
-          height={bodyHeight}
-          fill="#f3f4f6"
+        <defs>
+          {/* Corn texture pattern - small circular kernels */}
+          <pattern id="cornPattern" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+            <rect width="12" height="12" fill={colors.fill} />
+            <circle cx="3" cy="3" r="2.5" fill={colors.fillDark} opacity="0.8" />
+            <circle cx="9" cy="3" r="2.5" fill={colors.fillLight} opacity="0.6" />
+            <circle cx="6" cy="8" r="2.5" fill={colors.fillDark} opacity="0.7" />
+            <circle cx="2" cy="9" r="2" fill={colors.fillLight} opacity="0.5" />
+            <circle cx="10" cy="9" r="2" fill={colors.fillDark} opacity="0.6" />
+          </pattern>
+
+          {/* Soybean texture pattern - oval bean shapes */}
+          <pattern id="soybeanPattern" x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
+            <rect width="14" height="14" fill={colors.fill} />
+            <ellipse cx="4" cy="3" rx="2.5" ry="2" fill={colors.fillDark} opacity="0.8" />
+            <ellipse cx="10" cy="4" rx="2.5" ry="2" fill={colors.fillLight} opacity="0.7" />
+            <ellipse cx="7" cy="9" rx="2.5" ry="2" fill={colors.fillDark} opacity="0.75" />
+            <ellipse cx="2" cy="11" rx="2" ry="1.5" fill={colors.fillLight} opacity="0.6" />
+            <ellipse cx="12" cy="11" rx="2" ry="1.5" fill={colors.fillDark} opacity="0.7" />
+          </pattern>
+
+          {/* Wheat texture pattern - grain texture */}
+          <pattern id="wheatPattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+            <rect width="10" height="10" fill={colors.fill} />
+            <ellipse cx="2" cy="2" rx="1.5" ry="2.5" fill={colors.fillDark} opacity="0.7" />
+            <ellipse cx="7" cy="3" rx="1.5" ry="2.5" fill={colors.fillLight} opacity="0.6" />
+            <ellipse cx="5" cy="7" rx="1.5" ry="2.5" fill={colors.fillDark} opacity="0.75" />
+          </pattern>
+
+          {/* Gradient for 3D effect */}
+          <linearGradient id="binGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#9ca3af" />
+            <stop offset="50%" stopColor="#d1d5db" />
+            <stop offset="100%" stopColor="#9ca3af" />
+          </linearGradient>
+        </defs>
+
+        {/* Conical Roof */}
+        <path
+          d={`M ${width / 2} 5 L ${(width - binWidth) / 2} ${roofHeight} L ${(width + binWidth) / 2} ${roofHeight} Z`}
+          fill="url(#binGradient)"
           stroke={colors.stroke}
           strokeWidth="2"
         />
+        {/* Roof cap/vent */}
+        <circle cx={width / 2} cy="8" r="4" fill="#6b7280" stroke={colors.stroke} strokeWidth="1" />
 
-        {/* Bottom ellipse (always visible) */}
-        <ellipse
-          cx={width / 2}
-          cy={height - ellipseRy}
-          rx={cylinderWidth / 2}
-          ry={ellipseRy}
+        {/* Bin body - background (empty space) */}
+        <rect
+          x={(width - binWidth) / 2}
+          y={baseY}
+          width={binWidth}
+          height={bodyHeight}
           fill="#e5e7eb"
           stroke={colors.stroke}
-          strokeWidth="2"
+          strokeWidth="2.5"
         />
 
-        {/* Fill level body (if there's grain) */}
+        {/* Vertical ribs/corrugation lines on bin */}
+        {[0, 0.2, 0.4, 0.6, 0.8, 1].map((ratio, i) => (
+          <line
+            key={i}
+            x1={(width - binWidth) / 2 + binWidth * ratio}
+            y1={baseY}
+            x2={(width - binWidth) / 2 + binWidth * ratio}
+            y2={baseY + bodyHeight}
+            stroke="#9ca3af"
+            strokeWidth="1"
+            opacity="0.3"
+          />
+        ))}
+
+        {/* Fill level with grain texture */}
         {fillPercentage > 0 && (
           <>
             <rect
-              x={(width - cylinderWidth) / 2}
+              x={(width - binWidth) / 2}
               y={fillY}
-              width={cylinderWidth}
+              width={binWidth}
               height={fillHeight}
-              fill={colors.fill}
+              fill={`url(#${colors.patternId})`}
+              stroke="none"
             />
 
-            {/* Fill level top ellipse */}
+            {/* Top surface of grain (darker shade) */}
             <ellipse
               cx={width / 2}
               cy={fillY}
-              rx={cylinderWidth / 2}
-              ry={ellipseRy}
+              rx={binWidth / 2}
+              ry="8"
               fill={colors.fillDark}
-              stroke={colors.stroke}
-              strokeWidth="1"
+              opacity="0.9"
+            />
+
+            {/* Highlight on grain surface */}
+            <ellipse
+              cx={width / 2}
+              cy={fillY}
+              rx={binWidth / 3}
+              ry="5"
+              fill={colors.fillLight}
+              opacity="0.4"
             />
           </>
         )}
 
-        {/* Top ellipse (bin lid) */}
-        <ellipse
-          cx={width / 2}
-          cy={ellipseRy}
-          rx={cylinderWidth / 2}
-          ry={ellipseRy}
-          fill="#d1d5db"
-          stroke={colors.stroke}
-          strokeWidth="2"
+        {/* Access ladder */}
+        <rect
+          x={(width + binWidth) / 2 - 6}
+          y={baseY + 10}
+          width="6"
+          height={bodyHeight - 10}
+          fill="#6b7280"
+          stroke="#374151"
+          strokeWidth="1"
+        />
+        {/* Ladder rungs */}
+        {[0.2, 0.4, 0.6, 0.8].map((ratio, i) => (
+          <rect
+            key={i}
+            x={(width + binWidth) / 2 - 10}
+            y={baseY + 10 + (bodyHeight - 10) * ratio}
+            width="10"
+            height="2"
+            fill="#374151"
+          />
+        ))}
+
+        {/* Base/foundation */}
+        <rect
+          x={(width - binWidth) / 2 - 5}
+          y={baseY + bodyHeight}
+          width={binWidth + 10}
+          height="8"
+          fill="#4b5563"
+          stroke="#1f2937"
+          strokeWidth="1.5"
         />
       </svg>
 
