@@ -3,8 +3,14 @@ import { UserRole } from './user';
 export interface Business {
   id: string;
   name: string;
+  address?: string;
   city?: string;
   state?: string;
+  zipCode?: string;
+  phone?: string;
+  email?: string;
+  latitude?: number;
+  longitude?: number;
   createdAt: Date;
   updatedAt: Date;
 }
