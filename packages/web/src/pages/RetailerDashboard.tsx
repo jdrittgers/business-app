@@ -345,6 +345,18 @@ export default function RetailerDashboard() {
             </div>
             <div className="flex gap-3">
               <button
+                onClick={() => navigate('/retailer/dashboard')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
+              >
+                Input Marketplace
+              </button>
+              <button
+                onClick={() => navigate('/retailer/grain-marketplace')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
+              >
+                Grain Marketplace
+              </button>
+              <button
                 onClick={() => navigate('/retailer/profile')}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
               >

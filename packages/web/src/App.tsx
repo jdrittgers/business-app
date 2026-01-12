@@ -28,6 +28,8 @@ import AcceptInvitation from './pages/AcceptInvitation';
 import UserSettings from './pages/UserSettings';
 import InvoiceParsing from './pages/InvoiceParsing';
 import GrainBins from './pages/GrainBins';
+import RetailerGrainMarketplace from './pages/RetailerGrainMarketplace';
+import FarmerGrainOffers from './pages/FarmerGrainOffers';
 import RequireRole from './components/RequireRole';
 
 function App() {
@@ -111,6 +113,10 @@ function App() {
         path="/grain-contracts/bins"
         element={isAuthenticated ? <GrainBins /> : <Navigate to="/login" />}
       />
+      <Route
+        path="/grain-contracts/offers"
+        element={isAuthenticated ? <FarmerGrainOffers /> : <Navigate to="/login" />}
+      />
 
       {/* Retailer Routes */}
       <Route path="/retailer/login" element={<RetailerLogin />} />
@@ -122,6 +128,10 @@ function App() {
       <Route
         path="/retailer/profile"
         element={isRetailerAuthenticated ? <RetailerProfile /> : <Navigate to="/retailer/login" />}
+      />
+      <Route
+        path="/retailer/grain-marketplace"
+        element={isRetailerAuthenticated ? <RetailerGrainMarketplace /> : <Navigate to="/retailer/login" />}
       />
     </Routes>
   );

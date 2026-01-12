@@ -21,6 +21,7 @@ import retailerBidRoutes from './routes/retailer-bid.routes';
 import invoiceRoutes from './routes/invoice.routes';
 import grainBinRoutes from './routes/grain-bin.routes';
 import scaleTicketRoutes from './routes/scale-ticket.routes';
+import grainMarketplaceRoutes from './controllers/grain-marketplace.controller';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 
@@ -65,6 +66,7 @@ app.use('/api', breakevenRoutes);
 app.use('/api', invoiceRoutes);
 app.use('/api', grainBinRoutes);
 app.use('/api', scaleTicketRoutes);
+app.use('/api/grain-marketplace', grainMarketplaceRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

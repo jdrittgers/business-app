@@ -59,6 +59,14 @@ enum ScaleTicketStatus {
   PROCESSED
 }
 
+enum GrainPurchaseOfferStatus {
+  PENDING    // Retailer submitted offer to farmer
+  ACCEPTED   // Farmer accepted the offer
+  REJECTED   // Farmer rejected the offer
+  EXPIRED    // Offer expired
+  COMPLETED  // Transaction completed
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -597,8 +605,9 @@ model Retailer {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   // Relations
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bids              RetailerBid[]
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bids                RetailerBid[]
+  grainPurchaseOffers GrainPurchaseOffer[]
 
   @@index([latitude, longitude])
   @@map("retailers")
@@ -822,9 +831,10 @@ model GrainBin {
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  grainEntity     GrainEntity   @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+  grainEntity     GrainEntity         @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
   scaleTickets    ScaleTicket[]
   binTransactions BinTransaction[]
+  purchaseOffers  GrainPurchaseOffer[]
 
   @@index([grainEntityId, commodityType])
   @@index([cropYear])
@@ -891,4 +901,33 @@ model BinTransaction {
   @@map("bin_transactions")
   @@index([binId])
   @@index([transactionDate])
+}
+
+// ===== Grain Marketplace Models =====
+
+model GrainPurchaseOffer {
+  id                      String                    @id @default(uuid())
+  retailerId              String                    @map("retailer_id")
+  grainBinId              String                    @map("grain_bin_id")
+  bushelsOffered          Decimal                   @map("bushels_offered") @db.Decimal(12, 2)
+  pricePerBushel          Decimal                   @map("price_per_bushel") @db.Decimal(10, 4)
+  totalOfferPrice         Decimal                   @map("total_offer_price") @db.Decimal(12, 2)
+  status                  GrainPurchaseOfferStatus  @default(PENDING)
+  expirationDate          DateTime?                 @map("expiration_date")
+  pickupDate              DateTime?                 @map("pickup_date")
+  notes                   String?
+  acceptedAt              DateTime?                 @map("accepted_at")
+  acceptedBy              String?                   @map("accepted_by")
+  rejectedAt              DateTime?                 @map("rejected_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+
+  // Relations
+  retailer                Retailer                  @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  grainBin                GrainBin                  @relation(fields: [grainBinId], references: [id], onDelete: Cascade)
+
+  @@map("grain_purchase_offers")
+  @@index([retailerId])
+  @@index([grainBinId])
+  @@index([status])
 }
