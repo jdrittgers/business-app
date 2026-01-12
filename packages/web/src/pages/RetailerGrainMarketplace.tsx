@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useRetailerAuthStore } from '../store/retailerAuthStore';
 import { grainMarketplaceApi } from '../api/grain-marketplace.api';
 import { GrainBinWithDistance, GrainPurchaseOfferWithDetails, GrainPurchaseOfferStatus } from '@business-app/shared';
 import { GrainBinVisual } from '../components/grain/GrainBinVisual';
 
-export const RetailerGrainMarketplace: React.FC = () => {
-  const { user } = useAuth();
+const RetailerGrainMarketplace: React.FC = () => {
+  const { retailer, user } = useRetailerAuthStore();
   const [bins, setBins] = useState<GrainBinWithDistance[]>([]);
   const [myOffers, setMyOffers] = useState<GrainPurchaseOfferWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,22 +25,20 @@ export const RetailerGrainMarketplace: React.FC = () => {
     notes: ''
   });
 
-  // TODO: Get retailer profile to get location and retailerId
-  const [retailerProfile, setRetailerProfile] = useState<any>(null);
-
   useEffect(() => {
-    if (user) {
+    if (user && retailer) {
       loadData();
     }
-  }, [user]);
+  }, [user, retailer]);
 
   const loadData = async () => {
+    if (!retailer) return;
+
     setLoading(true);
     try {
-      // TODO: Fetch retailer profile first to get location
-      // For now, using placeholder coordinates (Chicago area)
-      const latitude = 41.8781;
-      const longitude = -87.6298;
+      // Use retailer's location, or default to Chicago area if not set
+      const latitude = retailer.latitude ? Number(retailer.latitude) : 41.8781;
+      const longitude = retailer.longitude ? Number(retailer.longitude) : -87.6298;
 
       const [binsData, offersData] = await Promise.all([
         grainMarketplaceApi.searchBins({
@@ -49,8 +47,7 @@ export const RetailerGrainMarketplace: React.FC = () => {
           radiusMiles: radius,
           ...(commodityFilter && { commodityType: commodityFilter })
         }),
-        // TODO: Use actual retailerId from profile
-        grainMarketplaceApi.getRetailerOffers('placeholder-retailer-id')
+        grainMarketplaceApi.getRetailerOffers(retailer.id)
       ]);
 
       setBins(binsData);
@@ -79,11 +76,11 @@ export const RetailerGrainMarketplace: React.FC = () => {
   };
 
   const handleSubmitOffer = async () => {
-    if (!selectedBin) return;
+    if (!selectedBin || !retailer) return;
 
     try {
       await grainMarketplaceApi.createOffer({
-        retailerId: 'placeholder-retailer-id', // TODO: Use actual retailerId
+        retailerId: retailer.id,
         grainBinId: selectedBin.id,
         bushelsOffered: parseFloat(offerForm.bushelsOffered),
         pricePerBushel: parseFloat(offerForm.pricePerBushel),
@@ -103,9 +100,10 @@ export const RetailerGrainMarketplace: React.FC = () => {
 
   const handleCancelOffer = async (offerId: string) => {
     if (!confirm('Are you sure you want to cancel this offer?')) return;
+    if (!retailer) return;
 
     try {
-      await grainMarketplaceApi.cancelOffer('placeholder-retailer-id', offerId);
+      await grainMarketplaceApi.cancelOffer(retailer.id, offerId);
       loadData();
     } catch (error) {
       console.error('Error cancelling offer:', error);
@@ -441,3 +439,5 @@ export const RetailerGrainMarketplace: React.FC = () => {
     </div>
   );
 };
+
+export default RetailerGrainMarketplace;

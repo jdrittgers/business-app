@@ -1,6 +1,5 @@
 import axios from 'axios';
 import {
-  GrainPurchaseOffer,
   GrainPurchaseOfferWithDetails,
   GrainBinWithDistance,
   CreateGrainPurchaseOfferRequest,

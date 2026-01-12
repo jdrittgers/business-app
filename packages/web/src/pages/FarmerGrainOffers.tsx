@@ -1,26 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/authStore';
 import { grainMarketplaceApi } from '../api/grain-marketplace.api';
 import { GrainPurchaseOfferWithDetails, GrainPurchaseOfferStatus } from '@business-app/shared';
 
-export const FarmerGrainOffers: React.FC = () => {
-  const { user } = useAuth();
+const FarmerGrainOffers: React.FC = () => {
+  const { user } = useAuthStore();
   const [offers, setOffers] = useState<GrainPurchaseOfferWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<GrainPurchaseOfferStatus | ''>('PENDING');
+  const [statusFilter, setStatusFilter] = useState<GrainPurchaseOfferStatus | ''>('PENDING' as GrainPurchaseOfferStatus);
   const [selectedOffer, setSelectedOffer] = useState<GrainPurchaseOfferWithDetails | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  // TODO: Get selected business from context
-  const selectedBusinessId = 'placeholder-business-id';
+  // Get first business membership
+  const selectedBusinessId = user?.businessMemberships?.[0]?.businessId;
 
   useEffect(() => {
-    if (user) {
+    if (user && selectedBusinessId) {
       loadOffers();
     }
-  }, [user, statusFilter]);
+  }, [user, selectedBusinessId, statusFilter]);
 
   const loadOffers = async () => {
+    if (!selectedBusinessId) return;
+
     setLoading(true);
     try {
       const offersData = await grainMarketplaceApi.getFarmerOffers(
@@ -401,3 +403,5 @@ export const FarmerGrainOffers: React.FC = () => {
     </div>
   );
 };
+
+export default FarmerGrainOffers;
