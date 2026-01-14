@@ -109,6 +109,7 @@ model Business {
   email     String?  // Contact email for delivery coordination
   latitude  Decimal? @db.Decimal(10, 8)
   longitude Decimal? @db.Decimal(11, 8)
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -126,8 +127,10 @@ model Business {
   invoices       Invoice[]
   purchaseHistory PurchaseHistory[]
   scaleTickets   ScaleTicket[]
+  subscription   BusinessSubscription?
 
   @@index([latitude, longitude])
+  @@index([deletedAt])
   @@map("businesses")
 }
 
@@ -272,6 +275,7 @@ model GrainEntity {
   id         String   @id @default(uuid())
   businessId String   @map("business_id")
   name       String   // Rittgers Grain, Rittgers Farm, JDR AG, JVR AG, JKC Farms
+  deletedAt  DateTime? @map("deleted_at")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -284,6 +288,7 @@ model GrainEntity {
 
   @@unique([businessId, name])
   @@index([businessId])
+  @@index([deletedAt])
   @@map("grain_entities")
 }
 
@@ -312,6 +317,7 @@ model GrainContract {
   isActive           Boolean        @default(true) @map("is_active")
 
   notes              String?
+  deletedAt          DateTime?      @map("deleted_at")
   createdAt          DateTime       @default(now()) @map("created_at")
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
@@ -324,6 +330,7 @@ model GrainContract {
   @@index([grainEntityId, cropYear])
   @@index([contractType, isActive])
   @@index([grainEntityId, year, commodityType])
+  @@index([deletedAt])
   @@map("grain_contracts")
 }
 
@@ -493,6 +500,7 @@ model Farm {
   projectedYield Decimal      @default(0) @map("projected_yield") @db.Decimal(10, 2) // Projected bushels per acre
   aph           Decimal       @default(0) @db.Decimal(10, 2) // Actual Production History (APH)
   notes         String?
+  deletedAt     DateTime?     @map("deleted_at")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
@@ -508,6 +516,7 @@ model Farm {
   @@map("farms")
   @@index([grainEntityId])
   @@index([year])
+  @@index([deletedAt])
   @@unique([grainEntityId, name, year])
 }
 
@@ -601,6 +610,7 @@ model Retailer {
   latitude          Decimal? @db.Decimal(10, 8)
   longitude         Decimal? @db.Decimal(11, 8)
   radiusPreference  Int      @default(50) @map("radius_preference")
+  deletedAt         DateTime? @map("deleted_at")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -608,8 +618,10 @@ model Retailer {
   user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   bids                RetailerBid[]
   grainPurchaseOffers GrainPurchaseOffer[]
+  subscription        RetailerSubscription?
 
   @@index([latitude, longitude])
+  @@index([deletedAt])
   @@map("retailers")
 }
 
@@ -623,6 +635,7 @@ model BidRequest {
   bidDeadline         DateTime?          @map("bid_deadline")
   desiredDeliveryDate DateTime?          @map("desired_delivery_date")
   notes               String?
+  deletedAt           DateTime?          @map("deleted_at")
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
   closedAt            DateTime?          @map("closed_at")
@@ -637,6 +650,7 @@ model BidRequest {
   @@map("bid_requests")
   @@index([businessId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model BidRequestItem {
@@ -827,6 +841,7 @@ model GrainBin {
   cropYear        Int           @map("crop_year") // 2023, 2024, 2025
   notes           String?
   isActive        Boolean       @default(true) @map("is_active")
+  deletedAt       DateTime?     @map("deleted_at")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -838,6 +853,7 @@ model GrainBin {
 
   @@index([grainEntityId, commodityType])
   @@index([cropYear])
+  @@index([deletedAt])
   @@map("grain_bins")
 }
 
@@ -930,4 +946,104 @@ model GrainPurchaseOffer {
   @@index([retailerId])
   @@index([grainBinId])
   @@index([status])
+}
+
+// ===== Subscription & Billing Models =====
+
+model SubscriptionPlan {
+  id              String   @id @default(uuid())
+  name            String   // "Free", "Premium"
+  entityType      String   // "BUSINESS", "RETAILER"
+  stripePriceId   String?  @unique @map("stripe_price_id")
+  price           Decimal  @db.Decimal(10, 2)
+  interval        String   // "month", "year"
+  maxContracts    Int?     @map("max_contracts")
+  maxBins         Int?     @map("max_bins")
+  maxBidsPerMonth Int?     @map("max_bids_per_month")
+  maxFarms        Int?     @map("max_farms")
+  features        Json
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  businessSubscriptions BusinessSubscription[]
+  retailerSubscriptions RetailerSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model BusinessSubscription {
+  id                    String    @id @default(uuid())
+  businessId            String    @unique @map("business_id")
+  planId                String    @map("plan_id")
+  stripeCustomerId      String    @unique @map("stripe_customer_id")
+  stripeSubscriptionId  String?   @unique @map("stripe_subscription_id")
+  status                String    // "active", "trialing", "past_due", "canceled"
+  currentPeriodStart    DateTime? @map("current_period_start")
+  currentPeriodEnd      DateTime? @map("current_period_end")
+  cancelAtPeriodEnd     Boolean   @default(false) @map("cancel_at_period_end")
+  canceledAt            DateTime? @map("canceled_at")
+  trialStart            DateTime? @map("trial_start")
+  trialEnd              DateTime? @map("trial_end")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  business              Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan @relation(fields: [planId], references: [id])
+  paymentHistory        PaymentHistory[]
+
+  @@index([businessId])
+  @@index([status])
+  @@map("business_subscriptions")
+}
+
+model RetailerSubscription {
+  id                    String    @id @default(uuid())
+  retailerId            String    @unique @map("retailer_id")
+  planId                String    @map("plan_id")
+  stripeCustomerId      String    @unique @map("stripe_customer_id")
+  stripeSubscriptionId  String?   @unique @map("stripe_subscription_id")
+  status                String
+  currentPeriodStart    DateTime? @map("current_period_start")
+  currentPeriodEnd      DateTime? @map("current_period_end")
+  cancelAtPeriodEnd     Boolean   @default(false) @map("cancel_at_period_end")
+  canceledAt            DateTime? @map("canceled_at")
+  trialStart            DateTime? @map("trial_start")
+  trialEnd              DateTime? @map("trial_end")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  retailer              Retailer  @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan @relation(fields: [planId], references: [id])
+  paymentHistory        PaymentHistory[]
+
+  @@index([retailerId])
+  @@index([status])
+  @@map("retailer_subscriptions")
+}
+
+model PaymentHistory {
+  id                      String    @id @default(uuid())
+  businessSubscriptionId  String?   @map("business_subscription_id")
+  retailerSubscriptionId  String?   @map("retailer_subscription_id")
+  stripeInvoiceId         String    @unique @map("stripe_invoice_id")
+  stripePaymentIntentId   String?   @map("stripe_payment_intent_id")
+  amount                  Decimal   @db.Decimal(10, 2)
+  currency                String    @default("usd")
+  status                  String    // "paid", "failed", "pending"
+  invoiceUrl              String?   @map("invoice_url")
+  invoicePdf              String?   @map("invoice_pdf")
+  paidAt                  DateTime? @map("paid_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  businessSubscription    BusinessSubscription? @relation(fields: [businessSubscriptionId], references: [id], onDelete: Cascade)
+  retailerSubscription    RetailerSubscription? @relation(fields: [retailerSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([businessSubscriptionId])
+  @@index([retailerSubscriptionId])
+  @@map("payment_history")
 }
