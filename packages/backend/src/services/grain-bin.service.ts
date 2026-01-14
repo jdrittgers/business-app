@@ -17,6 +17,7 @@ interface UpdateGrainBinData {
   commodityType?: CommodityType;
   cropYear?: number;
   isAvailableForSale?: boolean;
+  targetPrice?: number;
   notes?: string;
   isActive?: boolean;
 }
@@ -74,6 +75,7 @@ export class GrainBinService {
       commodityType: bin.commodityType,
       cropYear: bin.cropYear,
       isAvailableForSale: bin.isAvailableForSale,
+      targetPrice: bin.targetPrice ? Number(bin.targetPrice) : undefined,
       notes: bin.notes || undefined,
       isActive: bin.isActive,
       createdAt: bin.createdAt,
@@ -105,6 +107,7 @@ export class GrainBinService {
       commodityType: bin.commodityType,
       cropYear: bin.cropYear,
       isAvailableForSale: bin.isAvailableForSale,
+      targetPrice: bin.targetPrice ? Number(bin.targetPrice) : undefined,
       notes: bin.notes || undefined,
       isActive: bin.isActive,
       createdAt: bin.createdAt,
@@ -142,6 +145,7 @@ export class GrainBinService {
       commodityType: bin.commodityType,
       cropYear: bin.cropYear,
       isAvailableForSale: bin.isAvailableForSale,
+      targetPrice: bin.targetPrice ? Number(bin.targetPrice) : undefined,
       notes: bin.notes || undefined,
       isActive: bin.isActive,
       createdAt: bin.createdAt,
@@ -232,6 +236,7 @@ export class GrainBinService {
         ...(data.commodityType && { commodityType: data.commodityType }),
         ...(data.cropYear !== undefined && { cropYear: data.cropYear }),
         ...(data.isAvailableForSale !== undefined && { isAvailableForSale: data.isAvailableForSale }),
+        ...(data.targetPrice !== undefined && { targetPrice: data.targetPrice }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.isActive !== undefined && { isActive: data.isActive })
       }

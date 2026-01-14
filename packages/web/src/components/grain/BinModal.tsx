@@ -25,6 +25,7 @@ export default function BinModal({
   const [commodityType, setCommodityType] = useState<'CORN' | 'SOYBEANS' | 'WHEAT'>('CORN');
   const [cropYear, setCropYear] = useState(new Date().getFullYear().toString());
   const [isAvailableForSale, setIsAvailableForSale] = useState(false);
+  const [targetPrice, setTargetPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -38,6 +39,7 @@ export default function BinModal({
       setCommodityType(bin.commodityType);
       setCropYear(bin.cropYear.toString());
       setIsAvailableForSale(bin.isAvailableForSale || false);
+      setTargetPrice(bin.targetPrice ? bin.targetPrice.toString() : '');
       setNotes(bin.notes || '');
     } else {
       // Creating new bin
@@ -48,6 +50,7 @@ export default function BinModal({
       setCommodityType('CORN');
       setCropYear(new Date().getFullYear().toString());
       setIsAvailableForSale(false);
+      setTargetPrice('');
       setNotes('');
     }
   }, [bin, grainEntities]);
@@ -65,6 +68,7 @@ export default function BinModal({
         commodityType,
         cropYear: parseInt(cropYear),
         isAvailableForSale: bin ? isAvailableForSale : undefined, // Only for existing bins
+        targetPrice: bin && targetPrice ? parseFloat(targetPrice) : undefined,
         notes: notes || undefined
       };
 
@@ -286,16 +290,36 @@ export default function BinModal({
                       </button>
                     </div>
                     {isAvailableForSale && (
-                      <div className="mt-3 p-3 bg-green-50 rounded-md">
-                        <div className="flex">
-                          <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          <p className="ml-3 text-xs text-green-700">
-                            This bin is visible to retailers in the marketplace
+                      <>
+                        <div className="mt-3 p-3 bg-green-50 rounded-md">
+                          <div className="flex">
+                            <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <p className="ml-3 text-xs text-green-700">
+                              This bin is visible to retailers in the marketplace
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <label htmlFor="targetPrice" className="block text-sm font-medium text-gray-700">
+                            Target Cash Price ($/bushel)
+                          </label>
+                          <input
+                            type="number"
+                            id="targetPrice"
+                            value={targetPrice}
+                            onChange={(e) => setTargetPrice(e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            placeholder="e.g., 4.50"
+                            min="0"
+                            step="0.01"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Optional: Set your target price for retailers to see in the marketplace
                           </p>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
                 )}

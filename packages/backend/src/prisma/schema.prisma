@@ -861,6 +861,7 @@ model GrainBin {
   commodityType       CommodityType @map("commodity_type")
   cropYear            Int           @map("crop_year") // 2023, 2024, 2025
   isAvailableForSale  Boolean       @default(false) @map("is_available_for_sale") // Show in marketplace
+  targetPrice         Decimal?      @map("target_price") @db.Decimal(10, 4) // Target cash price per bushel
   notes               String?
   isActive            Boolean       @default(true) @map("is_active")
   deletedAt           DateTime?     @map("deleted_at")

@@ -266,6 +266,12 @@ const RetailerGrainMarketplace: React.FC = () => {
                     <span className="font-medium text-gray-700">Crop Year:</span>{' '}
                     <span className="text-gray-900">{bin.cropYear}</span>
                   </div>
+                  {bin.targetPrice && (
+                    <div className="pt-2 border-t border-gray-200">
+                      <span className="font-medium text-gray-700">Target Price:</span>{' '}
+                      <span className="text-green-600 font-semibold">${bin.targetPrice.toFixed(2)}/bu</span>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => handleMakeOffer(bin)}
@@ -374,6 +380,12 @@ const RetailerGrainMarketplace: React.FC = () => {
                 <div className="text-gray-600">
                   Available: {selectedBin.currentBushels.toLocaleString()} bushels
                 </div>
+                {selectedBin.targetPrice && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <span className="font-medium text-gray-700">Farmer's Target Price:</span>{' '}
+                    <span className="text-green-600 font-semibold">${selectedBin.targetPrice.toFixed(2)}/bu</span>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -119,7 +119,7 @@ export class GrainBinController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { name, capacity, commodityType, cropYear, isAvailableForSale, notes, isActive } = req.body;
+      const { name, capacity, commodityType, cropYear, isAvailableForSale, targetPrice, notes, isActive } = req.body;
 
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
@@ -127,6 +127,7 @@ export class GrainBinController {
       if (commodityType !== undefined) updateData.commodityType = commodityType;
       if (cropYear !== undefined) updateData.cropYear = parseInt(cropYear);
       if (isAvailableForSale !== undefined) updateData.isAvailableForSale = isAvailableForSale;
+      if (targetPrice !== undefined) updateData.targetPrice = targetPrice ? parseFloat(targetPrice) : null;
       if (notes !== undefined) updateData.notes = notes;
       if (isActive !== undefined) updateData.isActive = isActive;
 

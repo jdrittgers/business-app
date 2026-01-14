@@ -10,6 +10,7 @@ export interface GrainBin {
   commodityType: 'CORN' | 'SOYBEANS' | 'WHEAT';
   cropYear: number;
   isAvailableForSale: boolean;
+  targetPrice?: number; // Target cash price per bushel for marketplace
   notes?: string;
   isActive: boolean;
   createdAt: Date;
@@ -107,6 +108,7 @@ export interface UpdateGrainBinRequest {
   commodityType?: 'CORN' | 'SOYBEANS' | 'WHEAT';
   cropYear?: number;
   isAvailableForSale?: boolean;
+  targetPrice?: number;
   contractedBushels?: number;
   notes?: string;
   isActive?: boolean;
