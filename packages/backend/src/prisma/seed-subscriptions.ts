@@ -47,7 +47,7 @@ async function seedSubscriptionPlans() {
         name: 'Premium',
         entityType: 'BUSINESS',
         stripePriceId: null, // TODO: Update with actual Stripe price ID after Stripe setup
-        price: 79.00,
+        price: 5.00,
         interval: 'month',
         maxContracts: null, // Unlimited
         maxBins: null, // Unlimited
@@ -108,7 +108,7 @@ async function seedSubscriptionPlans() {
         name: 'Premium',
         entityType: 'RETAILER',
         stripePriceId: null, // TODO: Update with actual Stripe price ID after Stripe setup
-        price: 49.00,
+        price: 5.00,
         interval: 'month',
         maxContracts: null, // N/A for retailers
         maxBins: null, // N/A for retailers

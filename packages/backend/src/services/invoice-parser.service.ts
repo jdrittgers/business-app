@@ -19,18 +19,22 @@ interface ParsedLineItem {
 }
 
 export class InvoiceParserService {
-  private anthropic: Anthropic;
+  private anthropic: Anthropic | null = null;
 
-  constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable not configured');
+  private getAnthropicClient(): Anthropic {
+    if (!this.anthropic) {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error('ANTHROPIC_API_KEY environment variable not configured');
+      }
+      console.log('[InvoiceParser] Initializing with API key:', apiKey.substring(0, 10) + '...');
+      this.anthropic = new Anthropic({ apiKey });
     }
-    console.log('[InvoiceParser] Initializing with API key:', apiKey.substring(0, 10) + '...');
-    this.anthropic = new Anthropic({ apiKey });
+    return this.anthropic;
   }
 
   async parseInvoice(filePath: string, mimeType: string): Promise<ParsedInvoiceData> {
+    const anthropic = this.getAnthropicClient();
     try {
       // Read file and convert to base64
       const fileBuffer = fs.readFileSync(filePath);
@@ -66,7 +70,7 @@ export class InvoiceParserService {
         }
       ];
 
-      const response = await this.anthropic.messages.create({
+      const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         messages: [{

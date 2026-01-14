@@ -22,8 +22,12 @@ import invoiceRoutes from './routes/invoice.routes';
 import grainBinRoutes from './routes/grain-bin.routes';
 import scaleTicketRoutes from './routes/scale-ticket.routes';
 import grainMarketplaceRoutes from './controllers/grain-marketplace.controller';
+import subscriptionRoutes from './routes/subscription.routes';
+import softDeleteRoutes from './routes/soft-delete.routes';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
+import { securityHeaders } from './middleware/security';
+import { apiLimiter } from './middleware/rate-limit';
 
 // Load environment variables
 dotenv.config();
@@ -34,12 +38,22 @@ const PORT = process.env.PORT || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
 // Middleware
+// Security headers (helmet) - should be first
+app.use(securityHeaders);
+
 app.use(cors({
   origin: CORS_ORIGIN.split(','),
   credentials: true
 }));
+
+// For Stripe webhooks, we need raw body
+app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(cookieParser());
+
+// Apply rate limiting to all API routes
+app.use('/api', apiLimiter);
 
 // Debug middleware
 app.use((req, res, next) => {
@@ -53,6 +67,8 @@ app.use('/api/invitations', invitationRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/retailer', retailerAuthRoutes); // Retailer auth routes MUST come before generic /api routes
+app.use('/api/subscription', subscriptionRoutes); // Subscription routes
+app.use('/api/deleted-items', softDeleteRoutes); // Soft delete routes
 app.use('/api', bidRequestRoutes); // Bid request routes before grain routes to avoid middleware conflicts
 app.use('/api', retailerBidRoutes);
 app.use('/api', calendarRoutes);

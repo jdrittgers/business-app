@@ -8,4 +8,5 @@ export * from './types/bidding';
 export * from './types/invoice';
 export * from './types/grain-bins';
 export * from './types/grain-marketplace';
+export * from './types/subscription';
 export * from './utils/distance';

@@ -30,6 +30,9 @@ import InvoiceParsing from './pages/InvoiceParsing';
 import GrainBins from './pages/GrainBins';
 import RetailerGrainMarketplace from './pages/RetailerGrainMarketplace';
 import FarmerGrainOffers from './pages/FarmerGrainOffers';
+import PricingPage from './pages/PricingPage';
+import SubscriptionManagement from './pages/SubscriptionManagement';
+import DeletedItems from './pages/DeletedItems';
 import RequireRole from './components/RequireRole';
 
 function App() {
@@ -116,6 +119,24 @@ function App() {
       <Route
         path="/grain-contracts/offers"
         element={isAuthenticated ? <FarmerGrainOffers /> : <Navigate to="/login" />}
+      />
+
+      {/* Subscription Routes */}
+      <Route
+        path="/pricing"
+        element={isAuthenticated ? <PricingPage /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/subscription"
+        element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/subscription/success"
+        element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/deleted-items"
+        element={isAuthenticated ? <DeletedItems /> : <Navigate to="/login" />}
       />
 
       {/* Retailer Routes */}
