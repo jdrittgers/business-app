@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../prisma/client';
-import axios from 'axios';
+import { GeocodingService } from '../services/geocoding.service';
 
 /**
  * Update business location
@@ -32,24 +32,12 @@ export async function updateBusinessLocation(req: AuthRequest, res: Response): P
 
     // Geocode ZIP code if provided
     if (zipCode) {
+      const geocodingService = new GeocodingService();
       try {
-        const geocodeResponse = await axios.get(
-          `https://api.mapbox.com/search/geocode/v6/forward`,
-          {
-            params: {
-              q: zipCode,
-              country: 'US',
-              types: 'postcode',
-              access_token: process.env.MAPBOX_API_KEY
-            }
-          }
-        );
-
-        if (geocodeResponse.data.features && geocodeResponse.data.features.length > 0) {
-          const coords = geocodeResponse.data.features[0].geometry.coordinates;
-          longitude = coords[0];
-          latitude = coords[1];
-        }
+        const geocodeResult = await geocodingService.geocodeZipCode(zipCode);
+        latitude = geocodeResult.latitude;
+        longitude = geocodeResult.longitude;
+        console.log(`✅ Geocoded business ZIP ${zipCode}: ${latitude}, ${longitude}`);
       } catch (geocodeError) {
         console.error('Geocoding error:', geocodeError);
         // Continue without coordinates if geocoding fails
