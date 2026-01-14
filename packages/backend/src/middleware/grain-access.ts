@@ -1,11 +1,13 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import { prisma } from '../prisma/client';
+import { UserRole } from '@business-app/shared';
 
 /**
  * Middleware to check if user has access to grain features
  *
- * This middleware ensures the user is a member of at least one business.
+ * This middleware ensures the user is a member of at least one business,
+ * OR is a retailer (who can access the grain marketplace).
  * Business-specific authorization (checking if user can access a specific business's data)
  * happens in the service layer.
  */
@@ -17,9 +19,16 @@ export async function requireGrainAccess(req: AuthRequest, res: Response, next: 
       return;
     }
 
-    console.log('[Grain Access] Checking access for user:', req.user.userId);
+    console.log('[Grain Access] Checking access for user:', req.user.userId, 'role:', req.user.role);
 
-    // Check if user is a member of at least one business
+    // Retailers can access grain features (marketplace) without business membership
+    if (req.user.role === UserRole.RETAILER) {
+      console.log('[Grain Access] Access granted - User is a retailer');
+      next();
+      return;
+    }
+
+    // For non-retailers, check if user is a member of at least one business
     const membership = await prisma.businessMember.findFirst({
       where: {
         userId: req.user.userId
