@@ -1,4 +1,4 @@
-import axios from 'axios';
+import apiClient from './client';
 import {
   GrainPurchaseOfferWithDetails,
   GrainBinWithDistance,
@@ -7,16 +7,13 @@ import {
   GrainPurchaseOfferStatus
 } from '@business-app/shared';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export const grainMarketplaceApi = {
   /**
    * Search for grain bins within a radius
    */
   async searchBins(params: SearchBinsRequest): Promise<GrainBinWithDistance[]> {
-    const response = await axios.get(`${API_URL}/api/grain-marketplace/bins/search`, {
-      params,
-      withCredentials: true
+    const response = await apiClient.get('/api/grain-marketplace/bins/search', {
+      params
     });
     return response.data;
   },
@@ -25,9 +22,7 @@ export const grainMarketplaceApi = {
    * Create a grain purchase offer
    */
   async createOffer(data: CreateGrainPurchaseOfferRequest): Promise<GrainPurchaseOfferWithDetails> {
-    const response = await axios.post(`${API_URL}/api/grain-marketplace/offers`, data, {
-      withCredentials: true
-    });
+    const response = await apiClient.post('/api/grain-marketplace/offers', data);
     return response.data;
   },
 
@@ -35,9 +30,8 @@ export const grainMarketplaceApi = {
    * Get all offers for a retailer
    */
   async getRetailerOffers(retailerId: string, status?: GrainPurchaseOfferStatus): Promise<GrainPurchaseOfferWithDetails[]> {
-    const response = await axios.get(`${API_URL}/api/grain-marketplace/retailers/${retailerId}/offers`, {
-      params: { status },
-      withCredentials: true
+    const response = await apiClient.get(`/api/grain-marketplace/retailers/${retailerId}/offers`, {
+      params: { status }
     });
     return response.data;
   },
@@ -46,18 +40,15 @@ export const grainMarketplaceApi = {
    * Cancel an offer (retailer only)
    */
   async cancelOffer(retailerId: string, offerId: string): Promise<void> {
-    await axios.delete(`${API_URL}/api/grain-marketplace/retailers/${retailerId}/offers/${offerId}`, {
-      withCredentials: true
-    });
+    await apiClient.delete(`/api/grain-marketplace/retailers/${retailerId}/offers/${offerId}`);
   },
 
   /**
    * Get all offers for a farmer's business
    */
   async getFarmerOffers(businessId: string, status?: GrainPurchaseOfferStatus): Promise<GrainPurchaseOfferWithDetails[]> {
-    const response = await axios.get(`${API_URL}/api/grain-marketplace/businesses/${businessId}/offers`, {
-      params: { status },
-      withCredentials: true
+    const response = await apiClient.get(`/api/grain-marketplace/businesses/${businessId}/offers`, {
+      params: { status }
     });
     return response.data;
   },
@@ -66,9 +57,7 @@ export const grainMarketplaceApi = {
    * Get a single offer by ID
    */
   async getOfferById(offerId: string): Promise<GrainPurchaseOfferWithDetails> {
-    const response = await axios.get(`${API_URL}/api/grain-marketplace/offers/${offerId}`, {
-      withCredentials: true
-    });
+    const response = await apiClient.get(`/api/grain-marketplace/offers/${offerId}`);
     return response.data;
   },
 
@@ -76,9 +65,7 @@ export const grainMarketplaceApi = {
    * Accept an offer
    */
   async acceptOffer(offerId: string): Promise<GrainPurchaseOfferWithDetails> {
-    const response = await axios.post(`${API_URL}/api/grain-marketplace/offers/${offerId}/accept`, {}, {
-      withCredentials: true
-    });
+    const response = await apiClient.post(`/api/grain-marketplace/offers/${offerId}/accept`, {});
     return response.data;
   },
 
@@ -86,9 +73,7 @@ export const grainMarketplaceApi = {
    * Reject an offer
    */
   async rejectOffer(offerId: string): Promise<GrainPurchaseOfferWithDetails> {
-    const response = await axios.post(`${API_URL}/api/grain-marketplace/offers/${offerId}/reject`, {}, {
-      withCredentials: true
-    });
+    const response = await apiClient.post(`/api/grain-marketplace/offers/${offerId}/reject`, {});
     return response.data;
   },
 
@@ -96,9 +81,7 @@ export const grainMarketplaceApi = {
    * Complete an offer (mark as delivered)
    */
   async completeOffer(offerId: string): Promise<GrainPurchaseOfferWithDetails> {
-    const response = await axios.post(`${API_URL}/api/grain-marketplace/offers/${offerId}/complete`, {}, {
-      withCredentials: true
-    });
+    const response = await apiClient.post(`/api/grain-marketplace/offers/${offerId}/complete`, {});
     return response.data;
   }
 };
