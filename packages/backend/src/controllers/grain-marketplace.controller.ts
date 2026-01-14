@@ -120,7 +120,7 @@ router.get('/offers/:offerId', async (req: AuthRequest, res: Response) => {
  */
 router.post('/offers/:offerId/accept', async (req: AuthRequest, res: Response) => {
   try {
-    const offer = await marketplaceService.acceptOffer(req.params.offerId, req.user!.id);
+    const offer = await marketplaceService.acceptOffer(req.params.offerId, req.user!.userId);
     res.json(offer);
   } catch (error: any) {
     console.error('Error accepting offer:', error);

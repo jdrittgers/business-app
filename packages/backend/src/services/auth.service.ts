@@ -74,7 +74,9 @@ export class AuthService {
           business: {
             select: {
               id: true,
-              name: true
+              name: true,
+              createdAt: true,
+              updatedAt: true
             }
           }
         }
@@ -139,7 +141,9 @@ export class AuthService {
             business: {
               select: {
                 id: true,
-                name: true
+                name: true,
+                createdAt: true,
+                updatedAt: true
               }
             }
           }
@@ -254,7 +258,9 @@ export class AuthService {
             business: {
               select: {
                 id: true,
-                name: true
+                name: true,
+                createdAt: true,
+                updatedAt: true
               }
             }
           }

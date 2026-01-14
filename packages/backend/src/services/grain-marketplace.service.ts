@@ -243,8 +243,7 @@ export class GrainMarketplaceService {
               select: {
                 firstName: true,
                 lastName: true,
-                email: true,
-                phone: true
+                email: true
               }
             }
           }
@@ -380,7 +379,7 @@ export class GrainMarketplaceService {
           binId: offer.grainBinId,
           type: 'SALE',
           bushels: Number(offer.bushelsOffered) * -1, // Negative for removal
-          description: `Sale to ${offer.retailer.companyName} - ${offer.bushelsOffered} bu @ $${offer.pricePerBushel}/bu`,
+          description: `Sale to retailer - ${offer.bushelsOffered} bu @ $${offer.pricePerBushel}/bu`,
           createdBy: offer.acceptedBy!,
           transactionDate: new Date()
         }
