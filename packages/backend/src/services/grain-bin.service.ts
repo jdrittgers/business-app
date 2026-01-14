@@ -16,6 +16,7 @@ interface UpdateGrainBinData {
   capacity?: number;
   commodityType?: CommodityType;
   cropYear?: number;
+  isAvailableForSale?: boolean;
   notes?: string;
   isActive?: boolean;
 }
@@ -230,6 +231,7 @@ export class GrainBinService {
         ...(data.capacity !== undefined && { capacity: data.capacity }),
         ...(data.commodityType && { commodityType: data.commodityType }),
         ...(data.cropYear !== undefined && { cropYear: data.cropYear }),
+        ...(data.isAvailableForSale !== undefined && { isAvailableForSale: data.isAvailableForSale }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.isActive !== undefined && { isActive: data.isActive })
       }
