@@ -7,6 +7,7 @@ export interface GrainBin {
   capacity: number;
   currentBushels: number;
   contractedBushels: number;
+  soldBushels?: number; // Bushels sold via marketplace (accepted/completed offers)
   commodityType: 'CORN' | 'SOYBEANS' | 'WHEAT';
   cropYear: number;
   isAvailableForSale: boolean;
@@ -17,6 +18,19 @@ export interface GrainBin {
   updatedAt: Date;
   fillPercentage?: number;
   uncontractedBushels?: number; // Helper field: currentBushels - contractedBushels
+  acceptedOffers?: AcceptedOffer[]; // List of accepted/completed marketplace offers
+}
+
+export interface AcceptedOffer {
+  id: string;
+  retailerId: string;
+  retailerName: string;
+  bushelsOffered: number;
+  pricePerBushel: number;
+  totalOfferPrice: number;
+  status: 'ACCEPTED' | 'COMPLETED';
+  acceptedAt: Date | null;
+  pickupDate?: Date | null;
 }
 
 export enum ScaleTicketStatus {

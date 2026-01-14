@@ -133,6 +133,10 @@ export class GrainBinService {
 
     if (!bin) return null;
 
+    // Calculate sold bushels from accepted/completed offers
+    const offers = await this.getAcceptedOffers(binId);
+    const soldBushels = offers.reduce((sum, offer) => sum + offer.bushelsOffered, 0);
+
     return {
       id: bin.id,
       grainEntityId: bin.grainEntityId,
@@ -142,6 +146,7 @@ export class GrainBinService {
       capacity: Number(bin.capacity),
       currentBushels: Number(bin.currentBushels),
       contractedBushels: Number(bin.contractedBushels),
+      soldBushels,
       commodityType: bin.commodityType,
       cropYear: bin.cropYear,
       isAvailableForSale: bin.isAvailableForSale,
@@ -150,7 +155,8 @@ export class GrainBinService {
       isActive: bin.isActive,
       createdAt: bin.createdAt,
       updatedAt: bin.updatedAt,
-      fillPercentage: Math.round((Number(bin.currentBushels) / Number(bin.capacity)) * 100)
+      fillPercentage: Math.round((Number(bin.currentBushels) / Number(bin.capacity)) * 100),
+      acceptedOffers: offers
     };
   }
 
@@ -467,5 +473,38 @@ export class GrainBinService {
     }, {} as Record<string, any>);
 
     return Object.values(summary);
+  }
+
+  // Get accepted offers for a bin
+  async getAcceptedOffers(binId: string) {
+    const offers = await prisma.grainPurchaseOffer.findMany({
+      where: {
+        grainBinId: binId,
+        status: { in: ['ACCEPTED', 'COMPLETED'] }
+      },
+      include: {
+        retailer: {
+          select: {
+            id: true,
+            companyName: true
+          }
+        }
+      },
+      orderBy: {
+        acceptedAt: 'desc'
+      }
+    });
+
+    return offers.map(offer => ({
+      id: offer.id,
+      retailerId: offer.retailerId,
+      retailerName: offer.retailer.companyName,
+      bushelsOffered: Number(offer.bushelsOffered),
+      pricePerBushel: Number(offer.pricePerBushel),
+      totalOfferPrice: Number(offer.totalOfferPrice),
+      status: offer.status,
+      acceptedAt: offer.acceptedAt,
+      pickupDate: offer.pickupDate
+    }));
   }
 }

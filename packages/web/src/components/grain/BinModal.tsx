@@ -247,6 +247,14 @@ export default function BinModal({
                           {bin.contractedBushels.toLocaleString()} bu
                         </div>
                       </div>
+                      {bin.soldBushels !== undefined && bin.soldBushels > 0 && (
+                        <div>
+                          <span className="text-gray-600">Sold (Marketplace):</span>
+                          <div className="font-semibold text-purple-600">
+                            {bin.soldBushels.toLocaleString()} bu
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <span className="text-gray-600">Available:</span>
                         <div className="font-semibold text-green-600">
@@ -260,6 +268,35 @@ export default function BinModal({
                         </div>
                       </div>
                     </div>
+
+                    {/* Show accepted offers */}
+                    {bin.acceptedOffers && bin.acceptedOffers.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Marketplace Sales</h4>
+                        <div className="space-y-2">
+                          {bin.acceptedOffers.map((offer) => (
+                            <div key={offer.id} className="flex justify-between items-center text-xs bg-white p-2 rounded">
+                              <div>
+                                <div className="font-medium text-gray-900">{offer.retailerName}</div>
+                                <div className="text-gray-500">
+                                  {offer.bushelsOffered.toLocaleString()} bu @ ${offer.pricePerBushel.toFixed(2)}/bu
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                  offer.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {offer.status}
+                                </div>
+                                <div className="text-gray-500 mt-1">
+                                  ${offer.totalOfferPrice.toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
