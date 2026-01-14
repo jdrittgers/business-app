@@ -6,13 +6,16 @@ export interface GrainBin {
   name: string;
   capacity: number;
   currentBushels: number;
+  contractedBushels: number;
   commodityType: 'CORN' | 'SOYBEANS' | 'WHEAT';
   cropYear: number;
+  isAvailableForSale: boolean;
   notes?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   fillPercentage?: number;
+  uncontractedBushels?: number; // Helper field: currentBushels - contractedBushels
 }
 
 export enum ScaleTicketStatus {
@@ -103,6 +106,8 @@ export interface UpdateGrainBinRequest {
   capacity?: number;
   commodityType?: 'CORN' | 'SOYBEANS' | 'WHEAT';
   cropYear?: number;
+  isAvailableForSale?: boolean;
+  contractedBushels?: number;
   notes?: string;
   isActive?: boolean;
 }
@@ -122,4 +127,33 @@ export interface BinSummary {
   totalCapacity: number;
   totalBushels: number;
   binCount: number;
+}
+
+export interface BinContractAllocation {
+  id: string;
+  binId: string;
+  contractId: string;
+  bushelsAllocated: number;
+  pricePerBushel: number;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  contract?: {
+    id: string;
+    contractNumber?: string;
+    buyer: string;
+    contractType: string;
+  };
+}
+
+export interface CreateBinContractAllocationRequest {
+  binId: string;
+  contractId: string;
+  bushelsAllocated: number;
+  notes?: string;
+}
+
+export interface UpdateBinContractAllocationRequest {
+  bushelsAllocated?: number;
+  notes?: string;
 }

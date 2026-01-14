@@ -36,6 +36,7 @@ export class GrainMarketplaceService {
     const bins = await prisma.grainBin.findMany({
       where: {
         isActive: true,
+        isAvailableForSale: true, // Only show bins marked as available
         currentBushels: { gt: 0 }, // Only show bins with grain
         ...(commodityType && { commodityType })
       },

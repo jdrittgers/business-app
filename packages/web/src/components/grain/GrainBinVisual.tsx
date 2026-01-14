@@ -214,14 +214,44 @@ export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick }) 
         <div className="text-xs text-gray-500 mt-1 capitalize">
           {bin.commodityType.toLowerCase()}
         </div>
+
+        {/* Contract allocation info */}
+        {bin.contractedBushels > 0 && (
+          <div className="mt-2 text-xs">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-blue-600 font-semibold">{bin.contractedBushels.toLocaleString()} bu</span>
+              <span className="text-gray-500">contracted</span>
+            </div>
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-green-600 font-semibold">
+                {(bin.currentBushels - bin.contractedBushels).toLocaleString()} bu
+              </span>
+              <span className="text-gray-500">available</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Warning if nearly full */}
-      {fillPercentage >= 90 && (
-        <div className="mt-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded">
-          Nearly Full
-        </div>
-      )}
+      {/* Status badges */}
+      <div className="flex flex-col items-center gap-1 mt-2">
+        {/* Marketplace availability badge */}
+        {bin.isAvailableForSale && (
+          <div className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded flex items-center gap-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+            </svg>
+            For Sale
+          </div>
+        )}
+
+        {/* Warning if nearly full */}
+        {fillPercentage >= 90 && (
+          <div className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded">
+            Nearly Full
+          </div>
+        )}
+      </div>
     </div>
   );
 };

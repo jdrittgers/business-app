@@ -322,10 +322,11 @@ model GrainContract {
   updatedAt          DateTime       @updatedAt @map("updated_at")
 
   // Relations
-  grainEntity        GrainEntity           @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
-  createdByUser      User                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  grainEntity        GrainEntity             @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+  createdByUser      User                    @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   accumulatorDetails AccumulatorDetails?
   binTransactions    BinTransaction[]
+  binAllocations     BinContractAllocation[]
 
   @@index([grainEntityId, cropYear])
   @@index([contractType, isActive])
@@ -374,6 +375,25 @@ model AccumulatorDailyEntry {
   @@unique([accumulatorId, date])
   @@index([accumulatorId])
   @@map("accumulator_daily_entries")
+}
+
+model BinContractAllocation {
+  id              String         @id @default(uuid())
+  binId           String         @map("bin_id")
+  contractId      String         @map("contract_id")
+  bushelsAllocated Decimal       @map("bushels_allocated") @db.Decimal(12, 2)
+  pricePerBushel  Decimal        @map("price_per_bushel") @db.Decimal(10, 4) // Lock in the contract price at time of allocation
+  notes           String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  bin             GrainBin       @relation(fields: [binId], references: [id], onDelete: Cascade)
+  contract        GrainContract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([binId])
+  @@index([contractId])
+  @@map("bin_contract_allocations")
 }
 
 model CropYearProduction {
@@ -832,28 +852,32 @@ model PurchaseHistory {
 // ===== Grain Bin Storage Tracker Models =====
 
 model GrainBin {
-  id              String        @id @default(uuid())
-  grainEntityId   String        @map("grain_entity_id")
-  name            String        // "North Bin", "West Storage"
-  capacity        Decimal       @db.Decimal(12, 2)
-  currentBushels  Decimal       @default(0) @map("current_bushels") @db.Decimal(12, 2)
-  commodityType   CommodityType @map("commodity_type")
-  cropYear        Int           @map("crop_year") // 2023, 2024, 2025
-  notes           String?
-  isActive        Boolean       @default(true) @map("is_active")
-  deletedAt       DateTime?     @map("deleted_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                  String        @id @default(uuid())
+  grainEntityId       String        @map("grain_entity_id")
+  name                String        // "North Bin", "West Storage"
+  capacity            Decimal       @db.Decimal(12, 2)
+  currentBushels      Decimal       @default(0) @map("current_bushels") @db.Decimal(12, 2)
+  contractedBushels   Decimal       @default(0) @map("contracted_bushels") @db.Decimal(12, 2) // Bushels allocated to contracts
+  commodityType       CommodityType @map("commodity_type")
+  cropYear            Int           @map("crop_year") // 2023, 2024, 2025
+  isAvailableForSale  Boolean       @default(false) @map("is_available_for_sale") // Show in marketplace
+  notes               String?
+  isActive            Boolean       @default(true) @map("is_active")
+  deletedAt           DateTime?     @map("deleted_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  grainEntity     GrainEntity         @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
-  scaleTickets    ScaleTicket[]
-  binTransactions BinTransaction[]
-  purchaseOffers  GrainPurchaseOffer[]
+  grainEntity         GrainEntity             @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+  scaleTickets        ScaleTicket[]
+  binTransactions     BinTransaction[]
+  purchaseOffers      GrainPurchaseOffer[]
+  contractAllocations BinContractAllocation[]
 
   @@index([grainEntityId, commodityType])
   @@index([cropYear])
   @@index([deletedAt])
+  @@index([isAvailableForSale])
   @@map("grain_bins")
 }
 

@@ -24,6 +24,7 @@ export default function BinModal({
   const [currentBushels, setCurrentBushels] = useState('');
   const [commodityType, setCommodityType] = useState<'CORN' | 'SOYBEANS' | 'WHEAT'>('CORN');
   const [cropYear, setCropYear] = useState(new Date().getFullYear().toString());
+  const [isAvailableForSale, setIsAvailableForSale] = useState(false);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -36,6 +37,7 @@ export default function BinModal({
       setCurrentBushels(bin.currentBushels.toString());
       setCommodityType(bin.commodityType);
       setCropYear(bin.cropYear.toString());
+      setIsAvailableForSale(bin.isAvailableForSale || false);
       setNotes(bin.notes || '');
     } else {
       // Creating new bin
@@ -45,6 +47,7 @@ export default function BinModal({
       setCurrentBushels('0');
       setCommodityType('CORN');
       setCropYear(new Date().getFullYear().toString());
+      setIsAvailableForSale(false);
       setNotes('');
     }
   }, [bin, grainEntities]);
@@ -61,6 +64,7 @@ export default function BinModal({
         currentBushels: bin ? undefined : parseFloat(currentBushels), // Only for new bins
         commodityType,
         cropYear: parseInt(cropYear),
+        isAvailableForSale: bin ? isAvailableForSale : undefined, // Only for existing bins
         notes: notes || undefined
       };
 
@@ -221,6 +225,80 @@ export default function BinModal({
                     required
                   />
                 </div>
+
+                {/* Contracted Bushels Display (only when editing) */}
+                {bin && (
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700">Inventory Status</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Total Bushels:</span>
+                        <div className="font-semibold text-gray-900">
+                          {bin.currentBushels.toLocaleString()} bu
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Contracted:</span>
+                        <div className="font-semibold text-blue-600">
+                          {bin.contractedBushels.toLocaleString()} bu
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Available:</span>
+                        <div className="font-semibold text-green-600">
+                          {(bin.currentBushels - bin.contractedBushels).toLocaleString()} bu
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Capacity:</span>
+                        <div className="font-semibold text-gray-900">
+                          {bin.capacity.toLocaleString()} bu
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Available for Sale Toggle (only when editing) */}
+                {bin && (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <label htmlFor="availableForSale" className="block text-sm font-medium text-gray-700">
+                          Available for Sale in Marketplace
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          When enabled, retailers can see this bin and submit purchase offers
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAvailableForSale(!isAvailableForSale)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          isAvailableForSale ? 'bg-green-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            isAvailableForSale ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {isAvailableForSale && (
+                      <div className="mt-3 p-3 bg-green-50 rounded-md">
+                        <div className="flex">
+                          <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <p className="ml-3 text-xs text-green-700">
+                            This bin is visible to retailers in the marketplace
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Notes */}
                 <div>
