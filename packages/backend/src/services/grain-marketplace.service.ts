@@ -60,7 +60,7 @@ export class GrainMarketplaceService {
       }
     });
 
-    // Filter by distance using Haversine formula
+    // Filter by distance using Haversine formula and convert Decimal fields to numbers
     const binsWithDistance = bins
       .map(bin => {
         const businessLat = bin.grainEntity.business.latitude;
@@ -79,7 +79,20 @@ export class GrainMarketplaceService {
 
         return {
           ...bin,
-          distance
+          // Convert Decimal fields to numbers
+          capacity: Number(bin.capacity),
+          currentBushels: Number(bin.currentBushels),
+          contractedBushels: Number(bin.contractedBushels),
+          targetPrice: bin.targetPrice ? Number(bin.targetPrice) : undefined,
+          distance,
+          grainEntity: {
+            ...bin.grainEntity,
+            business: {
+              ...bin.grainEntity.business,
+              latitude: businessLat ? Number(businessLat) : null,
+              longitude: businessLon ? Number(businessLon) : null
+            }
+          }
         };
       })
       .filter(bin => bin !== null && bin.distance <= radiusMiles)
@@ -131,7 +144,7 @@ export class GrainMarketplaceService {
 
     const totalOfferPrice = data.bushelsOffered * data.pricePerBushel;
 
-    return prisma.grainPurchaseOffer.create({
+    const newOffer = await prisma.grainPurchaseOffer.create({
       data: {
         retailerId: data.retailerId,
         grainBinId: data.grainBinId,
@@ -165,13 +178,34 @@ export class GrainMarketplaceService {
         }
       }
     });
+
+    return this.transformOffer(newOffer);
+  }
+
+  /**
+   * Transform offer data by converting Decimal fields to numbers
+   */
+  private transformOffer(offer: any) {
+    return {
+      ...offer,
+      bushelsOffered: Number(offer.bushelsOffered),
+      pricePerBushel: Number(offer.pricePerBushel),
+      totalOfferPrice: Number(offer.totalOfferPrice),
+      grainBin: offer.grainBin ? {
+        ...offer.grainBin,
+        capacity: Number(offer.grainBin.capacity),
+        currentBushels: Number(offer.grainBin.currentBushels),
+        contractedBushels: Number(offer.grainBin.contractedBushels),
+        targetPrice: offer.grainBin.targetPrice ? Number(offer.grainBin.targetPrice) : undefined
+      } : undefined
+    };
   }
 
   /**
    * Get all offers for a retailer
    */
   async getRetailerOffers(retailerId: string, status?: GrainPurchaseOfferStatus) {
-    return prisma.grainPurchaseOffer.findMany({
+    const offers = await prisma.grainPurchaseOffer.findMany({
       where: {
         retailerId,
         ...(status && { status })
@@ -191,13 +225,15 @@ export class GrainMarketplaceService {
         createdAt: 'desc'
       }
     });
+
+    return offers.map(offer => this.transformOffer(offer));
   }
 
   /**
    * Get all offers for a farmer's bins (by business)
    */
   async getFarmerOffers(businessId: string, status?: GrainPurchaseOfferStatus) {
-    return prisma.grainPurchaseOffer.findMany({
+    const offers = await prisma.grainPurchaseOffer.findMany({
       where: {
         grainBin: {
           grainEntity: {
@@ -228,6 +264,8 @@ export class GrainMarketplaceService {
         createdAt: 'desc'
       }
     });
+
+    return offers.map(offer => this.transformOffer(offer));
   }
 
   /**
@@ -264,7 +302,7 @@ export class GrainMarketplaceService {
       throw new Error('Offer not found');
     }
 
-    return offer;
+    return this.transformOffer(offer);
   }
 
   /**
@@ -286,7 +324,7 @@ export class GrainMarketplaceService {
       throw new Error('Insufficient grain in bin');
     }
 
-    return prisma.grainPurchaseOffer.update({
+    const updatedOffer = await prisma.grainPurchaseOffer.update({
       where: { id: offerId },
       data: {
         status: 'ACCEPTED',
@@ -310,6 +348,8 @@ export class GrainMarketplaceService {
         }
       }
     });
+
+    return this.transformOffer(updatedOffer);
   }
 
   /**
@@ -322,13 +362,31 @@ export class GrainMarketplaceService {
       throw new Error('Only pending offers can be rejected');
     }
 
-    return prisma.grainPurchaseOffer.update({
+    const rejectedOffer = await prisma.grainPurchaseOffer.update({
       where: { id: offerId },
       data: {
         status: 'REJECTED',
         rejectedAt: new Date()
+      },
+      include: {
+        retailer: {
+          include: {
+            user: true
+          }
+        },
+        grainBin: {
+          include: {
+            grainEntity: {
+              include: {
+                business: true
+              }
+            }
+          }
+        }
       }
     });
+
+    return this.transformOffer(rejectedOffer);
   }
 
   /**
@@ -361,7 +419,7 @@ export class GrainMarketplaceService {
     }
 
     // Update offer status and deduct grain from bin
-    const [updatedOffer] = await prisma.$transaction([
+    await prisma.$transaction([
       prisma.grainPurchaseOffer.update({
         where: { id: offerId },
         data: { status: 'COMPLETED' }
@@ -386,6 +444,7 @@ export class GrainMarketplaceService {
       })
     ]);
 
-    return updatedOffer;
+    // Fetch and return the updated offer with all relations
+    return this.getOfferById(offerId);
   }
 }
