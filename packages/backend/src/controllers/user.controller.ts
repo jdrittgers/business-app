@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Decimal } from '@prisma/client/runtime/library';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../prisma/client';
 import { GeocodingService } from '../services/geocoding.service';
@@ -27,16 +28,16 @@ export async function updateBusinessLocation(req: AuthRequest, res: Response): P
       return;
     }
 
-    let latitude: number | null = null;
-    let longitude: number | null = null;
+    let latitude: Decimal | null = null;
+    let longitude: Decimal | null = null;
 
     // Geocode ZIP code if provided
     if (zipCode) {
       const geocodingService = new GeocodingService();
       try {
         const geocodeResult = await geocodingService.geocodeZipCode(zipCode);
-        latitude = geocodeResult.latitude;
-        longitude = geocodeResult.longitude;
+        latitude = new Decimal(geocodeResult.latitude);
+        longitude = new Decimal(geocodeResult.longitude);
         console.log(`✅ Geocoded business ZIP ${zipCode}: ${latitude}, ${longitude}`);
       } catch (geocodeError) {
         console.error('Geocoding error:', geocodeError);
