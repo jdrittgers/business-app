@@ -282,18 +282,16 @@ Scenario: Multiple signals throughout the year
       };
 
       try {
-        const outlook = await aiService.generateMarketOutlook(CommodityType.CORN, marketContext);
+        const outlook = await aiService.generateMarketOutlook(CommodityType.CORN);
         console.log('AI Market Outlook:');
-        console.log(`  Short-term (1-4 weeks): ${outlook.shortTerm.direction} (Confidence: ${outlook.shortTerm.confidence}%)`);
-        console.log(`    ${outlook.shortTerm.rationale}`);
-        console.log(`  Medium-term (1-3 months): ${outlook.mediumTerm.direction} (Confidence: ${outlook.mediumTerm.confidence}%)`);
-        console.log(`    ${outlook.mediumTerm.rationale}`);
+        console.log(`  Short-term: ${outlook.shortTermOutlook}`);
+        console.log(`  Medium-term: ${outlook.mediumTermOutlook}`);
         console.log(`\n  Key Factors:`);
-        outlook.keyFactors.forEach(f => console.log(`    - ${f}`));
-        console.log(`\n  Risks to Watch:`);
-        outlook.risksToWatch.forEach(r => console.log(`    - ${r}`));
-        console.log(`\n  Marketing Recommendation:`);
-        console.log(`    ${outlook.marketingRecommendation}`);
+        outlook.keyFactors.forEach((f: string) => console.log(`    - ${f}`));
+        console.log(`\n  Price Targets:`);
+        console.log(`    Support: $${outlook.priceTargets.support.toFixed(2)}`);
+        console.log(`    Resistance: $${outlook.priceTargets.resistance.toFixed(2)}`);
+        console.log(`    Fair Value: $${outlook.priceTargets.fairValue.toFixed(2)}`);
       } catch (err: any) {
         console.log(`AI analysis error: ${err.message}`);
       }

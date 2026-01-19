@@ -340,6 +340,7 @@ model GrainContract {
 model AccumulatorDetails {
   id                    String                   @id @default(uuid())
   contractId            String                   @unique @map("contract_id")
+  basePrice             Decimal?                 @map("base_price") @db.Decimal(10, 4)
   knockoutPrice         Decimal                  @map("knockout_price") @db.Decimal(10, 4)
   doubleUpPrice         Decimal                  @map("double_up_price") @db.Decimal(10, 4)
   dailyBushels          Decimal                  @map("daily_bushels") @db.Decimal(12, 2)
@@ -1180,6 +1181,10 @@ model MarketingSignal {
   commodityType         CommodityType       @map("commodity_type")
   strength              SignalStrength
   status                SignalStatus        @default(ACTIVE)
+
+  // Crop year context (e.g., "2025" for old crop, "2026" for new crop)
+  cropYear              Int?                @map("crop_year")
+  isNewCrop             Boolean             @default(false) @map("is_new_crop")
 
   // Price context
   currentPrice          Decimal             @map("current_price") @db.Decimal(10, 4)

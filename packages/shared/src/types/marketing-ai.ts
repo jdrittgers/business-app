@@ -50,6 +50,9 @@ export interface MarketingSignal {
   commodityType: CommodityType;
   strength: SignalStrength;
   status: SignalStatus;
+  // Crop year context
+  cropYear?: number;
+  isNewCrop?: boolean;
   currentPrice: number;
   breakEvenPrice: number;
   targetPrice?: number;
@@ -105,12 +108,18 @@ export interface MarketContext {
   newsSentiment?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
   // Accumulator inquiry context
   accumulatorContext?: {
-    estimatedCashPrice: number;
-    suggestedMinBasePrice: number; // Min accumulator base price to consider
-    suggestedMarketingPercent: number; // % of bushels to market
-    volatilityLevel: 'LOW' | 'MODERATE' | 'HIGH'; // Affects accumulator terms
+    estimatedCashPrice?: number;
+    suggestedMinBasePrice?: number; // Min accumulator base price to consider
+    suggestedMarketingPercent?: number; // % of bushels to market
+    volatilityLevel?: 'LOW' | 'MODERATE' | 'HIGH'; // Affects accumulator terms
     timeUntilHarvest?: number; // Days until harvest (affects timing)
-    marketTiming: 'EARLY' | 'MID' | 'LATE'; // Seasonal timing
+    marketTiming?: 'EARLY' | 'MID' | 'LATE'; // Seasonal timing
+    // Existing accumulator contract details
+    basePrice?: number;
+    knockoutPrice?: number;
+    doubleUpPrice?: number;
+    dailyBushels?: number;
+    totalAccumulated?: number;
   };
 }
 

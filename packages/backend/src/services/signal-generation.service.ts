@@ -25,6 +25,8 @@ interface GeneratedSignal {
   signalType: MarketingSignalType;
   commodityType: CommodityType;
   strength: SignalStrength;
+  cropYear?: number;
+  isNewCrop?: boolean;
   currentPrice: number;
   breakEvenPrice: number;
   targetPrice?: number;
@@ -37,6 +39,69 @@ interface GeneratedSignal {
   recommendedBushels?: number;
   recommendedAction?: string;
   expiresAt?: Date;
+}
+
+// Helper to determine crop year from futures contract month
+function determineCropYear(
+  commodityType: CommodityType,
+  contractMonth: string,
+  contractYear?: number
+): { cropYear: number; isNewCrop: boolean } {
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth(); // 0-indexed
+
+  // Parse contract year from string if not provided
+  const futuresYear = contractYear || parseInt(contractMonth.match(/\d{4}/)?.[0] || String(currentYear));
+
+  // Determine harvest month for each commodity
+  // Corn/Soybeans: September-November harvest
+  // Wheat: June-August harvest (winter wheat)
+  const harvestMonth: Record<CommodityType, number> = {
+    CORN: 9,       // October (0-indexed: 9)
+    SOYBEANS: 9,   // October
+    WHEAT: 6       // July
+  };
+
+  // New crop futures months (for forward pricing next year's crop)
+  const newCropMonths: Record<CommodityType, string[]> = {
+    CORN: ['December', 'Dec', 'Z'],      // Dec corn = new crop
+    SOYBEANS: ['November', 'Nov', 'X'],  // Nov beans = new crop
+    WHEAT: ['July', 'Jul', 'N']          // July wheat = new crop
+  };
+
+  // Old crop months (current year's harvested crop)
+  const oldCropMonths: Record<CommodityType, string[]> = {
+    CORN: ['March', 'Mar', 'H', 'May', 'K', 'July', 'Jul', 'N', 'September', 'Sep', 'U'],
+    SOYBEANS: ['January', 'Jan', 'F', 'March', 'Mar', 'H', 'May', 'K', 'July', 'Jul', 'N', 'August', 'Aug', 'Q'],
+    WHEAT: ['March', 'Mar', 'H', 'May', 'K', 'September', 'Sep', 'U', 'December', 'Dec', 'Z']
+  };
+
+  const monthUpper = contractMonth.toUpperCase();
+  const isNewCropContract = newCropMonths[commodityType]?.some(m =>
+    monthUpper.includes(m.toUpperCase())
+  ) || false;
+
+  // Determine crop year
+  // If it's a new crop contract (e.g., Dec 2026 corn in Jan 2026), crop year is 2026
+  // If it's an old crop contract (e.g., Mar 2026 corn in Jan 2026), crop year is 2025
+  let cropYear: number;
+
+  if (isNewCropContract) {
+    cropYear = futuresYear;
+  } else {
+    // Old crop - the crop year is the harvest year before the contract
+    // Mar 2026 corn was harvested in fall 2025
+    cropYear = futuresYear - 1;
+  }
+
+  // Double check: if we're past harvest for this commodity, adjust
+  if (currentMonth > harvestMonth[commodityType] && !isNewCropContract) {
+    // We're past harvest, so "old crop" contracts are actually current crop
+    cropYear = currentYear;
+  }
+
+  return { cropYear, isNewCrop: isNewCropContract };
 }
 
 interface FundamentalAdjustment {
@@ -110,6 +175,13 @@ export class SignalGenerationService {
         continue;
       }
 
+      // Determine crop year from futures contract
+      const { cropYear, isNewCrop } = determineCropYear(
+        commodity,
+        futuresQuote.contractMonth,
+        futuresQuote.contractYear
+      );
+
       const currentCashPrice = this.marketDataService.calculateCashPrice(
         futuresQuote.closePrice,
         avgBasis
@@ -179,6 +251,9 @@ export class SignalGenerationService {
       const position = marketingPositions.get(commodity);
 
       // Generate signals for each enabled marketing tool
+      // All signals in this loop get the same crop year from the futures quote
+      const cropYearLabel = isNewCrop ? `${cropYear} New Crop` : `${cropYear} Old Crop`;
+
       if (preferences.cashSaleSignals) {
         const cashSignal = this.evaluateCashSaleSignal(
           businessId,
@@ -194,7 +269,12 @@ export class SignalGenerationService {
           position,
           seasonalAdjustment
         );
-        if (cashSignal) allSignals.push(cashSignal);
+        if (cashSignal) {
+          cashSignal.cropYear = cropYear;
+          cashSignal.isNewCrop = isNewCrop;
+          cashSignal.title = `[${cropYearLabel}] ${cashSignal.title}`;
+          allSignals.push(cashSignal);
+        }
       }
 
       if (preferences.basisContractSignals) {
@@ -209,7 +289,12 @@ export class SignalGenerationService {
           marketContext,
           position
         );
-        if (basisSignal) allSignals.push(basisSignal);
+        if (basisSignal) {
+          basisSignal.cropYear = cropYear;
+          basisSignal.isNewCrop = isNewCrop;
+          basisSignal.title = `[${cropYearLabel}] ${basisSignal.title}`;
+          allSignals.push(basisSignal);
+        }
       }
 
       if (preferences.htaSignals) {
@@ -224,7 +309,12 @@ export class SignalGenerationService {
           marketContext,
           position
         );
-        if (htaSignal) allSignals.push(htaSignal);
+        if (htaSignal) {
+          htaSignal.cropYear = cropYear;
+          htaSignal.isNewCrop = isNewCrop;
+          htaSignal.title = `[${cropYearLabel}] ${htaSignal.title}`;
+          allSignals.push(htaSignal);
+        }
       }
     }
 
@@ -246,6 +336,14 @@ export class SignalGenerationService {
 
         if (!futuresQuote) continue;
 
+        // Determine crop year for accumulator inquiry
+        const { cropYear: inquiryCropYear, isNewCrop: inquiryIsNewCrop } = determineCropYear(
+          commodity,
+          futuresQuote.contractMonth,
+          futuresQuote.contractYear
+        );
+        const inquiryCropLabel = inquiryIsNewCrop ? `${inquiryCropYear} New Crop` : `${inquiryCropYear} Old Crop`;
+
         const inquirySignal = await this.evaluateAccumulatorInquirySignal(
           businessId,
           commodity,
@@ -256,7 +354,12 @@ export class SignalGenerationService {
           preferences,
           trendAnalysis
         );
-        if (inquirySignal) allSignals.push(inquirySignal);
+        if (inquirySignal) {
+          inquirySignal.cropYear = inquiryCropYear;
+          inquirySignal.isNewCrop = inquiryIsNewCrop;
+          inquirySignal.title = `[${inquiryCropLabel}] ${inquirySignal.title}`;
+          allSignals.push(inquirySignal);
+        }
       }
     }
 
@@ -306,6 +409,8 @@ export class SignalGenerationService {
             commodityType: signal.commodityType,
             strength: signal.strength,
             status: 'ACTIVE',
+            cropYear: signal.cropYear,
+            isNewCrop: signal.isNewCrop || false,
             currentPrice: signal.currentPrice,
             breakEvenPrice: signal.breakEvenPrice,
             targetPrice: signal.targetPrice,
@@ -826,11 +931,15 @@ export class SignalGenerationService {
       const knockoutPrice = Number(details.knockoutPrice);
       const doubleUpPrice = Number(details.doubleUpPrice);
 
-      // Calculate knockout risk
-      const priceToKnockout = (knockoutPrice - currentPrice) / knockoutPrice;
+      const basePrice = Number(details.basePrice) || Number(contract.cashPrice) || 0;
 
-      // Check for knockout warning
-      if (priceToKnockout <= 0.05 && !details.knockoutReached) {
+      // Calculate knockout risk - knockout occurs when price FALLS to knockout level
+      // (knockout protects the elevator from accumulating at unfavorable prices)
+      const priceToKnockout = (currentPrice - knockoutPrice) / knockoutPrice;
+      const isNearKnockout = priceToKnockout <= 0.05 && priceToKnockout >= 0;
+
+      // Check for knockout warning (price approaching knockout from above)
+      if (isNearKnockout && !details.knockoutReached) {
         signals.push({
           businessId,
           grainEntityId: contract.grainEntityId,
@@ -838,43 +947,98 @@ export class SignalGenerationService {
           commodityType,
           strength: SignalStrength.STRONG_SELL,
           currentPrice,
-          breakEvenPrice: Number(contract.cashPrice || doubleUpPrice),
-          priceAboveBreakeven: 0,
-          percentAboveBreakeven: 0,
+          breakEvenPrice: basePrice,
+          priceAboveBreakeven: currentPrice - basePrice,
+          percentAboveBreakeven: basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0,
           title: `${commodityType} Accumulator Knockout Warning`,
-          summary: `Price is within 5% of knockout level ($${knockoutPrice.toFixed(2)}). Consider exit strategy.`,
-          rationale: `Current price $${currentPrice.toFixed(2)} is approaching knockout at $${knockoutPrice.toFixed(2)}. Only ${(priceToKnockout * 100).toFixed(1)}% away.`,
+          summary: `Price is within 5% of knockout level ($${knockoutPrice.toFixed(2)}). Contract may terminate.`,
+          rationale: `Current futures $${currentPrice.toFixed(2)} is approaching knockout at $${knockoutPrice.toFixed(2)}. ` +
+            `If price falls below knockout, accumulator terminates and remaining bushels go unmarketed.`,
           marketContext: {
             futuresPrice: currentPrice,
-            futuresMonth: futuresQuote.contractMonth
+            futuresMonth: futuresQuote.contractMonth,
+            accumulatorContext: {
+              basePrice,
+              knockoutPrice,
+              doubleUpPrice,
+              dailyBushels: Number(details.dailyBushels),
+              totalAccumulated: Number(details.totalBushelsMarketed)
+            }
           },
-          recommendedAction: 'Review accumulator position and consider protective puts',
+          recommendedAction: 'Consider locking in remaining bushels with cash sales before potential knockout',
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 1 day
         });
       }
 
-      // Check for double-up opportunity
-      if (currentPrice < doubleUpPrice && !details.isCurrentlyDoubled) {
+      // Check for double-up status - double-up occurs when price is ABOVE the double-up level
+      // (farmer gets to accumulate 2x bushels at favorable high prices)
+      if (currentPrice >= doubleUpPrice && !details.isCurrentlyDoubled) {
         signals.push({
           businessId,
           grainEntityId: contract.grainEntityId,
           signalType: MarketingSignalType.ACCUMULATOR_STRATEGY,
           commodityType,
-          strength: SignalStrength.BUY,
+          strength: SignalStrength.STRONG_BUY,
           currentPrice,
-          breakEvenPrice: Number(contract.cashPrice || doubleUpPrice),
-          priceAboveBreakeven: 0,
-          percentAboveBreakeven: 0,
-          title: `${commodityType} Accumulator Double-Up Active`,
-          summary: `Price below double-up level means 2x daily accumulation.`,
-          rationale: `Current price $${currentPrice.toFixed(2)} is below double-up trigger at $${doubleUpPrice.toFixed(2)}. You're accumulating ${Number(details.dailyBushels) * 2} bushels/day.`,
+          breakEvenPrice: basePrice,
+          priceAboveBreakeven: currentPrice - basePrice,
+          percentAboveBreakeven: basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0,
+          title: `${commodityType} Accumulator Double-Up Active!`,
+          summary: `Price above $${doubleUpPrice.toFixed(2)} triggers 2x daily accumulation at favorable prices.`,
+          rationale: `Current futures $${currentPrice.toFixed(2)} is above double-up trigger ($${doubleUpPrice.toFixed(2)}). ` +
+            `You're accumulating ${Number(details.dailyBushels) * 2} bushels/day instead of ${Number(details.dailyBushels)}. ` +
+            `This is favorable - more bushels marketed at high prices.`,
           marketContext: {
             futuresPrice: currentPrice,
-            futuresMonth: futuresQuote.contractMonth
+            futuresMonth: futuresQuote.contractMonth,
+            accumulatorContext: {
+              basePrice,
+              knockoutPrice,
+              doubleUpPrice,
+              dailyBushels: Number(details.dailyBushels),
+              totalAccumulated: Number(details.totalBushelsMarketed)
+            }
           },
-          recommendedAction: 'Monitor position - double accumulation is active',
+          recommendedAction: 'Great position - 2x accumulation at high prices. Monitor knockout level.',
           expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days
         });
+      }
+
+      // Normal accumulation status (between knockout and double-up)
+      if (currentPrice > knockoutPrice && currentPrice < doubleUpPrice) {
+        // Only generate info signal if accumulator is performing well
+        const aboveBase = basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0;
+        if (aboveBase > 0.05) {
+          signals.push({
+            businessId,
+            grainEntityId: contract.grainEntityId,
+            signalType: MarketingSignalType.ACCUMULATOR_STRATEGY,
+            commodityType,
+            strength: SignalStrength.BUY,
+            currentPrice,
+            breakEvenPrice: basePrice,
+            priceAboveBreakeven: currentPrice - basePrice,
+            percentAboveBreakeven: aboveBase,
+            title: `${commodityType} Accumulator Performing Well`,
+            summary: `Accumulating ${Number(details.dailyBushels)} bu/day. Price ${(aboveBase * 100).toFixed(1)}% above base.`,
+            rationale: `Current futures $${currentPrice.toFixed(2)} is above your base price ($${basePrice.toFixed(2)}). ` +
+              `Total accumulated: ${Number(details.totalBushelsMarketed).toLocaleString()} bushels. ` +
+              `Knockout at $${knockoutPrice.toFixed(2)}, Double-up at $${doubleUpPrice.toFixed(2)}.`,
+            marketContext: {
+              futuresPrice: currentPrice,
+              futuresMonth: futuresQuote.contractMonth,
+              accumulatorContext: {
+                basePrice,
+                knockoutPrice,
+                doubleUpPrice,
+                dailyBushels: Number(details.dailyBushels),
+                totalAccumulated: Number(details.totalBushelsMarketed)
+              }
+            },
+            recommendedAction: 'Continue monitoring. Consider additional sales if price approaches double-up.',
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+          });
+        }
       }
     }
 
@@ -1215,6 +1379,8 @@ export class SignalGenerationService {
       commodityType: dbSignal.commodityType as CommodityType,
       strength: dbSignal.strength as SignalStrength,
       status: dbSignal.status as SignalStatus,
+      cropYear: dbSignal.cropYear || undefined,
+      isNewCrop: dbSignal.isNewCrop || false,
       currentPrice: Number(dbSignal.currentPrice),
       breakEvenPrice: Number(dbSignal.breakEvenPrice),
       targetPrice: dbSignal.targetPrice ? Number(dbSignal.targetPrice) : undefined,
