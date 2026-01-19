@@ -135,6 +135,12 @@ export default function GrainDashboard() {
                 Breakeven
               </button>
               <button
+                onClick={() => navigate('/marketing-ai')}
+                className="text-sm font-medium bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hover:from-blue-700 hover:to-purple-700"
+              >
+                Marketing AI
+              </button>
+              <button
                 onClick={handleLogout}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
               >
