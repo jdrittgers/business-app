@@ -121,6 +121,25 @@ export interface MarketContext {
     dailyBushels?: number;
     totalAccumulated?: number;
   };
+  // Call option context
+  callOptionContext?: {
+    suggestedStrike?: number;
+    estimatedPremium?: number;
+    contractsNeeded?: number;
+    bushelsProtected?: number;
+    totalPremiumCost?: number;
+    breakEvenPrice?: number;
+    callScore?: number;
+    // Existing position tracking
+    strikePrice?: number;
+    premium?: number;
+    intrinsicValue?: number;
+    daysToExpiration?: number;
+    profitLoss?: number;
+    profitLossPct?: number;
+    contracts?: number;
+    totalBushels?: number;
+  };
 }
 
 // ===== Marketing Preferences =====

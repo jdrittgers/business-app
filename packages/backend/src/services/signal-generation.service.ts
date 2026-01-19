@@ -363,6 +363,63 @@ export class SignalGenerationService {
       }
     }
 
+    // Generate call option signals (when to buy calls)
+    if (preferences.optionsSignals) {
+      for (const commodityData of breakEvens.byCommodity) {
+        const commodity = commodityData.commodityType as CommodityType;
+        if (!enabledCommodities.includes(commodity)) continue;
+
+        const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodity);
+        const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+        const trendAnalysis = await this.marketDataService.analyzePriceTrend(commodity);
+
+        if (!futuresQuote) continue;
+
+        // Get contexts needed for call option evaluation
+        const fundamentalContext = await this.fundamentalService.getFundamentalContext(commodity);
+        const fundamentalAdjustment = this.calculateFundamentalAdjustment(fundamentalContext);
+        const seasonalContext = this.seasonalService.getSeasonalContext(commodity, futuresQuote.closePrice + avgBasis);
+
+        const { cropYear: callCropYear, isNewCrop: callIsNewCrop } = determineCropYear(
+          commodity,
+          futuresQuote.contractMonth,
+          futuresQuote.contractYear
+        );
+        const callCropLabel = callIsNewCrop ? `${callCropYear} New Crop` : `${callCropYear} Old Crop`;
+
+        const marketContext: any = {
+          futuresPrice: futuresQuote.closePrice,
+          futuresMonth: futuresQuote.contractMonth,
+          basisLevel: avgBasis
+        };
+
+        const callSignal = await this.evaluateCallOptionSignal(
+          businessId,
+          commodity,
+          futuresQuote.closePrice,
+          avgBasis,
+          commodityData.breakEvenPrice,
+          commodityData.expectedBushels,
+          preferences,
+          marketContext,
+          trendAnalysis,
+          seasonalContext,
+          fundamentalAdjustment.overallOutlook
+        );
+
+        if (callSignal) {
+          callSignal.cropYear = callCropYear;
+          callSignal.isNewCrop = callIsNewCrop;
+          callSignal.title = `[${callCropLabel}] ${callSignal.title}`;
+          allSignals.push(callSignal);
+        }
+      }
+
+      // Monitor existing call option positions
+      const callPositionSignals = await this.generateCallOptionPositionSignals(businessId);
+      allSignals.push(...callPositionSignals);
+    }
+
     // Store signals in database
     const storedSignals: MarketingSignal[] = [];
 
@@ -1193,6 +1250,363 @@ export class SignalGenerationService {
       WHEAT: 5.50
     };
     return defaults[commodityType] || 4.00;
+  }
+
+  // ===== Call Option Signal Generation =====
+
+  /**
+   * Generate signals for when to BUY call options
+   * Triggered by:
+   * 1. After cash sale - suggest re-ownership via calls
+   * 2. When prices are at historical lows (good entry point)
+   * 3. When technicals/fundamentals suggest a rally
+   */
+  private async evaluateCallOptionSignal(
+    businessId: string,
+    commodityType: CommodityType,
+    futuresPrice: number,
+    currentBasis: number,
+    breakEvenPrice: number,
+    totalBushels: number,
+    preferences: MarketingPreferences,
+    marketContext: any,
+    trendAnalysis: any,
+    seasonalContext: any,
+    fundamentalOutlook: 'BULLISH' | 'BEARISH' | 'NEUTRAL'
+  ): Promise<GeneratedSignal | null> {
+    // Only generate if options signals are enabled
+    if (!preferences.optionsSignals) {
+      return null;
+    }
+
+    const currentCashPrice = futuresPrice + currentBasis;
+    const priceAboveBreakeven = currentCashPrice - breakEvenPrice;
+    const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
+
+    // Get seasonal context for timing
+    const seasonalScore = seasonalContext?.seasonalScore || 50;
+    const historicalPercentile = seasonalContext?.historicalPricePercentile || 50;
+    const rallyProbability = seasonalContext?.currentPattern?.historicalRallyProbability || 0.5;
+
+    // Technical indicators
+    const rsi = trendAnalysis?.rsi || 50;
+    const trend = trendAnalysis?.trend || 'NEUTRAL';
+
+    // Conditions that favor buying calls:
+    // 1. Price is at historical low (below 30th percentile)
+    // 2. RSI is oversold (< 30)
+    // 3. Fundamentals are bullish
+    // 4. Seasonal pattern suggests rally coming
+    // 5. After making cash sales (re-own grain)
+
+    let callScore = 0;
+    const reasons: string[] = [];
+
+    // Historical percentile scoring
+    if (historicalPercentile < 20) {
+      callScore += 30;
+      reasons.push(`Price at ${historicalPercentile}th percentile historically (very low)`);
+    } else if (historicalPercentile < 35) {
+      callScore += 20;
+      reasons.push(`Price at ${historicalPercentile}th percentile historically (low)`);
+    }
+
+    // RSI oversold
+    if (rsi < 25) {
+      callScore += 25;
+      reasons.push(`RSI at ${rsi.toFixed(0)} (oversold)`);
+    } else if (rsi < 35) {
+      callScore += 15;
+      reasons.push(`RSI at ${rsi.toFixed(0)} (approaching oversold)`);
+    }
+
+    // Fundamental outlook
+    if (fundamentalOutlook === 'BULLISH') {
+      callScore += 20;
+      reasons.push('Fundamentals are bullish');
+    } else if (fundamentalOutlook === 'BEARISH') {
+      callScore -= 15;
+    }
+
+    // Seasonal rally probability
+    if (rallyProbability > 0.65) {
+      callScore += 15;
+      reasons.push(`${(rallyProbability * 100).toFixed(0)}% historical rally probability`);
+    } else if (rallyProbability > 0.55) {
+      callScore += 10;
+      reasons.push(`${(rallyProbability * 100).toFixed(0)}% rally probability`);
+    }
+
+    // Downtrend (good for buying calls at bottom)
+    if (trend === 'DOWN') {
+      callScore += 10;
+      reasons.push('Market in downtrend (potential reversal opportunity)');
+    }
+
+    // Determine signal strength
+    let strength: SignalStrength;
+    if (callScore >= 60) {
+      strength = SignalStrength.STRONG_BUY;
+    } else if (callScore >= 40) {
+      strength = SignalStrength.BUY;
+    } else {
+      return null; // Not enough reasons to suggest calls
+    }
+
+    // Calculate suggested strike and premium budget
+    const suggestedStrike = Math.round(futuresPrice * 20) / 20; // Round to nearest $0.05
+    const estimatedPremium = this.estimateCallPremium(commodityType, futuresPrice, suggestedStrike);
+    const bushelsToProtect = Math.round(totalBushels * 0.25); // Suggest protecting 25%
+    const contractsNeeded = Math.ceil(bushelsToProtect / 5000);
+    const totalPremiumCost = contractsNeeded * 5000 * estimatedPremium;
+
+    const title = strength === SignalStrength.STRONG_BUY
+      ? `Strong ${commodityType} Call Option Opportunity`
+      : `${commodityType} Call Option Worth Considering`;
+
+    const summary = `Market conditions favor buying calls for price upside. ` +
+      `Consider ${contractsNeeded} contracts (${bushelsToProtect.toLocaleString()} bu) at ~$${suggestedStrike.toFixed(2)} strike.`;
+
+    const rationale = reasons.join('. ') + '. ' +
+      `Estimated premium: ~$${estimatedPremium.toFixed(4)}/bu ($${totalPremiumCost.toLocaleString()} total). ` +
+      `Break-even at $${(suggestedStrike + estimatedPremium).toFixed(2)}.`;
+
+    return {
+      businessId,
+      signalType: MarketingSignalType.CALL_OPTION,
+      commodityType,
+      strength,
+      currentPrice: currentCashPrice,
+      breakEvenPrice,
+      targetPrice: suggestedStrike + estimatedPremium, // Break-even for call
+      priceAboveBreakeven,
+      percentAboveBreakeven,
+      title,
+      summary,
+      rationale,
+      marketContext: {
+        ...marketContext,
+        callOptionContext: {
+          suggestedStrike,
+          estimatedPremium,
+          contractsNeeded,
+          bushelsProtected: bushelsToProtect,
+          totalPremiumCost,
+          breakEvenPrice: suggestedStrike + estimatedPremium,
+          callScore
+        }
+      },
+      recommendedBushels: bushelsToProtect,
+      recommendedAction: `Contact your broker for current call option quotes. ` +
+        `At-the-money ${commodityType} calls around $${suggestedStrike.toFixed(2)} strike.`,
+      expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) // 5 days
+    };
+  }
+
+  /**
+   * Estimate call option premium based on commodity and strike
+   * This is a rough estimate - actual premiums depend on volatility, time to expiration, etc.
+   */
+  private estimateCallPremium(
+    commodityType: CommodityType,
+    currentPrice: number,
+    strikePrice: number
+  ): number {
+    // Base premium as percentage of current price
+    const basePremiumPct: Record<CommodityType, number> = {
+      CORN: 0.04,      // ~4% of price (~$0.16-0.20 for corn)
+      SOYBEANS: 0.035, // ~3.5% of price (~$0.35-0.40 for beans)
+      WHEAT: 0.045     // ~4.5% of price (~$0.25-0.30 for wheat)
+    };
+
+    const basePremium = currentPrice * (basePremiumPct[commodityType] || 0.04);
+
+    // Adjust for moneyness (ATM vs OTM)
+    const moneyness = (strikePrice - currentPrice) / currentPrice;
+    let premiumAdjustment = 1.0;
+
+    if (moneyness > 0.05) {
+      // OTM - cheaper
+      premiumAdjustment = 0.6;
+    } else if (moneyness > 0.02) {
+      premiumAdjustment = 0.8;
+    } else if (moneyness < -0.02) {
+      // ITM - more expensive
+      premiumAdjustment = 1.3;
+    }
+
+    return basePremium * premiumAdjustment;
+  }
+
+  // ===== Call Option Position Monitoring =====
+
+  /**
+   * Monitor existing call option positions and generate alerts
+   */
+  async generateCallOptionPositionSignals(businessId: string): Promise<GeneratedSignal[]> {
+    const signals: GeneratedSignal[] = [];
+
+    // Get all open call positions for this business
+    const callPositions = await prisma.optionsPosition.findMany({
+      where: {
+        businessId,
+        optionType: 'CALL',
+        isOpen: true
+      }
+    });
+
+    for (const position of callPositions) {
+      const commodityType = position.commodityType as CommodityType;
+      const strikePrice = Number(position.strikePrice);
+      const premium = Number(position.premium);
+      const expirationDate = position.expirationDate;
+      const contracts = position.contracts;
+      const totalBushels = contracts * position.bushelsPerContract;
+
+      // Get current futures price
+      const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodityType);
+      if (!futuresQuote) continue;
+
+      const currentPrice = futuresQuote.closePrice;
+      const intrinsicValue = Math.max(0, currentPrice - strikePrice);
+      const breakEvenPrice = strikePrice + premium;
+      const profitLoss = intrinsicValue - premium;
+      const profitLossPct = premium > 0 ? profitLoss / premium : 0;
+
+      // Calculate days to expiration
+      const daysToExpiration = Math.ceil(
+        (expirationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Determine crop year from futures month
+      const { cropYear, isNewCrop } = determineCropYear(
+        commodityType,
+        position.futuresMonth
+      );
+      const cropYearLabel = isNewCrop ? `${cropYear} New Crop` : `${cropYear} Old Crop`;
+
+      // Generate signals based on position status
+
+      // 1. Expiration warning (7 days or less)
+      if (daysToExpiration <= 7 && daysToExpiration > 0) {
+        signals.push({
+          businessId,
+          grainEntityId: position.grainEntityId || undefined,
+          signalType: MarketingSignalType.CALL_OPTION,
+          commodityType,
+          strength: daysToExpiration <= 3 ? SignalStrength.STRONG_SELL : SignalStrength.SELL,
+          cropYear,
+          isNewCrop,
+          currentPrice,
+          breakEvenPrice,
+          priceAboveBreakeven: currentPrice - breakEvenPrice,
+          percentAboveBreakeven: breakEvenPrice > 0 ? (currentPrice - breakEvenPrice) / breakEvenPrice : 0,
+          title: `[${cropYearLabel}] ${commodityType} Call Expiring in ${daysToExpiration} Days`,
+          summary: `Your $${strikePrice.toFixed(2)} call expires ${expirationDate.toLocaleDateString()}. ` +
+            `Current value: ${intrinsicValue > 0 ? `$${intrinsicValue.toFixed(4)}/bu in-the-money` : 'out-of-the-money'}.`,
+          rationale: `Position: ${contracts} contracts (${totalBushels.toLocaleString()} bu). ` +
+            `Premium paid: $${premium.toFixed(4)}/bu. ` +
+            `${profitLoss >= 0 ? 'Profit' : 'Loss'}: $${Math.abs(profitLoss).toFixed(4)}/bu (${(profitLossPct * 100).toFixed(0)}%).`,
+          marketContext: {
+            futuresPrice: currentPrice,
+            futuresMonth: position.futuresMonth,
+            callOptionContext: {
+              strikePrice,
+              premium,
+              intrinsicValue,
+              daysToExpiration,
+              profitLoss,
+              profitLossPct,
+              contracts,
+              totalBushels
+            }
+          },
+          recommendedAction: intrinsicValue > 0
+            ? 'Consider selling to close or exercising the option before expiration.'
+            : 'Option is out-of-the-money. Consider letting it expire or selling for remaining time value.',
+          expiresAt: expirationDate
+        });
+      }
+
+      // 2. Profitable position alert (> 50% gain)
+      if (profitLossPct >= 0.5 && daysToExpiration > 7) {
+        signals.push({
+          businessId,
+          grainEntityId: position.grainEntityId || undefined,
+          signalType: MarketingSignalType.CALL_OPTION,
+          commodityType,
+          strength: profitLossPct >= 1.0 ? SignalStrength.STRONG_SELL : SignalStrength.SELL,
+          cropYear,
+          isNewCrop,
+          currentPrice,
+          breakEvenPrice,
+          priceAboveBreakeven: currentPrice - breakEvenPrice,
+          percentAboveBreakeven: breakEvenPrice > 0 ? (currentPrice - breakEvenPrice) / breakEvenPrice : 0,
+          title: `[${cropYearLabel}] ${commodityType} Call Profitable - Take Profits?`,
+          summary: `Your $${strikePrice.toFixed(2)} call is up ${(profitLossPct * 100).toFixed(0)}%. ` +
+            `Consider taking profits on some or all contracts.`,
+          rationale: `Current futures: $${currentPrice.toFixed(2)}. Strike: $${strikePrice.toFixed(2)}. ` +
+            `Intrinsic value: $${intrinsicValue.toFixed(4)}/bu. ` +
+            `Total position value: ~$${(intrinsicValue * totalBushels).toLocaleString()}.`,
+          marketContext: {
+            futuresPrice: currentPrice,
+            futuresMonth: position.futuresMonth,
+            callOptionContext: {
+              strikePrice,
+              premium,
+              intrinsicValue,
+              daysToExpiration,
+              profitLoss,
+              profitLossPct,
+              contracts,
+              totalBushels
+            }
+          },
+          recommendedAction: `Consider selling ${Math.ceil(contracts / 2)} contracts to lock in gains while maintaining some upside exposure.`,
+          expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+        });
+      }
+
+      // 3. Deep in-the-money alert (consider exercising or rolling)
+      if (intrinsicValue > premium * 2 && daysToExpiration > 14) {
+        signals.push({
+          businessId,
+          grainEntityId: position.grainEntityId || undefined,
+          signalType: MarketingSignalType.CALL_OPTION,
+          commodityType,
+          strength: SignalStrength.BUY,
+          cropYear,
+          isNewCrop,
+          currentPrice,
+          breakEvenPrice,
+          priceAboveBreakeven: currentPrice - breakEvenPrice,
+          percentAboveBreakeven: breakEvenPrice > 0 ? (currentPrice - breakEvenPrice) / breakEvenPrice : 0,
+          title: `[${cropYearLabel}] ${commodityType} Call Deep ITM - Consider Rolling`,
+          summary: `Your $${strikePrice.toFixed(2)} call is deep in-the-money. ` +
+            `Consider rolling to a higher strike to capture more time value.`,
+          rationale: `Current futures: $${currentPrice.toFixed(2)} is $${(currentPrice - strikePrice).toFixed(2)} above strike. ` +
+            `Rolling up could free up capital and maintain upside exposure with less risk.`,
+          marketContext: {
+            futuresPrice: currentPrice,
+            futuresMonth: position.futuresMonth,
+            callOptionContext: {
+              strikePrice,
+              premium,
+              intrinsicValue,
+              daysToExpiration,
+              profitLoss,
+              profitLossPct,
+              contracts,
+              totalBushels
+            }
+          },
+          recommendedAction: `Consider selling current calls and buying higher strike calls to lock in gains.`,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        });
+      }
+    }
+
+    return signals;
   }
 
   // ===== Helper Methods =====
