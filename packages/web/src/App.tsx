@@ -33,6 +33,7 @@ import FarmerGrainOffers from './pages/FarmerGrainOffers';
 import PricingPage from './pages/PricingPage';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import DeletedItems from './pages/DeletedItems';
+import MarketingAI from './pages/MarketingAI';
 import RequireRole from './components/RequireRole';
 
 function App() {
@@ -137,6 +138,10 @@ function App() {
       <Route
         path="/deleted-items"
         element={isAuthenticated ? <DeletedItems /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/marketing-ai"
+        element={isAuthenticated ? <MarketingAI /> : <Navigate to="/login" />}
       />
 
       {/* Retailer Routes */}

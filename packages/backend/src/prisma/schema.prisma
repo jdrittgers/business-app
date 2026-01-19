@@ -114,20 +114,21 @@ model Business {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  members        BusinessMember[]
-  calendarEvents CalendarEvent[]
-  tasks          Task[]
-  grainEntities  GrainEntity[]
-  priceAlerts    PriceAlert[]
-  fertilizers    Fertilizer[]
-  chemicals      Chemical[]
-  seedHybrids    SeedHybrid[]
-  bidRequests    BidRequest[]
-  invitations    BusinessInvitation[]
-  invoices       Invoice[]
-  purchaseHistory PurchaseHistory[]
-  scaleTickets   ScaleTicket[]
-  subscription   BusinessSubscription?
+  members              BusinessMember[]
+  calendarEvents       CalendarEvent[]
+  tasks                Task[]
+  grainEntities        GrainEntity[]
+  priceAlerts          PriceAlert[]
+  fertilizers          Fertilizer[]
+  chemicals            Chemical[]
+  seedHybrids          SeedHybrid[]
+  bidRequests          BidRequest[]
+  invitations          BusinessInvitation[]
+  invoices             Invoice[]
+  purchaseHistory      PurchaseHistory[]
+  scaleTickets         ScaleTicket[]
+  subscription         BusinessSubscription?
+  marketingPreferences MarketingPreferences?
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -1071,4 +1072,249 @@ model PaymentHistory {
   @@index([businessSubscriptionId])
   @@index([retailerSubscriptionId])
   @@map("payment_history")
+}
+
+// ===== Marketing AI Models =====
+
+enum MarketingSignalType {
+  CASH_SALE
+  BASIS_CONTRACT
+  HTA_RECOMMENDATION
+  ACCUMULATOR_STRATEGY
+  PUT_OPTION
+  CALL_OPTION
+  COLLAR_STRATEGY
+}
+
+enum SignalStrength {
+  STRONG_BUY
+  BUY
+  HOLD
+  SELL
+  STRONG_SELL
+}
+
+enum SignalStatus {
+  ACTIVE
+  TRIGGERED
+  EXPIRED
+  DISMISSED
+}
+
+enum NotificationChannel {
+  PUSH
+  EMAIL
+  IN_APP
+}
+
+enum RiskTolerance {
+  CONSERVATIVE
+  MODERATE
+  AGGRESSIVE
+}
+
+model MarketingPreferences {
+  id                      String        @id @default(uuid())
+  businessId              String        @unique @map("business_id")
+
+  // Notification preferences
+  enablePushNotifications   Boolean     @default(true) @map("enable_push_notifications")
+  enableEmailNotifications  Boolean     @default(true) @map("enable_email_notifications")
+  enableInAppNotifications  Boolean     @default(true) @map("enable_in_app_notifications")
+  quietHoursStart           String?     @map("quiet_hours_start") // "22:00"
+  quietHoursEnd             String?     @map("quiet_hours_end")   // "06:00"
+
+  // Signal preferences by commodity
+  cornEnabled             Boolean       @default(true) @map("corn_enabled")
+  soybeansEnabled         Boolean       @default(true) @map("soybeans_enabled")
+  wheatEnabled            Boolean       @default(true) @map("wheat_enabled")
+
+  // Marketing tool preferences
+  cashSaleSignals         Boolean       @default(true) @map("cash_sale_signals")
+  basisContractSignals    Boolean       @default(true) @map("basis_contract_signals")
+  htaSignals              Boolean       @default(true) @map("hta_signals")
+  accumulatorSignals      Boolean       @default(true) @map("accumulator_signals")
+  optionsSignals          Boolean       @default(false) @map("options_signals")
+
+  // Risk tolerance affects signal thresholds
+  riskTolerance           RiskTolerance @default(MODERATE) @map("risk_tolerance")
+
+  // Target profit margin above break-even (dollars/bushel)
+  targetProfitMargin      Decimal       @default(0.50) @map("target_profit_margin") @db.Decimal(10, 4)
+
+  // Minimum percentage above break-even to trigger sell signal
+  minAboveBreakeven       Decimal       @default(0.05) @map("min_above_breakeven") @db.Decimal(5, 4) // 5%
+
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  business                Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("marketing_preferences")
+}
+
+model MarketingSignal {
+  id                    String              @id @default(uuid())
+  businessId            String              @map("business_id")
+  grainEntityId         String?             @map("grain_entity_id")
+
+  signalType            MarketingSignalType @map("signal_type")
+  commodityType         CommodityType       @map("commodity_type")
+  strength              SignalStrength
+  status                SignalStatus        @default(ACTIVE)
+
+  // Price context
+  currentPrice          Decimal             @map("current_price") @db.Decimal(10, 4)
+  breakEvenPrice        Decimal             @map("break_even_price") @db.Decimal(10, 4)
+  targetPrice           Decimal?            @map("target_price") @db.Decimal(10, 4)
+  priceAboveBreakeven   Decimal             @map("price_above_breakeven") @db.Decimal(10, 4)
+  percentAboveBreakeven Decimal             @map("percent_above_breakeven") @db.Decimal(5, 4)
+
+  // Signal details
+  title                 String
+  summary               String
+  rationale             String?             // Rule-based explanation
+  aiAnalysis            String?             @map("ai_analysis") // AI-generated deeper analysis
+  aiAnalyzedAt          DateTime?           @map("ai_analyzed_at")
+
+  // Market context (JSON blob for flexibility)
+  marketContext         Json?               @map("market_context")
+
+  // Recommendation details
+  recommendedBushels    Decimal?            @map("recommended_bushels") @db.Decimal(12, 2)
+  recommendedAction     String?             @map("recommended_action")
+  expiresAt             DateTime?           @map("expires_at")
+
+  // Tracking
+  viewedAt              DateTime?           @map("viewed_at")
+  actionTaken           String?             @map("action_taken")
+  actionTakenAt         DateTime?           @map("action_taken_at")
+  dismissedAt           DateTime?           @map("dismissed_at")
+  dismissReason         String?             @map("dismiss_reason")
+
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  notifications         SignalNotification[]
+
+  @@index([businessId, status])
+  @@index([commodityType, status])
+  @@index([signalType, status])
+  @@index([createdAt])
+  @@map("marketing_signals")
+}
+
+model SignalNotification {
+  id              String              @id @default(uuid())
+  signalId        String              @map("signal_id")
+  userId          String              @map("user_id")
+  channel         NotificationChannel
+  sentAt          DateTime?           @map("sent_at")
+  deliveredAt     DateTime?           @map("delivered_at")
+  readAt          DateTime?           @map("read_at")
+  failedAt        DateTime?           @map("failed_at")
+  errorMessage    String?             @map("error_message")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  signal          MarketingSignal     @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@unique([signalId, userId, channel])
+  @@index([userId])
+  @@map("signal_notifications")
+}
+
+model FuturesQuote {
+  id              String        @id @default(uuid())
+  commodityType   CommodityType @map("commodity_type")
+  contractMonth   String        @map("contract_month") // "MAR25", "MAY25", etc.
+  contractYear    Int           @map("contract_year")
+  openPrice       Decimal?      @map("open_price") @db.Decimal(10, 4)
+  highPrice       Decimal?      @map("high_price") @db.Decimal(10, 4)
+  lowPrice        Decimal?      @map("low_price") @db.Decimal(10, 4)
+  closePrice      Decimal       @map("close_price") @db.Decimal(10, 4)
+  settlementPrice Decimal?      @map("settlement_price") @db.Decimal(10, 4)
+  volume          Int?
+  openInterest    Int?          @map("open_interest")
+  priceChange     Decimal?      @map("price_change") @db.Decimal(10, 4)
+  quoteDate       DateTime      @map("quote_date")
+  source          String        // "CME", "BARCHART"
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@unique([commodityType, contractMonth, contractYear, quoteDate])
+  @@index([commodityType, contractMonth])
+  @@index([quoteDate])
+  @@map("futures_quotes")
+}
+
+model BasisData {
+  id              String        @id @default(uuid())
+  commodityType   CommodityType @map("commodity_type")
+  location        String        // Elevator/location name
+  latitude        Decimal?      @db.Decimal(10, 8)
+  longitude       Decimal?      @db.Decimal(11, 8)
+  cashPrice       Decimal       @map("cash_price") @db.Decimal(10, 4)
+  futuresMonth    String        @map("futures_month")
+  futuresPrice    Decimal       @map("futures_price") @db.Decimal(10, 4)
+  basis           Decimal       @db.Decimal(10, 4)
+  priceDate       DateTime      @map("price_date")
+  source          String
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@index([commodityType, location])
+  @@index([priceDate])
+  @@map("basis_data")
+}
+
+model OptionsPosition {
+  id                String        @id @default(uuid())
+  businessId        String        @map("business_id")
+  grainEntityId     String?       @map("grain_entity_id")
+  commodityType     CommodityType @map("commodity_type")
+
+  optionType        String        @map("option_type") // "PUT", "CALL"
+  strikePrice       Decimal       @map("strike_price") @db.Decimal(10, 4)
+  futuresMonth      String        @map("futures_month")
+  expirationDate    DateTime      @map("expiration_date")
+
+  contracts         Int           // Number of options contracts
+  bushelsPerContract Int          @default(5000) @map("bushels_per_contract")
+  premium           Decimal       @db.Decimal(10, 4)
+  totalCost         Decimal       @map("total_cost") @db.Decimal(12, 2)
+
+  currentValue      Decimal?      @map("current_value") @db.Decimal(12, 2)
+  lastPriceUpdate   DateTime?     @map("last_price_update")
+
+  isOpen            Boolean       @default(true) @map("is_open")
+  closedAt          DateTime?     @map("closed_at")
+  closedPrice       Decimal?      @map("closed_price") @db.Decimal(10, 4)
+
+  notes             String?
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@index([businessId, isOpen])
+  @@index([commodityType, futuresMonth])
+  @@map("options_positions")
+}
+
+model AIAnalysisLog {
+  id              String    @id @default(uuid())
+  businessId      String    @map("business_id")
+  analysisType    String    @map("analysis_type") // "SIGNAL_EXPLANATION", "STRATEGY_RECOMMENDATION", "MARKET_OUTLOOK"
+  prompt          String
+  response        String
+  modelUsed       String    @map("model_used") // "claude-3-opus", "gpt-4", etc.
+  tokensUsed      Int       @map("tokens_used")
+  latencyMs       Int       @map("latency_ms")
+  successful      Boolean
+  errorMessage    String?   @map("error_message")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([businessId])
+  @@index([analysisType])
+  @@index([createdAt])
+  @@map("ai_analysis_logs")
 }

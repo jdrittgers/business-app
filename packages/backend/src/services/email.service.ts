@@ -11,6 +11,12 @@ export interface SendInvitationEmailParams {
   fromName: string;
 }
 
+export interface SendEmailParams {
+  to: string;
+  subject: string;
+  html: string;
+}
+
 export class EmailService {
   private fromEmail: string;
   private appUrl: string;
@@ -21,6 +27,27 @@ export class EmailService {
 
     if (!process.env.RESEND_API_KEY) {
       console.warn('⚠️  RESEND_API_KEY not set. Email sending will fail.');
+    }
+  }
+
+  async sendEmail(params: SendEmailParams): Promise<void> {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('Email service not configured. Skipping email send.');
+      return;
+    }
+
+    try {
+      await resend.emails.send({
+        from: this.fromEmail,
+        to: params.to,
+        subject: params.subject,
+        html: params.html
+      });
+
+      console.log(`✅ Email sent to ${params.to}`);
+    } catch (error: any) {
+      console.error('Failed to send email:', error);
+      throw new Error(`Failed to send email: ${error.message}`);
     }
   }
 

@@ -24,8 +24,10 @@ import scaleTicketRoutes from './routes/scale-ticket.routes';
 import grainMarketplaceRoutes from './controllers/grain-marketplace.controller';
 import subscriptionRoutes from './routes/subscription.routes';
 import softDeleteRoutes from './routes/soft-delete.routes';
+import marketingAiRoutes from './routes/marketing-ai.routes';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
+import { startMarketingAIJobs } from './services/marketing-ai-job.service';
 import { securityHeaders } from './middleware/security';
 import { apiLimiter } from './middleware/rate-limit';
 
@@ -83,6 +85,7 @@ app.use('/api', invoiceRoutes);
 app.use('/api', grainBinRoutes);
 app.use('/api', scaleTicketRoutes);
 app.use('/api/grain-marketplace', grainMarketplaceRoutes);
+app.use('/api', marketingAiRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -107,4 +110,8 @@ httpServer.listen(PORT, () => {
   // Start background job for market price fetching
   const priceJob = new GrainPriceJobService();
   priceJob.start();
+
+  // Start Marketing AI background jobs
+  startMarketingAIJobs();
+  console.log('🤖 Marketing AI jobs started');
 });
