@@ -81,6 +81,24 @@ export class AIAnalysisService {
       COLLAR_STRATEGY: 'implement a collar strategy (buy put, sell call)'
     };
 
+    // Build fundamental context section if available
+    let fundamentalSection = '';
+    if (signal.marketContext) {
+      const ctx = signal.marketContext;
+      if (ctx.fundamentalScore !== undefined || ctx.stocksToUseRatio !== undefined) {
+        fundamentalSection = `
+FUNDAMENTAL ANALYSIS:
+- Overall Fundamental Score: ${ctx.fundamentalScore !== undefined ? `${ctx.fundamentalScore > 0 ? '+' : ''}${ctx.fundamentalScore}` : 'N/A'} (range: -100 bearish to +100 bullish)
+- Fundamental Outlook: ${ctx.fundamentalOutlook || 'N/A'}
+${ctx.stocksToUseRatio !== undefined ? `- Stocks-to-Use Ratio: ${(ctx.stocksToUseRatio * 100).toFixed(1)}% (lower = tighter supply = bullish)` : ''}
+${ctx.exportPace !== undefined ? `- Export Pace vs USDA: ${ctx.exportPace > 0 ? '+' : ''}${(ctx.exportPace * 100).toFixed(0)}%` : ''}
+${ctx.cropConditions !== undefined ? `- Crop Conditions (Good/Excellent): ${ctx.cropConditions.toFixed(0)}%` : ''}
+${ctx.newsSentiment ? `- Recent News Sentiment: ${ctx.newsSentiment}` : ''}
+${ctx.keyFundamentalFactors && ctx.keyFundamentalFactors.length > 0 ? `- Key Factors: ${ctx.keyFundamentalFactors.join('; ')}` : ''}
+`;
+      }
+    }
+
     return `You are an agricultural marketing advisor helping a farmer understand a marketing signal. Explain this signal in clear, actionable terms.
 
 SIGNAL DETAILS:
@@ -92,7 +110,7 @@ SIGNAL DETAILS:
 - Profit Margin: $${signal.priceAboveBreakeven.toFixed(2)}/bushel (${(signal.percentAboveBreakeven * 100).toFixed(1)}% above break-even)
 ${signal.targetPrice ? `- Target Price: $${signal.targetPrice.toFixed(2)}/bushel` : ''}
 
-MARKET CONTEXT:
+TECHNICAL MARKET CONTEXT:
 ${signal.marketContext ? `
 - Futures Price: $${signal.marketContext.futuresPrice?.toFixed(2) || 'N/A'}
 - Futures Contract: ${signal.marketContext.futuresMonth || 'N/A'}
@@ -100,8 +118,9 @@ ${signal.marketContext ? `
 - Basis Level: ${signal.marketContext.basisLevel?.toFixed(2) || 'N/A'}
 - Basis vs Historical: ${signal.marketContext.basisVsHistorical || 'N/A'}
 - RSI: ${signal.marketContext.rsiValue?.toFixed(0) || 'N/A'}
+- Volatility: ${signal.marketContext.volatility ? (signal.marketContext.volatility * 100).toFixed(1) + '%' : 'N/A'}
 ` : 'Not available'}
-
+${fundamentalSection}
 RULE-BASED RATIONALE:
 ${signal.rationale || 'Not provided'}
 
@@ -110,12 +129,13 @@ ${signal.recommendedAction || 'Not specified'}
 ${signal.recommendedBushels ? `Recommended Bushels: ${signal.recommendedBushels.toLocaleString()}` : ''}
 
 Please provide:
-1. A brief explanation (2-3 sentences) of why this signal was generated
-2. The potential risks of acting vs not acting on this signal
-3. Any market conditions or timing considerations
-4. A clear recommendation with specific next steps
+1. A brief explanation (2-3 sentences) of why this signal was generated considering BOTH technical and fundamental factors
+2. How the fundamental outlook (supply/demand, exports, crop conditions) supports or conflicts with this signal
+3. The potential risks of acting vs not acting on this signal
+4. Any market conditions, seasonal timing, or news events to consider
+5. A clear recommendation with specific next steps and percentage to sell
 
-Keep the response concise (under 200 words) and farmer-friendly. Avoid jargon where possible.`;
+Keep the response concise (under 250 words) and farmer-friendly. Avoid jargon where possible. Be specific about how fundamentals affect the decision.`;
   }
 
   // ===== Strategy Recommendation =====
@@ -124,9 +144,18 @@ Keep the response concise (under 200 words) and farmer-friendly. Avoid jargon wh
     businessId: string,
     breakEvens: BreakEvenSummary[],
     currentPositions: PositionSummary[],
-    riskTolerance: string
+    riskTolerance: string,
+    fundamentalData?: {
+      commodityType: CommodityType;
+      fundamentalScore: number;
+      outlook: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+      keyFactors: string[];
+      stocksToUse?: number;
+      exportPace?: number;
+      cropConditions?: number;
+    }[]
   ): Promise<StrategyRecommendation> {
-    const prompt = this.buildStrategyPrompt(breakEvens, currentPositions, riskTolerance);
+    const prompt = this.buildStrategyPrompt(breakEvens, currentPositions, riskTolerance, fundamentalData);
 
     const response = await this.callAI(
       businessId,
@@ -141,7 +170,16 @@ Keep the response concise (under 200 words) and farmer-friendly. Avoid jargon wh
   private buildStrategyPrompt(
     breakEvens: BreakEvenSummary[],
     positions: PositionSummary[],
-    riskTolerance: string
+    riskTolerance: string,
+    fundamentalData?: {
+      commodityType: CommodityType;
+      fundamentalScore: number;
+      outlook: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+      keyFactors: string[];
+      stocksToUse?: number;
+      exportPace?: number;
+      cropConditions?: number;
+    }[]
   ): string {
     const totalProjected = breakEvens.reduce((sum, be) => sum + be.totalBushels, 0);
     const totalSold = breakEvens.reduce((sum, be) => sum + be.soldBushels, 0);
@@ -160,7 +198,30 @@ Keep the response concise (under 200 words) and farmer-friendly. Avoid jargon wh
         ).join('\n')
       : 'No current positions';
 
-    return `You are an agricultural marketing strategist. Based on the following farm operation data, recommend an optimal marketing strategy.
+    // Build fundamental data section
+    let fundamentalSection = '';
+    if (fundamentalData && fundamentalData.length > 0) {
+      fundamentalSection = `
+
+FUNDAMENTAL MARKET ANALYSIS:
+${fundamentalData.map(fd => `
+${fd.commodityType}:
+  - Fundamental Score: ${fd.fundamentalScore > 0 ? '+' : ''}${fd.fundamentalScore} (range: -100 bearish to +100 bullish)
+  - Outlook: ${fd.outlook}
+  ${fd.stocksToUse !== undefined ? `- Stocks-to-Use: ${(fd.stocksToUse * 100).toFixed(1)}%` : ''}
+  ${fd.exportPace !== undefined ? `- Export Pace vs USDA: ${fd.exportPace > 0 ? '+' : ''}${(fd.exportPace * 100).toFixed(0)}%` : ''}
+  ${fd.cropConditions !== undefined ? `- Crop Conditions (G/E): ${fd.cropConditions.toFixed(0)}%` : ''}
+  - Key Factors: ${fd.keyFactors.slice(0, 3).join('; ')}`).join('\n')}
+
+IMPORTANT FUNDAMENTALS CONTEXT:
+- Low stocks-to-use ratio (<10% corn, <6% beans) = BULLISH (tight supply, higher prices likely)
+- High stocks-to-use ratio (>15% corn, >12% beans) = BEARISH (ample supply, lower prices likely)
+- Export pace ahead of USDA = BULLISH demand
+- Poor crop conditions = BULLISH (reduced yield expectations)
+`;
+    }
+
+    return `You are an agricultural marketing strategist with deep knowledge of USDA fundamentals, supply/demand dynamics, and seasonal patterns. Based on the following farm operation data AND fundamental market analysis, recommend an optimal marketing strategy.
 
 OPERATION OVERVIEW:
 - Total Projected Production: ${totalProjected.toLocaleString()} bushels
@@ -174,30 +235,32 @@ CURRENT MARKETING POSITIONS:
 ${positionDetails}
 
 RISK TOLERANCE: ${riskTolerance}
+${fundamentalSection}
 
-Please provide a comprehensive marketing recommendation including:
+Please provide a comprehensive marketing recommendation that INCORPORATES THE FUNDAMENTAL ANALYSIS:
 
-1. **Summary**: A 2-3 sentence overview of the recommended approach
+1. **Summary**: A 2-3 sentence overview that references specific fundamental factors (stocks-to-use, export pace, etc.)
 
 2. **Specific Recommendations**: For each commodity with remaining bushels, provide:
    - Recommended marketing tool (cash sale, basis contract, HTA, options, accumulator)
-   - Percentage of remaining bushels to market
+   - Percentage of remaining bushels to market NOW
    - Priority level (HIGH, MEDIUM, LOW)
-   - Brief reasoning
+   - Brief reasoning that incorporates BOTH price vs break-even AND fundamental outlook
+   - Whether to be aggressive (bearish fundamentals) or patient (bullish fundamentals)
 
-3. **Risk Assessment**: Key risks to consider and how to mitigate them
+3. **Risk Assessment**: Key risks to consider based on fundamental factors (ending stocks changes, export demand, weather, trade policy)
 
-4. **30-Day Action Items**: Specific steps to take in the next month
+4. **30-Day Action Items**: Specific steps incorporating upcoming USDA reports, seasonal patterns, and export sales data
 
 Format your response as follows:
-SUMMARY: [your summary]
+SUMMARY: [your summary referencing fundamental factors]
 
 RECOMMENDATIONS:
-[commodity]: [tool] - [percentage]% - [priority] - [reasoning]
+[commodity]: [tool] - [percentage]% - [priority] - [reasoning including fundamentals]
 
-RISK_ASSESSMENT: [your assessment]
+RISK_ASSESSMENT: [your assessment with fundamental risks]
 
-ACTION_ITEMS: [your items]`;
+ACTION_ITEMS: [your items with specific dates if applicable]`;
   }
 
   private parseStrategyResponse(response: string, breakEvens: BreakEvenSummary[]): StrategyRecommendation {

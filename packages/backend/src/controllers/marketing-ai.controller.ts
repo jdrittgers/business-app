@@ -6,12 +6,15 @@ import { AIAnalysisService } from '../services/ai-analysis.service';
 import { MarketDataService } from '../services/market-data.service';
 import { SignalNotificationService } from '../services/signal-notification.service';
 import { BreakEvenAnalyticsService } from '../services/breakeven-analytics.service';
+import { MarketingLearningService } from '../services/marketing-learning.service';
 import {
   SignalStatus,
   MarketingSignalType,
   CommodityType,
   RiskTolerance,
-  UpdateMarketingPreferencesRequest
+  UpdateMarketingPreferencesRequest,
+  RecordDecisionRequest,
+  RecordInteractionRequest
 } from '@business-app/shared';
 
 const signalService = new SignalGenerationService();
@@ -19,6 +22,7 @@ const aiService = new AIAnalysisService();
 const marketDataService = new MarketDataService();
 const notificationService = new SignalNotificationService();
 const breakEvenService = new BreakEvenAnalyticsService();
+const learningService = new MarketingLearningService();
 
 export class MarketingAIController {
   // ===== Signals =====
@@ -620,6 +624,182 @@ export class MarketingAIController {
       res.status(204).send();
     } catch (error) {
       console.error('Delete options position error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // ===== Learning & Personalization =====
+
+  async getLearningProfile(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const profile = await learningService.getOrCreateProfile(req.user.userId);
+      res.json(profile);
+    } catch (error) {
+      console.error('Get learning profile error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getLearningInsights(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const insights = await learningService.getLearningInsights(req.user.userId);
+      res.json(insights);
+    } catch (error) {
+      console.error('Get learning insights error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async recordSignalInteraction(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const request: RecordInteractionRequest = req.body;
+
+      if (!request.signalId || !request.interactionType) {
+        res.status(400).json({ error: 'signalId and interactionType are required' });
+        return;
+      }
+
+      const interaction = await learningService.recordSignalInteraction(req.user.userId, request);
+      res.json(interaction);
+    } catch (error) {
+      console.error('Record signal interaction error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async recordMarketingDecision(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const { businessId } = req.params;
+      const request: RecordDecisionRequest = req.body;
+
+      if (!request.commodityType || !request.contractType || !request.bushels || !request.pricePerBushel) {
+        res.status(400).json({ error: 'commodityType, contractType, bushels, and pricePerBushel are required' });
+        return;
+      }
+
+      const decision = await learningService.recordMarketingDecision(req.user.userId, businessId, request);
+      res.json(decision);
+    } catch (error) {
+      console.error('Record marketing decision error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getMarketingHistory(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const { businessId } = req.params;
+      const { limit, offset } = req.query;
+
+      const profile = await learningService.getProfile(req.user.userId);
+
+      if (!profile) {
+        res.json([]);
+        return;
+      }
+
+      const decisions = await prisma.marketingDecision.findMany({
+        where: {
+          profileId: profile.id,
+          businessId
+        },
+        orderBy: { decisionDate: 'desc' },
+        take: limit ? parseInt(limit as string) : 50,
+        skip: offset ? parseInt(offset as string) : 0
+      });
+
+      res.json(decisions);
+    } catch (error) {
+      console.error('Get marketing history error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getSignalInteractionHistory(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const { limit, offset } = req.query;
+
+      const profile = await learningService.getProfile(req.user.userId);
+
+      if (!profile) {
+        res.json([]);
+        return;
+      }
+
+      const interactions = await prisma.signalInteraction.findMany({
+        where: { profileId: profile.id },
+        orderBy: { interactionAt: 'desc' },
+        take: limit ? parseInt(limit as string) : 50,
+        skip: offset ? parseInt(offset as string) : 0,
+        include: {
+          signal: {
+            select: {
+              title: true,
+              summary: true,
+              commodityType: true,
+              signalType: true
+            }
+          }
+        }
+      });
+
+      res.json(interactions);
+    } catch (error) {
+      console.error('Get signal interaction history error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Generate signals with personalized thresholds
+  async generatePersonalizedSignals(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const { businessId } = req.params;
+
+      // Generate signals with user's personalized thresholds
+      const signals = await signalService.generateSignalsForBusiness(businessId, req.user.userId);
+
+      // Notify about new signals
+      if (signals.length > 0) {
+        await notificationService.notifyMultipleSignals(signals);
+      }
+
+      res.json(signals);
+    } catch (error) {
+      console.error('Generate personalized signals error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

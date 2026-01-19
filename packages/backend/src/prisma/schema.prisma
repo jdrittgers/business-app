@@ -94,6 +94,7 @@ model User {
   uploadedInvoices    Invoice[]       @relation("InvoiceUploader")
   uploadedScaleTickets ScaleTicket[]  @relation("ScaleTicketUploader")
   binTransactions     BinTransaction[] @relation("BinTransactionCreator")
+  marketingProfile    UserMarketingProfile?
 
   @@map("users")
 }
@@ -1205,6 +1206,8 @@ model MarketingSignal {
 
   // Relations
   notifications         SignalNotification[]
+  interactions          SignalInteraction[]
+  triggeredDecisions    MarketingDecision[]
 
   @@index([businessId, status])
   @@index([commodityType, status])
@@ -1324,4 +1327,459 @@ model AIAnalysisLog {
   @@index([analysisType])
   @@index([createdAt])
   @@map("ai_analysis_logs")
+}
+
+// ===== User Marketing Learning Models =====
+
+// Stores learned preferences and behavior patterns per user
+model UserMarketingProfile {
+  id                      String        @id @default(uuid())
+  userId                  String        @unique @map("user_id")
+
+  // Learned risk profile (adjusts over time based on behavior)
+  learnedRiskScore        Decimal       @default(50) @map("learned_risk_score") @db.Decimal(5, 2) // 0-100, higher = more aggressive
+
+  // Price action patterns
+  avgSellPriceAboveBE     Decimal?      @map("avg_sell_price_above_be") @db.Decimal(10, 4) // Average % above BE when they sell
+  preferredSellWindow     String?       @map("preferred_sell_window") // "EARLY", "MID", "LATE" season
+  actOnStrongSignalsRate  Decimal       @default(0) @map("act_on_strong_signals_rate") @db.Decimal(5, 4) // % of STRONG_BUY signals acted on
+  actOnRegularSignalsRate Decimal       @default(0) @map("act_on_regular_signals_rate") @db.Decimal(5, 4) // % of BUY signals acted on
+  avgResponseTimeHours    Decimal?      @map("avg_response_time_hours") @db.Decimal(10, 2) // How quickly they act on signals
+
+  // Commodity preferences (learned from behavior)
+  cornPreferenceScore     Decimal       @default(50) @map("corn_preference_score") @db.Decimal(5, 2)
+  soybeansPreferenceScore Decimal       @default(50) @map("soybeans_preference_score") @db.Decimal(5, 2)
+  wheatPreferenceScore    Decimal       @default(50) @map("wheat_preference_score") @db.Decimal(5, 2)
+
+  // Marketing tool preferences (learned from which tools they use)
+  cashSalePreference      Decimal       @default(50) @map("cash_sale_preference") @db.Decimal(5, 2)
+  basisContractPreference Decimal       @default(50) @map("basis_contract_preference") @db.Decimal(5, 2)
+  htaPreference           Decimal       @default(50) @map("hta_preference") @db.Decimal(5, 2)
+  accumulatorPreference   Decimal       @default(50) @map("accumulator_preference") @db.Decimal(5, 2)
+  optionsPreference       Decimal       @default(50) @map("options_preference") @db.Decimal(5, 2)
+
+  // Statistics
+  totalSignalsReceived    Int           @default(0) @map("total_signals_received")
+  totalSignalsActedOn     Int           @default(0) @map("total_signals_acted_on")
+  totalSignalsDismissed   Int           @default(0) @map("total_signals_dismissed")
+  totalBushelsSold        Decimal       @default(0) @map("total_bushels_sold") @db.Decimal(15, 2)
+  totalRevenue            Decimal       @default(0) @map("total_revenue") @db.Decimal(15, 2)
+
+  // Model metadata
+  lastUpdated             DateTime      @default(now()) @map("last_updated")
+  modelVersion            Int           @default(1) @map("model_version")
+  confidenceScore         Decimal       @default(0) @map("confidence_score") @db.Decimal(5, 2) // How confident the model is (based on data points)
+
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user                    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  decisions               MarketingDecision[]
+  interactions            SignalInteraction[]
+  learnedThresholds       LearnedThreshold[]
+
+  @@index([userId])
+  @@index([learnedRiskScore])
+  @@map("user_marketing_profiles")
+}
+
+// Logs actual marketing decisions made by the user
+model MarketingDecision {
+  id                  String              @id @default(uuid())
+  profileId           String              @map("profile_id")
+  businessId          String              @map("business_id")
+
+  // What was sold
+  commodityType       CommodityType       @map("commodity_type")
+  contractType        ContractType        @map("contract_type")
+  bushels             Decimal             @map("bushels") @db.Decimal(12, 2)
+  pricePerBushel      Decimal             @map("price_per_bushel") @db.Decimal(10, 4)
+  totalValue          Decimal             @map("total_value") @db.Decimal(15, 2)
+
+  // Context at time of decision
+  breakEvenPrice      Decimal             @map("break_even_price") @db.Decimal(10, 4)
+  percentAboveBE      Decimal             @map("percent_above_be") @db.Decimal(5, 4)
+  futuresPrice        Decimal             @map("futures_price") @db.Decimal(10, 4)
+  basisAtSale         Decimal             @map("basis_at_sale") @db.Decimal(10, 4)
+
+  // Was this triggered by a signal?
+  triggeredBySignalId String?             @map("triggered_by_signal_id")
+
+  // Market conditions at time of sale
+  rsiAtSale           Decimal?            @map("rsi_at_sale") @db.Decimal(5, 2)
+  trendAtSale         String?             @map("trend_at_sale") // "UP", "DOWN", "NEUTRAL"
+  volatilityAtSale    Decimal?            @map("volatility_at_sale") @db.Decimal(5, 4)
+
+  // Outcome tracking (filled in later when we know how price moved)
+  priceOneWeekLater   Decimal?            @map("price_one_week_later") @db.Decimal(10, 4)
+  priceTwoWeeksLater  Decimal?            @map("price_two_weeks_later") @db.Decimal(10, 4)
+  priceOneMonthLater  Decimal?            @map("price_one_month_later") @db.Decimal(10, 4)
+  decisionQuality     String?             @map("decision_quality") // "EXCELLENT", "GOOD", "NEUTRAL", "POOR" - calculated retroactively
+
+  decisionDate        DateTime            @default(now()) @map("decision_date")
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  profile             UserMarketingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  signal              MarketingSignal?    @relation(fields: [triggeredBySignalId], references: [id])
+
+  @@index([profileId])
+  @@index([businessId])
+  @@index([commodityType])
+  @@index([decisionDate])
+  @@map("marketing_decisions")
+}
+
+// Tracks every interaction with a signal for learning
+model SignalInteraction {
+  id                  String              @id @default(uuid())
+  profileId           String              @map("profile_id")
+  signalId            String              @map("signal_id")
+
+  // Interaction type
+  interactionType     String              @map("interaction_type") // "VIEWED", "DISMISSED", "ACTED", "IGNORED"
+
+  // Timing
+  signalCreatedAt     DateTime            @map("signal_created_at")
+  interactionAt       DateTime            @default(now()) @map("interaction_at")
+  responseTimeMinutes Int?                @map("response_time_minutes")
+
+  // Signal context at interaction
+  signalType          MarketingSignalType @map("signal_type")
+  signalStrength      SignalStrength      @map("signal_strength")
+  commodityType       CommodityType       @map("commodity_type")
+  priceAtSignal       Decimal             @map("price_at_signal") @db.Decimal(10, 4)
+  percentAboveBE      Decimal             @map("percent_above_be") @db.Decimal(5, 4)
+
+  // If dismissed, why?
+  dismissReason       String?             @map("dismiss_reason")
+
+  // If acted, what action?
+  actionTaken         String?             @map("action_taken")
+  bushelsMarketed     Decimal?            @map("bushels_marketed") @db.Decimal(12, 2)
+
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  profile             UserMarketingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  signal              MarketingSignal     @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, signalId])
+  @@index([profileId])
+  @@index([signalId])
+  @@index([interactionType])
+  @@index([signalStrength])
+  @@map("signal_interactions")
+}
+
+// Stores personalized thresholds learned over time
+model LearnedThreshold {
+  id                  String              @id @default(uuid())
+  profileId           String              @map("profile_id")
+
+  // What this threshold applies to
+  commodityType       CommodityType       @map("commodity_type")
+  signalType          MarketingSignalType @map("signal_type")
+
+  // Learned thresholds (personalized for this user)
+  strongBuyThreshold  Decimal             @map("strong_buy_threshold") @db.Decimal(5, 4) // % above BE for STRONG_BUY
+  buyThreshold        Decimal             @map("buy_threshold") @db.Decimal(5, 4) // % above BE for BUY
+
+  // How this differs from default
+  thresholdAdjustment Decimal             @default(0) @map("threshold_adjustment") @db.Decimal(5, 4) // +/- adjustment from defaults
+
+  // Confidence in this learned threshold
+  dataPoints          Int                 @default(0) @map("data_points") // How many decisions informed this
+  confidenceScore     Decimal             @default(0) @map("confidence_score") @db.Decimal(5, 2)
+
+  lastUpdated         DateTime            @default(now()) @map("last_updated")
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  profile             UserMarketingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, commodityType, signalType])
+  @@index([profileId])
+  @@map("learned_thresholds")
+}
+
+// ===== Fundamental Market Data Models =====
+
+// USDA WASDE (World Agricultural Supply and Demand Estimates) Data
+model SupplyDemandData {
+  id                  String        @id @default(uuid())
+  commodityType       CommodityType @map("commodity_type")
+  marketingYear       String        @map("marketing_year") // "2024/25"
+  reportDate          DateTime      @map("report_date")
+
+  // US Supply (Million Bushels)
+  beginningStocks     Decimal?      @map("beginning_stocks") @db.Decimal(12, 2)
+  production          Decimal?      @db.Decimal(12, 2)
+  imports             Decimal?      @db.Decimal(12, 2)
+  totalSupply         Decimal?      @map("total_supply") @db.Decimal(12, 2)
+
+  // US Demand (Million Bushels)
+  feedAndResidue      Decimal?      @map("feed_and_residue") @db.Decimal(12, 2)
+  foodSeedIndustrial  Decimal?      @map("food_seed_industrial") @db.Decimal(12, 2)
+  ethanolUse          Decimal?      @map("ethanol_use") @db.Decimal(12, 2) // Corn specific
+  exports             Decimal?      @db.Decimal(12, 2)
+  totalDemand         Decimal?      @map("total_demand") @db.Decimal(12, 2)
+
+  // Carryout / Ending Stocks
+  endingStocks        Decimal?      @map("ending_stocks") @db.Decimal(12, 2)
+  stocksToUseRatio    Decimal?      @map("stocks_to_use_ratio") @db.Decimal(5, 4) // Key ratio for price direction
+
+  // Prices
+  avgFarmPrice        Decimal?      @map("avg_farm_price") @db.Decimal(10, 4)
+  avgFarmPriceLow     Decimal?      @map("avg_farm_price_low") @db.Decimal(10, 4)
+  avgFarmPriceHigh    Decimal?      @map("avg_farm_price_high") @db.Decimal(10, 4)
+
+  // World Data
+  worldProduction     Decimal?      @map("world_production") @db.Decimal(15, 2)
+  worldEndingStocks   Decimal?      @map("world_ending_stocks") @db.Decimal(15, 2)
+  worldStocksToUse    Decimal?      @map("world_stocks_to_use") @db.Decimal(5, 4)
+
+  // Change from previous report
+  endingStocksChange  Decimal?      @map("ending_stocks_change") @db.Decimal(12, 2)
+  productionChange    Decimal?      @map("production_change") @db.Decimal(12, 2)
+
+  source              String        @default("USDA_WASDE")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@unique([commodityType, marketingYear, reportDate])
+  @@index([commodityType, marketingYear])
+  @@index([reportDate])
+  @@map("supply_demand_data")
+}
+
+// USDA Crop Progress and Condition Data
+model CropProgressData {
+  id                  String        @id @default(uuid())
+  commodityType       CommodityType @map("commodity_type")
+  year                Int
+  weekEnding          DateTime      @map("week_ending")
+  state               String?       // NULL for national, or state abbreviation
+
+  // Planting Progress (% complete)
+  plantedPct          Decimal?      @map("planted_pct") @db.Decimal(5, 2)
+  plantedPctPrevYear  Decimal?      @map("planted_pct_prev_year") @db.Decimal(5, 2)
+  plantedPctAvg5Yr    Decimal?      @map("planted_pct_avg_5yr") @db.Decimal(5, 2)
+
+  // Emergence Progress
+  emergedPct          Decimal?      @map("emerged_pct") @db.Decimal(5, 2)
+  emergedPctPrevYear  Decimal?      @map("emerged_pct_prev_year") @db.Decimal(5, 2)
+  emergedPctAvg5Yr    Decimal?      @map("emerged_pct_avg_5yr") @db.Decimal(5, 2)
+
+  // Crop Conditions (% of crop)
+  conditionExcellent  Decimal?      @map("condition_excellent") @db.Decimal(5, 2)
+  conditionGood       Decimal?      @map("condition_good") @db.Decimal(5, 2)
+  conditionFair       Decimal?      @map("condition_fair") @db.Decimal(5, 2)
+  conditionPoor       Decimal?      @map("condition_poor") @db.Decimal(5, 2)
+  conditionVeryPoor   Decimal?      @map("condition_very_poor") @db.Decimal(5, 2)
+  goodExcellentPct    Decimal?      @map("good_excellent_pct") @db.Decimal(5, 2) // Key metric: Good + Excellent
+
+  // Harvest Progress
+  harvestedPct        Decimal?      @map("harvested_pct") @db.Decimal(5, 2)
+  harvestedPctPrevYear Decimal?     @map("harvested_pct_prev_year") @db.Decimal(5, 2)
+  harvestedPctAvg5Yr  Decimal?      @map("harvested_pct_avg_5yr") @db.Decimal(5, 2)
+
+  // Silking/Podding stages (corn/soybeans)
+  silkingPct          Decimal?      @map("silking_pct") @db.Decimal(5, 2) // Corn
+  settingPodsPct      Decimal?      @map("setting_pods_pct") @db.Decimal(5, 2) // Soybeans
+  droppingLeavesPct   Decimal?      @map("dropping_leaves_pct") @db.Decimal(5, 2) // Soybeans
+
+  source              String        @default("USDA_NASS")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@unique([commodityType, year, weekEnding, state])
+  @@index([commodityType, year])
+  @@index([weekEnding])
+  @@map("crop_progress_data")
+}
+
+// Weekly Export Sales Data
+model ExportSalesData {
+  id                  String        @id @default(uuid())
+  commodityType       CommodityType @map("commodity_type")
+  marketingYear       String        @map("marketing_year") // "2024/25"
+  weekEnding          DateTime      @map("week_ending")
+
+  // Weekly Sales (Thousand Metric Tons)
+  weeklySales         Decimal?      @map("weekly_sales") @db.Decimal(12, 2)
+  weeklyExports       Decimal?      @map("weekly_exports") @db.Decimal(12, 2)
+
+  // Cumulative (MY to date)
+  cumulativeSales     Decimal?      @map("cumulative_sales") @db.Decimal(12, 2)
+  cumulativeExports   Decimal?      @map("cumulative_exports") @db.Decimal(12, 2)
+
+  // Outstanding Sales
+  outstandingSales    Decimal?      @map("outstanding_sales") @db.Decimal(12, 2)
+
+  // Year-over-year comparison
+  salesVsPrevYear     Decimal?      @map("sales_vs_prev_year") @db.Decimal(5, 4) // % change
+  paceVsUSDA          Decimal?      @map("pace_vs_usda") @db.Decimal(5, 4) // % of USDA projection
+
+  // Key destinations
+  topBuyer1           String?       @map("top_buyer_1") // "China", "Mexico", etc.
+  topBuyer1Volume     Decimal?      @map("top_buyer_1_volume") @db.Decimal(12, 2)
+  topBuyer2           String?       @map("top_buyer_2")
+  topBuyer2Volume     Decimal?      @map("top_buyer_2_volume") @db.Decimal(12, 2)
+
+  source              String        @default("USDA_FAS")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@unique([commodityType, marketingYear, weekEnding])
+  @@index([commodityType, marketingYear])
+  @@index([weekEnding])
+  @@map("export_sales_data")
+}
+
+// Yield Forecasts and Estimates
+model YieldForecast {
+  id                  String        @id @default(uuid())
+  commodityType       CommodityType @map("commodity_type")
+  year                Int
+  forecastDate        DateTime      @map("forecast_date")
+
+  // Yield estimates
+  projectedYield      Decimal       @map("projected_yield") @db.Decimal(6, 2) // bu/acre
+  trendYield          Decimal?      @map("trend_yield") @db.Decimal(6, 2)
+  prevYearYield       Decimal?      @map("prev_year_yield") @db.Decimal(6, 2)
+  avgYield5Yr         Decimal?      @map("avg_yield_5yr") @db.Decimal(6, 2)
+
+  // Acreage
+  plantedAcres        Decimal?      @map("planted_acres") @db.Decimal(12, 2) // Million acres
+  harvestedAcres      Decimal?      @map("harvested_acres") @db.Decimal(12, 2)
+  abandonedAcres      Decimal?      @map("abandoned_acres") @db.Decimal(12, 2)
+
+  // Production estimate
+  productionEstimate  Decimal?      @map("production_estimate") @db.Decimal(15, 2) // Million bushels
+
+  // Change from previous
+  yieldChange         Decimal?      @map("yield_change") @db.Decimal(6, 2)
+  acreageChange       Decimal?      @map("acreage_change") @db.Decimal(12, 2)
+
+  source              String        // "USDA_NASS", "PRO_FARMER", "ANALYST"
+  sourceDetail        String?       @map("source_detail") // Specific analyst or tour name
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@index([commodityType, year])
+  @@index([forecastDate])
+  @@map("yield_forecasts")
+}
+
+// Market News and Sentiment
+model MarketNews {
+  id                  String        @id @default(uuid())
+  title               String
+  summary             String?
+  content             String?
+  source              String        // "REUTERS", "BLOOMBERG", "TWITTER", "USDA", etc.
+  sourceUrl           String?       @map("source_url")
+  publishedAt         DateTime      @map("published_at")
+
+  // Categorization
+  newsType            String        @map("news_type") // "TRADE", "WEATHER", "POLICY", "SUPPLY", "DEMAND", "TECHNICAL"
+  relevantCommodities CommodityType[] @map("relevant_commodities")
+  isBreakingNews      Boolean       @default(false) @map("is_breaking_news")
+  importance          String        @default("MEDIUM") // "HIGH", "MEDIUM", "LOW"
+
+  // AI-generated sentiment analysis
+  sentimentScore      Decimal?      @map("sentiment_score") @db.Decimal(3, 2) // -1.0 to 1.0
+  sentimentLabel      String?       @map("sentiment_label") // "BULLISH", "BEARISH", "NEUTRAL"
+  priceImpact         String?       @map("price_impact") // "POSITIVE", "NEGATIVE", "NEUTRAL"
+  aiAnalysis          String?       @map("ai_analysis") // Full AI analysis of the news
+
+  // Key entities mentioned
+  countriesMentioned  String[]      @map("countries_mentioned") // ["China", "Brazil", etc.]
+  topicTags           String[]      @map("topic_tags") // ["tariffs", "drought", "exports"]
+
+  analyzedAt          DateTime?     @map("analyzed_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@index([publishedAt])
+  @@index([newsType])
+  @@index([sentimentLabel])
+  @@index([relevantCommodities])
+  @@map("market_news")
+}
+
+// USDA Report Schedule (for alerting users)
+model USDAReportSchedule {
+  id                  String        @id @default(uuid())
+  reportType          String        @map("report_type") // "WASDE", "CROP_PROGRESS", "EXPORT_SALES", "PLANTED_ACREAGE", "GRAIN_STOCKS"
+  reportName          String        @map("report_name") // Friendly name
+  releaseDate         DateTime      @map("release_date")
+  releaseTime         String        @map("release_time") // "12:00 ET"
+  commodities         CommodityType[]
+  importance          String        @default("HIGH") // "HIGH", "MEDIUM", "LOW"
+  notes               String?
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@index([releaseDate])
+  @@index([reportType])
+  @@map("usda_report_schedule")
+}
+
+// Seasonal Price Patterns (historical analysis)
+model SeasonalPattern {
+  id                  String        @id @default(uuid())
+  commodityType       CommodityType @map("commodity_type")
+  month               Int           // 1-12
+
+  // Historical price patterns (% change from year average)
+  avgPriceIndex       Decimal       @map("avg_price_index") @db.Decimal(5, 4) // e.g., 1.05 means 5% above annual avg
+  highProbability     Decimal?      @map("high_probability") @db.Decimal(5, 4) // Probability this month is annual high
+  lowProbability      Decimal?      @map("low_probability") @db.Decimal(5, 4) // Probability this month is annual low
+
+  // Basis patterns
+  avgBasisIndex       Decimal?      @map("avg_basis_index") @db.Decimal(5, 4)
+  basisNarrowPct      Decimal?      @map("basis_narrow_pct") @db.Decimal(5, 4) // % of years basis narrows this month
+
+  // Marketing recommendations
+  historicalSellPct   Decimal?      @map("historical_sell_pct") @db.Decimal(5, 4) // % typically marketed by this month
+  recommendedAction   String?       @map("recommended_action") // Brief recommendation
+
+  yearsAnalyzed       Int           @default(10) @map("years_analyzed")
+  lastUpdated         DateTime      @default(now()) @map("last_updated")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@unique([commodityType, month])
+  @@index([commodityType])
+  @@map("seasonal_patterns")
+}
+
+// Commitment of Traders (COT) Data - Fund Positioning
+model CommitmentOfTraders {
+  id                  String        @id @default(uuid())
+  commodityType       CommodityType @map("commodity_type")
+  reportDate          DateTime      @map("report_date")
+
+  // Managed Money (Fund) Positions (contracts)
+  mmLong              Int?          @map("mm_long") // Managed Money Long
+  mmShort             Int?          @map("mm_short") // Managed Money Short
+  mmNet               Int?          @map("mm_net") // Net position (long - short)
+  mmNetChange         Int?          @map("mm_net_change") // Change from previous week
+
+  // Commercial Positions (hedgers)
+  commLong            Int?          @map("comm_long")
+  commShort           Int?          @map("comm_short")
+  commNet             Int?          @map("comm_net")
+  commNetChange       Int?          @map("comm_net_change")
+
+  // Open Interest
+  openInterest        Int?          @map("open_interest")
+  openInterestChange  Int?          @map("open_interest_change")
+
+  // Percentile rankings (where current position falls in history)
+  mmNetPercentile     Decimal?      @map("mm_net_percentile") @db.Decimal(5, 2) // 0-100
+
+  source              String        @default("CFTC")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@unique([commodityType, reportDate])
+  @@index([commodityType])
+  @@index([reportDate])
+  @@map("commitment_of_traders")
 }

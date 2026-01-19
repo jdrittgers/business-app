@@ -135,4 +135,51 @@ router.delete(
   (req, res) => controller.deleteOptionsPosition(req, res)
 );
 
+// ===== Learning & Personalization =====
+
+// Get user's learning profile (preferences learned from behavior)
+router.get(
+  '/marketing-ai/learning/profile',
+  (req, res) => controller.getLearningProfile(req, res)
+);
+
+// Get personalized insights based on user's marketing history
+router.get(
+  '/marketing-ai/learning/insights',
+  (req, res) => controller.getLearningInsights(req, res)
+);
+
+// Record a signal interaction (viewed, dismissed, acted)
+router.post(
+  '/marketing-ai/learning/interactions',
+  (req, res) => controller.recordSignalInteraction(req, res)
+);
+
+// Get signal interaction history
+router.get(
+  '/marketing-ai/learning/interactions',
+  (req, res) => controller.getSignalInteractionHistory(req, res)
+);
+
+// Record a marketing decision (sale made)
+router.post(
+  '/businesses/:businessId/marketing-ai/learning/decisions',
+  requireBusinessAccess,
+  (req, res) => controller.recordMarketingDecision(req, res)
+);
+
+// Get marketing decision history
+router.get(
+  '/businesses/:businessId/marketing-ai/learning/decisions',
+  requireBusinessAccess,
+  (req, res) => controller.getMarketingHistory(req, res)
+);
+
+// Generate signals with personalized thresholds
+router.post(
+  '/businesses/:businessId/marketing-ai/signals/generate-personalized',
+  requireBusinessAccess,
+  (req, res) => controller.generatePersonalizedSignals(req, res)
+);
+
 export default router;

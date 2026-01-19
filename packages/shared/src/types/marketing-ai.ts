@@ -85,6 +85,14 @@ export interface MarketContext {
   movingAverage50?: number;
   volatility?: number;
   seasonalPattern?: string;
+  // Fundamental context
+  fundamentalScore?: number; // -100 to +100
+  fundamentalOutlook?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  keyFundamentalFactors?: string[];
+  stocksToUseRatio?: number;
+  exportPace?: number; // vs USDA projection
+  cropConditions?: number; // good/excellent %
+  newsSentiment?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
   // Accumulator inquiry context
   accumulatorContext?: {
     estimatedCashPrice: number;
@@ -398,4 +406,165 @@ export interface SignalNotificationPayload {
   commodityType: CommodityType;
   priceAboveBreakeven: number;
   url?: string;
+}
+
+// ===== User Marketing Learning =====
+
+export interface UserMarketingProfile {
+  id: string;
+  userId: string;
+
+  // Learned risk profile
+  learnedRiskScore: number; // 0-100, higher = more aggressive
+
+  // Price action patterns
+  avgSellPriceAboveBE?: number;
+  preferredSellWindow?: 'EARLY' | 'MID' | 'LATE';
+  actOnStrongSignalsRate: number;
+  actOnRegularSignalsRate: number;
+  avgResponseTimeHours?: number;
+
+  // Commodity preferences
+  cornPreferenceScore: number;
+  soybeansPreferenceScore: number;
+  wheatPreferenceScore: number;
+
+  // Marketing tool preferences
+  cashSalePreference: number;
+  basisContractPreference: number;
+  htaPreference: number;
+  accumulatorPreference: number;
+  optionsPreference: number;
+
+  // Statistics
+  totalSignalsReceived: number;
+  totalSignalsActedOn: number;
+  totalSignalsDismissed: number;
+  totalBushelsSold: number;
+  totalRevenue: number;
+
+  // Model metadata
+  lastUpdated: Date;
+  modelVersion: number;
+  confidenceScore: number;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MarketingDecision {
+  id: string;
+  profileId: string;
+  businessId: string;
+
+  commodityType: CommodityType;
+  contractType: 'CASH' | 'BASIS' | 'HTA' | 'ACCUMULATOR';
+  bushels: number;
+  pricePerBushel: number;
+  totalValue: number;
+
+  breakEvenPrice: number;
+  percentAboveBE: number;
+  futuresPrice: number;
+  basisAtSale: number;
+
+  triggeredBySignalId?: string;
+
+  rsiAtSale?: number;
+  trendAtSale?: 'UP' | 'DOWN' | 'NEUTRAL';
+  volatilityAtSale?: number;
+
+  // Outcome tracking
+  priceOneWeekLater?: number;
+  priceTwoWeeksLater?: number;
+  priceOneMonthLater?: number;
+  decisionQuality?: 'EXCELLENT' | 'GOOD' | 'NEUTRAL' | 'POOR';
+
+  decisionDate: Date;
+  createdAt: Date;
+}
+
+export type SignalInteractionType = 'VIEWED' | 'DISMISSED' | 'ACTED' | 'IGNORED';
+
+export interface SignalInteraction {
+  id: string;
+  profileId: string;
+  signalId: string;
+
+  interactionType: SignalInteractionType;
+
+  signalCreatedAt: Date;
+  interactionAt: Date;
+  responseTimeMinutes?: number;
+
+  signalType: MarketingSignalType;
+  signalStrength: SignalStrength;
+  commodityType: CommodityType;
+  priceAtSignal: number;
+  percentAboveBE: number;
+
+  dismissReason?: string;
+  actionTaken?: string;
+  bushelsMarketed?: number;
+
+  createdAt: Date;
+}
+
+export interface LearnedThreshold {
+  id: string;
+  profileId: string;
+
+  commodityType: CommodityType;
+  signalType: MarketingSignalType;
+
+  strongBuyThreshold: number;
+  buyThreshold: number;
+  thresholdAdjustment: number;
+
+  dataPoints: number;
+  confidenceScore: number;
+
+  lastUpdated: Date;
+  createdAt: Date;
+}
+
+// ===== Learning Service Types =====
+
+export interface LearningInsights {
+  userId: string;
+  riskProfile: {
+    score: number; // 0-100
+    label: 'CONSERVATIVE' | 'MODERATE' | 'AGGRESSIVE';
+    confidence: number;
+  };
+  behaviorPatterns: {
+    preferredSellWindow: 'EARLY' | 'MID' | 'LATE' | 'UNKNOWN';
+    avgResponseTime: string; // "2 hours", "1 day", etc.
+    signalActRate: number; // % of signals acted on
+  };
+  recommendations: {
+    adjustedThresholds: {
+      commodity: CommodityType;
+      signalType: MarketingSignalType;
+      suggestedThreshold: number;
+      reason: string;
+    }[];
+    personalizedTips: string[];
+  };
+}
+
+export interface RecordDecisionRequest {
+  commodityType: CommodityType;
+  contractType: 'CASH' | 'BASIS' | 'HTA' | 'ACCUMULATOR';
+  bushels: number;
+  pricePerBushel: number;
+  signalId?: string; // If triggered by a signal
+}
+
+export interface RecordInteractionRequest {
+  signalId: string;
+  interactionType: SignalInteractionType;
+  dismissReason?: string;
+  actionTaken?: string;
+  bushelsMarketed?: number;
 }

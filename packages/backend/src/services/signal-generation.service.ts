@@ -1,6 +1,9 @@
 import { prisma } from '../prisma/client';
 import { MarketDataService } from './market-data.service';
 import { BreakEvenAnalyticsService } from './breakeven-analytics.service';
+import { MarketingLearningService } from './marketing-learning.service';
+import { FundamentalDataService } from './fundamental-data.service';
+import { NewsSentimentService } from './news-sentiment.service';
 import {
   CommodityType,
   MarketingSignalType,
@@ -33,6 +36,13 @@ interface GeneratedSignal {
   expiresAt?: Date;
 }
 
+interface FundamentalAdjustment {
+  strengthModifier: number; // -2 to +2 adjustment to signal strength
+  percentageAdjustment: number; // Adjust recommended sell % based on fundamentals
+  fundamentalFactors: string[];
+  overallOutlook: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+}
+
 // Risk tolerance multipliers for signal thresholds
 const RISK_MULTIPLIERS: Record<RiskTolerance, number> = {
   CONSERVATIVE: 1.5,  // Higher thresholds needed
@@ -43,17 +53,26 @@ const RISK_MULTIPLIERS: Record<RiskTolerance, number> = {
 export class SignalGenerationService {
   private marketDataService: MarketDataService;
   private breakEvenService: BreakEvenAnalyticsService;
+  private learningService: MarketingLearningService;
+  private fundamentalService: FundamentalDataService;
+  private newsSentimentService: NewsSentimentService;
 
   constructor() {
     this.marketDataService = new MarketDataService();
     this.breakEvenService = new BreakEvenAnalyticsService();
+    this.learningService = new MarketingLearningService();
+    this.fundamentalService = new FundamentalDataService();
+    this.newsSentimentService = new NewsSentimentService();
   }
 
   // ===== Main Signal Generation =====
 
-  async generateSignalsForBusiness(businessId: string): Promise<MarketingSignal[]> {
+  async generateSignalsForBusiness(businessId: string, userId?: string): Promise<MarketingSignal[]> {
     // Get marketing preferences
     const preferences = await this.getOrCreatePreferences(businessId);
+
+    // Get personalized thresholds if userId provided
+    let personalizedThresholds: Map<string, { strongBuy: number; buy: number; confidence: number }> = new Map();
 
     // Get break-even data
     const currentYear = new Date().getFullYear();
@@ -90,6 +109,10 @@ export class SignalGenerationService {
       const priceAboveBreakeven = currentCashPrice - breakEvenPrice;
       const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
 
+      // Fetch fundamental context for this commodity
+      const fundamentalContext = await this.fundamentalService.getFundamentalContext(commodity);
+      const fundamentalAdjustment = this.calculateFundamentalAdjustment(fundamentalContext);
+
       const marketContext: MarketContext = {
         futuresPrice: futuresQuote.closePrice,
         futuresMonth: futuresQuote.contractMonth,
@@ -99,8 +122,34 @@ export class SignalGenerationService {
         rsiValue: trendAnalysis.rsi,
         movingAverage20: trendAnalysis.movingAverage20,
         movingAverage50: trendAnalysis.movingAverage50,
-        volatility: trendAnalysis.volatility
+        volatility: trendAnalysis.volatility,
+        // Add fundamental context
+        fundamentalScore: fundamentalContext.overallFundamentalScore,
+        fundamentalOutlook: fundamentalAdjustment.overallOutlook,
+        keyFundamentalFactors: fundamentalContext.keyFactors.slice(0, 3),
+        stocksToUseRatio: fundamentalContext.supplyDemand?.stocksToUseRatio,
+        exportPace: fundamentalContext.exportPace?.paceVsUSDA,
+        cropConditions: fundamentalContext.cropConditions?.goodExcellentPct,
+        newsSentiment: fundamentalContext.recentNews.overallSentiment
       };
+
+      // Get personalized thresholds for this commodity if user provided
+      let personalizedThreshold = null;
+      if (userId) {
+        const learned = await this.learningService.getPersonalizedThresholds(
+          userId,
+          commodity,
+          MarketingSignalType.CASH_SALE
+        );
+        if (learned.confidence > 30) {
+          personalizedThreshold = learned;
+          personalizedThresholds.set(`${commodity}_CASH_SALE`, {
+            strongBuy: learned.strongBuyThreshold,
+            buy: learned.buyThreshold,
+            confidence: learned.confidence
+          });
+        }
+      }
 
       // Generate signals for each enabled marketing tool
       if (preferences.cashSaleSignals) {
@@ -112,7 +161,9 @@ export class SignalGenerationService {
           commodityData.expectedBushels,
           preferences,
           marketContext,
-          trendAnalysis
+          trendAnalysis,
+          personalizedThreshold,
+          fundamentalAdjustment
         );
         if (cashSignal) allSignals.push(cashSignal);
       }
@@ -255,11 +306,40 @@ export class SignalGenerationService {
     totalBushels: number,
     preferences: MarketingPreferences,
     marketContext: MarketContext,
-    trendAnalysis: any
+    trendAnalysis: any,
+    personalizedThreshold?: { strongBuyThreshold: number; buyThreshold: number; confidence: number } | null,
+    fundamentalAdjustment?: FundamentalAdjustment
   ): GeneratedSignal | null {
     const riskMultiplier = RISK_MULTIPLIERS[preferences.riskTolerance];
     const targetMargin = Number(preferences.targetProfitMargin);
     const minAboveBE = Number(preferences.minAboveBreakeven);
+
+    // Use personalized thresholds if available and confident
+    let strongBuyThreshold = 0.15 / riskMultiplier;
+    let buyThreshold = 0.10 / riskMultiplier;
+
+    if (personalizedThreshold && personalizedThreshold.confidence > 30) {
+      // Blend personalized with default based on confidence
+      const weight = personalizedThreshold.confidence / 100;
+      strongBuyThreshold = (personalizedThreshold.strongBuyThreshold * weight) + (strongBuyThreshold * (1 - weight));
+      buyThreshold = (personalizedThreshold.buyThreshold * weight) + (buyThreshold * (1 - weight));
+    }
+
+    // Adjust thresholds based on fundamentals
+    // Bearish fundamentals = lower thresholds (sell sooner)
+    // Bullish fundamentals = higher thresholds (wait for better prices)
+    if (fundamentalAdjustment) {
+      const fundamentalMod = fundamentalAdjustment.strengthModifier * 0.02; // Each point = 2% threshold adjustment
+      if (fundamentalAdjustment.overallOutlook === 'BEARISH') {
+        // Lower thresholds when fundamentals are bearish - be more aggressive selling
+        strongBuyThreshold *= (1 - Math.abs(fundamentalMod));
+        buyThreshold *= (1 - Math.abs(fundamentalMod));
+      } else if (fundamentalAdjustment.overallOutlook === 'BULLISH') {
+        // Raise thresholds when fundamentals are bullish - be patient for better prices
+        strongBuyThreshold *= (1 + Math.abs(fundamentalMod));
+        buyThreshold *= (1 + Math.abs(fundamentalMod));
+      }
+    }
 
     const priceAboveBreakeven = currentPrice - breakEvenPrice;
     const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
@@ -271,40 +351,80 @@ export class SignalGenerationService {
     let recommendedAction: string;
     let recommendedBushels: number | undefined;
 
-    // Determine signal strength based on conditions
-    if (percentAboveBreakeven >= 0.15 / riskMultiplier &&
+    // Base sell percentage (will be adjusted by fundamentals)
+    let sellPercentage = 0.125; // Default 12.5%
+    let strongSellPercentage = 0.25; // Default 25%
+
+    if (fundamentalAdjustment) {
+      // Adjust sell percentage based on fundamental outlook
+      sellPercentage += fundamentalAdjustment.percentageAdjustment;
+      strongSellPercentage += fundamentalAdjustment.percentageAdjustment * 1.5;
+      // Clamp to reasonable range
+      sellPercentage = Math.max(0.05, Math.min(0.30, sellPercentage));
+      strongSellPercentage = Math.max(0.10, Math.min(0.40, strongSellPercentage));
+    }
+
+    // Build fundamental context for rationale
+    const fundamentalRationale = fundamentalAdjustment && fundamentalAdjustment.fundamentalFactors.length > 0
+      ? ` Fundamentals: ${fundamentalAdjustment.fundamentalFactors.slice(0, 2).join('. ')}.`
+      : '';
+
+    // Determine signal strength based on conditions (using personalized thresholds)
+    if (percentAboveBreakeven >= strongBuyThreshold &&
         trendAnalysis.trend === 'DOWN' &&
         trendAnalysis.rsi > 70) {
       // STRONG_BUY: High profit margin + downward momentum + overbought
       strength = SignalStrength.STRONG_BUY;
-      title = `Strong ${commodityType} Cash Sale Opportunity`;
-      summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even with downward price momentum.`;
-      rationale = `Price shows overbought conditions (RSI: ${trendAnalysis.rsi.toFixed(0)}) with downward trend. Consider locking in profits before potential decline.`;
-      recommendedAction = 'Sell 20-30% of remaining bushels at cash market';
-      recommendedBushels = Math.round(totalBushels * 0.25);
-    } else if (percentAboveBreakeven >= 0.10 / riskMultiplier &&
+
+      // Upgrade to stronger recommendation if fundamentals are also bearish
+      if (fundamentalAdjustment?.overallOutlook === 'BEARISH') {
+        strongSellPercentage = Math.min(0.40, strongSellPercentage + 0.05);
+        title = `URGENT: ${commodityType} Cash Sale - Fundamentals Align`;
+        summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even. Technical AND fundamental indicators suggest selling now.`;
+      } else {
+        title = `Strong ${commodityType} Cash Sale Opportunity`;
+        summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even with downward price momentum.`;
+      }
+
+      rationale = `Price shows overbought conditions (RSI: ${trendAnalysis.rsi.toFixed(0)}) with downward trend.${fundamentalRationale}`;
+      if (personalizedThreshold?.confidence && personalizedThreshold.confidence > 50) {
+        rationale += ` (Threshold personalized based on your selling history)`;
+      }
+      recommendedAction = `Sell ${(strongSellPercentage * 100).toFixed(0)}% of remaining bushels at cash market`;
+      recommendedBushels = Math.round(totalBushels * strongSellPercentage);
+    } else if (percentAboveBreakeven >= buyThreshold &&
                priceAboveBreakeven >= targetMargin) {
       // BUY: Above target profit margin
       strength = SignalStrength.BUY;
       title = `${commodityType} Cash Sale Signal`;
       summary = `${commodityType} is $${priceAboveBreakeven.toFixed(2)}/bu above break-even, exceeding your target margin.`;
-      rationale = `Current profit margin of $${priceAboveBreakeven.toFixed(2)}/bu exceeds your target of $${targetMargin.toFixed(2)}/bu.`;
-      recommendedAction = 'Consider selling 10-15% of remaining bushels';
-      recommendedBushels = Math.round(totalBushels * 0.125);
+      rationale = `Current profit margin of $${priceAboveBreakeven.toFixed(2)}/bu exceeds your target of $${targetMargin.toFixed(2)}/bu.${fundamentalRationale}`;
+      recommendedAction = `Consider selling ${(sellPercentage * 100).toFixed(0)}% of remaining bushels`;
+      recommendedBushels = Math.round(totalBushels * sellPercentage);
     } else if (percentAboveBreakeven >= minAboveBE && percentAboveBreakeven < 0.10) {
       // HOLD: Profitable but below target
-      strength = SignalStrength.HOLD;
-      title = `${commodityType} Market Watch`;
-      summary = `${commodityType} is profitable but below target margin. Monitor for better opportunities.`;
-      rationale = `Current price $${currentPrice.toFixed(2)} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even of $${breakEvenPrice.toFixed(2)}.`;
-      recommendedAction = 'Hold current position, set price alerts';
-      recommendedBushels = undefined;
+      // But if fundamentals are very bearish, consider downgrading to sell signal
+      if (fundamentalAdjustment?.overallOutlook === 'BEARISH' && fundamentalAdjustment.strengthModifier <= -1.5) {
+        strength = SignalStrength.BUY;
+        title = `${commodityType} Defensive Sale Signal`;
+        summary = `While below target, bearish fundamentals suggest taking some profit now.`;
+        rationale = `Price is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even but fundamentals are concerning.${fundamentalRationale}`;
+        recommendedAction = `Consider selling ${(sellPercentage * 0.5 * 100).toFixed(0)}% as defensive measure`;
+        recommendedBushels = Math.round(totalBushels * sellPercentage * 0.5);
+      } else {
+        strength = SignalStrength.HOLD;
+        title = `${commodityType} Market Watch`;
+        summary = `${commodityType} is profitable but below target margin. Monitor for better opportunities.`;
+        rationale = `Current price $${currentPrice.toFixed(2)} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even of $${breakEvenPrice.toFixed(2)}.${fundamentalRationale}`;
+        recommendedAction = 'Hold current position, set price alerts';
+        recommendedBushels = undefined;
+      }
     } else if (percentAboveBreakeven < minAboveBE && percentAboveBreakeven >= 0) {
       // SELL: Near or at break-even - caution
       strength = SignalStrength.SELL;
       title = `${commodityType} Break-Even Alert`;
       summary = `${commodityType} is near break-even. Selling now would yield minimal profit.`;
-      rationale = `Price margin of $${priceAboveBreakeven.toFixed(2)}/bu is below minimum threshold.`;
+      rationale = `Price margin of $${priceAboveBreakeven.toFixed(2)}/bu is below minimum threshold.${fundamentalRationale}`;
       recommendedAction = 'Consider hedging strategies to protect downside';
       recommendedBushels = undefined;
     } else {
@@ -312,7 +432,7 @@ export class SignalGenerationService {
       strength = SignalStrength.STRONG_SELL;
       title = `${commodityType} Below Break-Even Warning`;
       summary = `${commodityType} is currently below your break-even price by $${Math.abs(priceAboveBreakeven).toFixed(2)}/bu.`;
-      rationale = `Current market price of $${currentPrice.toFixed(2)} is below break-even of $${breakEvenPrice.toFixed(2)}. Avoid cash sales at current levels.`;
+      rationale = `Current market price of $${currentPrice.toFixed(2)} is below break-even of $${breakEvenPrice.toFixed(2)}. Avoid cash sales at current levels.${fundamentalRationale}`;
       recommendedAction = 'Do not sell. Consider put options for protection.';
       recommendedBushels = undefined;
     }
@@ -339,6 +459,43 @@ export class SignalGenerationService {
       recommendedBushels,
       recommendedAction,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    };
+  }
+
+  // ===== Calculate Fundamental Adjustment =====
+
+  private calculateFundamentalAdjustment(fundamentalContext: any): FundamentalAdjustment {
+    const score = fundamentalContext.overallFundamentalScore;
+    const factors = fundamentalContext.keyFactors || [];
+
+    // Convert fundamental score (-100 to +100) to strength modifier (-2 to +2)
+    // Negative score (bearish) = negative modifier (sell more aggressively)
+    // Positive score (bullish) = positive modifier (be patient)
+    const strengthModifier = (score / 100) * 2;
+
+    // Calculate percentage adjustment for sell recommendations
+    // Bearish fundamentals = increase sell %, Bullish = decrease sell %
+    let percentageAdjustment = 0;
+    if (score <= -50) {
+      percentageAdjustment = 0.10; // Sell 10% more when very bearish
+    } else if (score <= -25) {
+      percentageAdjustment = 0.05; // Sell 5% more when moderately bearish
+    } else if (score >= 50) {
+      percentageAdjustment = -0.05; // Sell 5% less when very bullish (wait for higher prices)
+    } else if (score >= 25) {
+      percentageAdjustment = -0.025; // Sell 2.5% less when moderately bullish
+    }
+
+    // Determine overall outlook
+    let overallOutlook: 'BULLISH' | 'BEARISH' | 'NEUTRAL' = 'NEUTRAL';
+    if (score >= 25) overallOutlook = 'BULLISH';
+    else if (score <= -25) overallOutlook = 'BEARISH';
+
+    return {
+      strengthModifier,
+      percentageAdjustment,
+      fundamentalFactors: factors,
+      overallOutlook
     };
   }
 
