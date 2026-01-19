@@ -9,6 +9,7 @@ import ProgressBar from '../components/grain/ProgressBar';
 import PieChart from '../components/grain/PieChart';
 import MarketPriceWidget from '../components/grain/MarketPriceWidget';
 import { GrainBinVisual } from '../components/grain/GrainBinVisual';
+import MobileHeader from '../components/layout/MobileHeader';
 
 export default function GrainDashboard() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -77,79 +78,37 @@ export default function GrainDashboard() {
 
   if (!user) return null;
 
+  const navItems = [
+    { label: 'Dashboard', path: '/dashboard' },
+    { label: 'Production', path: '/grain-contracts/production' },
+    { label: 'Contracts', path: '/grain-contracts' },
+    { label: 'Grain Bins', path: '/grain-contracts/bins' },
+    { label: 'Grain Offers', path: '/grain-contracts/offers' },
+    { label: 'Breakeven', path: '/breakeven' },
+    { label: 'Marketing AI', path: '/marketing-ai', highlight: true }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Grain Marketing Dashboard</h1>
-              <p className="text-sm text-gray-600">Overview of production and sales for {filterYear}</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <select
-                value={filterYear}
-                onChange={(e) => setFilterYear(parseInt(e.target.value))}
-                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-                <option value={2027}>2027</option>
-              </select>
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => navigate('/grain-contracts/production')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Production
-              </button>
-              <button
-                onClick={() => navigate('/grain-contracts')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Contracts
-              </button>
-              <button
-                onClick={() => navigate('/grain-contracts/bins')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Grain Bins
-              </button>
-              <button
-                onClick={() => navigate('/grain-contracts/offers')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Grain Offers
-              </button>
-              <button
-                onClick={() => navigate('/breakeven')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Breakeven
-              </button>
-              <button
-                onClick={() => navigate('/marketing-ai')}
-                className="text-sm font-medium bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hover:from-blue-700 hover:to-purple-700"
-              >
-                Marketing AI
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <MobileHeader
+        title="Grain Marketing Dashboard"
+        subtitle={`Overview of production and sales for ${filterYear}`}
+        navItems={navItems}
+        onLogout={handleLogout}
+        rightContent={
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(parseInt(e.target.value))}
+            className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+          >
+            <option value={2024}>2024</option>
+            <option value={2025}>2025</option>
+            <option value={2026}>2026</option>
+            <option value={2027}>2027</option>
+          </select>
+        }
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Error Message */}

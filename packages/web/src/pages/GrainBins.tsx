@@ -11,6 +11,7 @@ import {
 } from '@business-app/shared';
 import { GrainBinVisual } from '../components/grain/GrainBinVisual';
 import BinModal from '../components/grain/BinModal';
+import ResponsiveTable, { Column, MobileCard } from '../components/ui/ResponsiveTable';
 
 // AssignBinModal component
 interface AssignBinModalProps {
@@ -328,6 +329,14 @@ export default function GrainBins() {
     await loadData();
   };
 
+  const handleDeleteBin = async () => {
+    if (!selectedBin) return;
+    await grainBinsApi.deleteBin(selectedBin.id);
+    setShowBinModal(false);
+    setSelectedBin(null);
+    await loadData();
+  };
+
   const handleDeleteTicket = async (ticketId: string) => {
     if (!businessId || !confirm('Are you sure you want to delete this scale ticket?')) return;
 
@@ -352,7 +361,8 @@ export default function GrainBins() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mb-4"></div>
         <div className="text-gray-500">Loading grain bins...</div>
       </div>
     );
@@ -360,41 +370,68 @@ export default function GrainBins() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <button
             onClick={() => navigate('/grain-contracts/dashboard')}
-            className="text-blue-600 hover:text-blue-800 mb-4 flex items-center"
+            className="text-primary-600 hover:text-primary-800 mb-3 sm:mb-4 flex items-center text-sm font-medium transition-colors"
           >
-            ← Back to Grain Dashboard
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Grain Dashboard
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">Grain Bin Storage</h1>
-          <p className="mt-2 text-gray-600">Manage your grain bins and track inventory</p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="mb-6 flex gap-4">
-          <button
-            onClick={() => {
-              setSelectedBin(null);
-              setShowBinModal(true);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            + Create Bin
-          </button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Grain Bin Storage</h1>
+              <p className="mt-1 sm:mt-2 text-gray-600">Manage your grain bins and track inventory</p>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedBin(null);
+                setShowBinModal(true);
+              }}
+              className="inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium shadow-sm transition-colors whitespace-nowrap"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Bin
+            </button>
+          </div>
         </div>
 
         {/* Bins Grid */}
         {bins.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-            No grain bins yet. Create your first bin to get started!
+          <div className="bg-white rounded-xl shadow-card border border-gray-100 p-8 sm:p-12 text-center">
+            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No grain bins yet</h3>
+            <p className="text-gray-500 mb-6">Create your first bin to start tracking your grain inventory.</p>
+            <button
+              onClick={() => {
+                setSelectedBin(null);
+                setShowBinModal(true);
+              }}
+              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Your First Bin
+            </button>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Bins</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="bg-white rounded-xl shadow-card border border-gray-100 p-4 sm:p-6 mb-6 sm:mb-8">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Your Bins</h2>
+              <span className="text-sm text-gray-500">{bins.length} {bins.length === 1 ? 'bin' : 'bins'}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
               {bins.map((bin) => (
                 <GrainBinVisual
                   key={bin.id}
@@ -410,12 +447,14 @@ export default function GrainBins() {
         )}
 
         {/* Scale Ticket Upload */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Scale Ticket</h2>
+        <div className="bg-white rounded-xl shadow-card border border-gray-100 p-4 sm:p-6 mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Upload Scale Ticket</h2>
 
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center ${
-              dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+            className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all duration-200 ${
+              dragActive
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -433,13 +472,22 @@ export default function GrainBins() {
             />
             <label
               htmlFor="file-upload"
-              className="cursor-pointer"
+              className="cursor-pointer block"
             >
-              <div className="text-gray-600">
-                <p className="text-lg font-medium">
+              <div className="flex flex-col items-center">
+                {uploading ? (
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mb-3"></div>
+                ) : (
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                )}
+                <p className="text-base font-medium text-gray-700">
                   {uploading ? 'Uploading...' : 'Click to upload or drag and drop'}
                 </p>
-                <p className="text-sm mt-2">PDF, JPG, PNG up to 10MB</p>
+                <p className="text-sm text-gray-500 mt-1">PDF, JPG, PNG up to 10MB</p>
               </div>
             </label>
           </div>
@@ -447,81 +495,98 @@ export default function GrainBins() {
 
         {/* Recent Scale Tickets */}
         {scaleTickets.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Scale Tickets</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      File
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Load #
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Bushels
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Commodity
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Bin
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {scaleTickets.map((ticket) => (
-                    <tr key={ticket.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {ticket.fileName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(ticket.status)}`}>
-                          {ticket.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {ticket.loadNumber || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {ticket.netBushels ? ticket.netBushels.toLocaleString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {ticket.commodityType || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {ticket.bin?.name || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {ticket.status === ScaleTicketStatus.PARSED && (
-                          <button
-                            onClick={() => openAssignModal(ticket)}
-                            className="text-blue-600 hover:text-blue-800 mr-3"
-                          >
-                            Assign Bin
-                          </button>
-                        )}
-                        {ticket.status !== ScaleTicketStatus.PROCESSED && (
-                          <button
-                            onClick={() => handleDeleteTicket(ticket.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              columns={[
+                { key: 'fileName', header: 'File' },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (ticket) => (
+                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadge(ticket.status)}`}>
+                      {ticket.status}
+                    </span>
+                  )
+                },
+                { key: 'loadNumber', header: 'Load #', hideOnMobile: true },
+                {
+                  key: 'netBushels',
+                  header: 'Bushels',
+                  render: (ticket) => ticket.netBushels ? ticket.netBushels.toLocaleString() : '-'
+                },
+                { key: 'commodityType', header: 'Commodity', hideOnMobile: true },
+                {
+                  key: 'bin',
+                  header: 'Bin',
+                  hideOnMobile: true,
+                  render: (ticket) => ticket.bin?.name || '-'
+                },
+                {
+                  key: 'actions',
+                  header: 'Actions',
+                  render: (ticket) => (
+                    <div className="flex space-x-2">
+                      {ticket.status === ScaleTicketStatus.PARSED && (
+                        <button
+                          onClick={() => openAssignModal(ticket)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          Assign
+                        </button>
+                      )}
+                      {ticket.status !== ScaleTicketStatus.PROCESSED && (
+                        <button
+                          onClick={() => handleDeleteTicket(ticket.id)}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  )
+                }
+              ] as Column<ScaleTicket>[]}
+              data={scaleTickets}
+              keyExtractor={(ticket) => ticket.id}
+              mobileCardRenderer={(ticket) => (
+                <MobileCard
+                  title={ticket.fileName}
+                  subtitle={ticket.loadNumber ? `Load #${ticket.loadNumber}` : undefined}
+                  status={{
+                    label: ticket.status,
+                    color: ticket.status === ScaleTicketStatus.PROCESSED ? 'green' :
+                           ticket.status === ScaleTicketStatus.PARSED ? 'blue' :
+                           ticket.status === ScaleTicketStatus.FAILED ? 'red' : 'yellow'
+                  }}
+                  details={[
+                    { label: 'Bushels', value: ticket.netBushels ? ticket.netBushels.toLocaleString() : '-' },
+                    { label: 'Commodity', value: ticket.commodityType || '-' },
+                    { label: 'Bin', value: ticket.bin?.name || '-' }
+                  ]}
+                  actions={
+                    <>
+                      {ticket.status === ScaleTicketStatus.PARSED && (
+                        <button
+                          onClick={() => openAssignModal(ticket)}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        >
+                          Assign Bin
+                        </button>
+                      )}
+                      {ticket.status !== ScaleTicketStatus.PROCESSED && (
+                        <button
+                          onClick={() => handleDeleteTicket(ticket.id)}
+                          className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-md hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </>
+                  }
+                />
+              )}
+            />
           </div>
         )}
       </div>
@@ -534,6 +599,7 @@ export default function GrainBins() {
           setSelectedBin(null);
         }}
         onSave={selectedBin ? handleUpdateBin : handleCreateBin}
+        onDelete={selectedBin ? handleDeleteBin : undefined}
         bin={selectedBin}
         grainEntities={grainEntities}
       />

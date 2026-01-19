@@ -193,6 +193,29 @@ export class GrainBinController {
     }
   }
 
+  // DELETE /api/grain-bins/:binId
+  async deleteBin(req: Request, res: Response) {
+    try {
+      const { binId } = req.params;
+      const userId = (req as any).user?.userId;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      await grainBinService.deleteBin(binId, userId);
+
+      res.json({ success: true, message: 'Bin deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting bin:', error);
+      const statusCode = error instanceof Error && error.message.includes('Not authorized') ? 403 :
+                         error instanceof Error && error.message.includes('not found') ? 404 : 500;
+      res.status(statusCode).json({
+        error: error instanceof Error ? error.message : 'Failed to delete bin'
+      });
+    }
+  }
+
   // GET /api/businesses/:businessId/grain-bins/summary
   async getSummaryByYear(req: Request, res: Response) {
     try {

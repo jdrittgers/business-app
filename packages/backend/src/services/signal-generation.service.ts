@@ -420,6 +420,10 @@ export class SignalGenerationService {
       allSignals.push(...callPositionSignals);
     }
 
+    // Generate trade policy and breaking news signals
+    const tradePolicySignals = await this.generateTradePolicySignals(businessId, enabledCommodities);
+    allSignals.push(...tradePolicySignals);
+
     // Store signals in database
     const storedSignals: MarketingSignal[] = [];
 
@@ -1607,6 +1611,261 @@ export class SignalGenerationService {
     }
 
     return signals;
+  }
+
+  // ===== Trade Policy Signal Generation =====
+
+  /**
+   * Generate signals based on trade policy news (China tariffs, trade deals, export restrictions, etc.)
+   * These are higher-level macro signals that affect marketing decisions across commodities.
+   */
+  private async generateTradePolicySignals(
+    businessId: string,
+    enabledCommodities: CommodityType[]
+  ): Promise<GeneratedSignal[]> {
+    const signals: GeneratedSignal[] = [];
+
+    try {
+      // Get recent trade policy news from the past 48 hours
+      const recentNews = await prisma.marketNews.findMany({
+        where: {
+          newsType: { in: ['TRADE', 'POLICY'] },
+          publishedAt: {
+            gte: new Date(Date.now() - 48 * 60 * 60 * 1000) // Last 48 hours
+          },
+          importance: { in: ['HIGH', 'MEDIUM'] },
+          // Only news relevant to enabled commodities
+          relevantCommodities: {
+            hasSome: enabledCommodities
+          }
+        },
+        orderBy: { publishedAt: 'desc' },
+        take: 10
+      });
+
+      // Also check for breaking news specifically
+      const breakingNews = await prisma.marketNews.findMany({
+        where: {
+          isBreakingNews: true,
+          publishedAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          },
+          relevantCommodities: {
+            hasSome: enabledCommodities
+          }
+        },
+        orderBy: { publishedAt: 'desc' },
+        take: 5
+      });
+
+      // Combine and deduplicate
+      const allNews = [...breakingNews, ...recentNews];
+      const seenIds = new Set<string>();
+      const uniqueNews = allNews.filter(n => {
+        if (seenIds.has(n.id)) return false;
+        seenIds.add(n.id);
+        return true;
+      });
+
+      // Process each significant news item
+      for (const news of uniqueNews) {
+        // Skip if we already have a recent signal for this news
+        const existingSignal = await prisma.marketingSignal.findFirst({
+          where: {
+            businessId,
+            signalType: { in: ['TRADE_POLICY', 'BREAKING_NEWS'] },
+            createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+            title: { contains: news.title.substring(0, 50) }
+          }
+        });
+
+        if (existingSignal) continue;
+
+        // Analyze the trade policy news
+        const analysis = await this.newsSentimentService.analyzeTradePolicyNews(
+          news.title,
+          news.summary || news.content || undefined
+        );
+
+        // Determine event type from news
+        const eventType = this.classifyTradeEvent(news.title, news.summary || '');
+
+        // Only generate signal if impact is significant
+        const hasSignificantImpact = Math.abs(analysis.priceImpactEstimate.corn) >= 3 ||
+          Math.abs(analysis.priceImpactEstimate.soybeans) >= 3 ||
+          Math.abs(analysis.priceImpactEstimate.wheat) >= 3;
+
+        if (!hasSignificantImpact && analysis.urgency === 'MONITOR') {
+          continue; // Skip minor news
+        }
+
+        // Generate signals for each affected commodity that's enabled
+        for (const commodity of analysis.affectedCommodities) {
+          if (!enabledCommodities.includes(commodity)) continue;
+
+          // Get current price for context
+          const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodity);
+          if (!futuresQuote) continue;
+
+          const currentPrice = futuresQuote.closePrice;
+          const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+          const cashPrice = currentPrice + avgBasis;
+
+          // Get estimated impact for this commodity
+          const impactPct = commodity === CommodityType.CORN
+            ? analysis.priceImpactEstimate.corn
+            : commodity === CommodityType.SOYBEANS
+              ? analysis.priceImpactEstimate.soybeans
+              : analysis.priceImpactEstimate.wheat;
+
+          // Determine signal strength based on analysis
+          let strength: SignalStrength;
+          let signalType: MarketingSignalType = news.isBreakingNews
+            ? MarketingSignalType.BREAKING_NEWS
+            : MarketingSignalType.TRADE_POLICY;
+
+          // Bearish news = recommend selling, Bullish news = recommend holding/waiting
+          if (analysis.sentiment === 'BEARISH' && analysis.urgency === 'IMMEDIATE') {
+            strength = SignalStrength.STRONG_BUY; // Strong sell signal (sell now before prices drop)
+          } else if (analysis.sentiment === 'BEARISH' && analysis.urgency === 'SOON') {
+            strength = SignalStrength.BUY; // Moderate sell signal
+          } else if (analysis.sentiment === 'BULLISH' && analysis.urgency === 'IMMEDIATE') {
+            strength = SignalStrength.HOLD; // Hold - prices may rise
+          } else if (analysis.sentiment === 'BULLISH' && analysis.urgency === 'SOON') {
+            strength = SignalStrength.HOLD; // Monitor for rally
+          } else {
+            strength = SignalStrength.HOLD;
+          }
+
+          // Build title based on event type and urgency
+          const urgencyPrefix = analysis.urgency === 'IMMEDIATE' ? '🚨 URGENT: '
+            : analysis.urgency === 'SOON' ? '⚠️ '
+              : '';
+
+          const title = `${urgencyPrefix}${commodity} Trade Policy Alert - ${eventType.replace('_', ' ')}`;
+
+          // Estimate target price based on impact
+          const estimatedTargetPrice = cashPrice * (1 + impactPct / 100);
+
+          // Build summary
+          const sentimentEmoji = analysis.sentiment === 'BEARISH' ? '📉' : analysis.sentiment === 'BULLISH' ? '📈' : '➡️';
+          const summary = `${sentimentEmoji} ${news.title}. Estimated ${commodity} impact: ${impactPct > 0 ? '+' : ''}${impactPct}%.`;
+
+          // Build rationale
+          const rationale = `${analysis.marketingRecommendation} ` +
+            `Source: ${news.source}. ` +
+            `Published: ${news.publishedAt.toLocaleString()}. ` +
+            `Historical trade policy impacts: China tariffs (2018) dropped soybeans ~20%, corn ~10%. ` +
+            `Trade deal announcements typically rally prices 5-10%.`;
+
+          // Build recommended action
+          let recommendedAction: string;
+          if (analysis.sentiment === 'BEARISH') {
+            recommendedAction = impactPct <= -10
+              ? `Consider accelerating sales. Lock in current prices before potential ${Math.abs(impactPct)}% decline.`
+              : `Monitor closely. Consider partial sales if you have unpriced bushels. Potential ${Math.abs(impactPct)}% price risk.`;
+          } else if (analysis.sentiment === 'BULLISH') {
+            recommendedAction = `Hold unpriced bushels. Potential rally of ${impactPct}% possible. Wait for price improvement before selling.`;
+          } else {
+            recommendedAction = `Monitor developments. Keep flexible marketing plan. Set price alerts at key levels.`;
+          }
+
+          // Determine crop year from futures
+          const { cropYear, isNewCrop } = determineCropYear(
+            commodity,
+            futuresQuote.contractMonth,
+            futuresQuote.contractYear
+          );
+          const cropYearLabel = isNewCrop ? `${cropYear} New Crop` : `${cropYear} Old Crop`;
+
+          signals.push({
+            businessId,
+            signalType,
+            commodityType: commodity,
+            strength,
+            cropYear,
+            isNewCrop,
+            currentPrice: cashPrice,
+            breakEvenPrice: cashPrice, // Use current as baseline for trade policy
+            targetPrice: estimatedTargetPrice,
+            priceAboveBreakeven: 0,
+            percentAboveBreakeven: 0,
+            title: `[${cropYearLabel}] ${title}`,
+            summary,
+            rationale,
+            marketContext: {
+              futuresPrice: currentPrice,
+              futuresMonth: futuresQuote.contractMonth,
+              basisLevel: avgBasis,
+              tradePolicyContext: {
+                eventType,
+                countries: this.extractCountries(news.title + ' ' + (news.summary || '')),
+                priceImpactEstimate: impactPct,
+                urgency: analysis.urgency,
+                headline: news.title,
+                analysis: analysis.marketingRecommendation
+              },
+              newsSentiment: analysis.sentiment
+            },
+            recommendedAction,
+            expiresAt: new Date(Date.now() + (analysis.urgency === 'IMMEDIATE' ? 24 : 72) * 60 * 60 * 1000)
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error generating trade policy signals:', error);
+    }
+
+    return signals;
+  }
+
+  /**
+   * Classify the type of trade event from headline/summary
+   */
+  private classifyTradeEvent(headline: string, summary: string): 'TARIFF' | 'TRADE_DEAL' | 'EXPORT_BAN' | 'POLICY_CHANGE' {
+    const text = (headline + ' ' + summary).toLowerCase();
+
+    if (text.includes('tariff') || text.includes('duties') || text.includes('levy')) {
+      return 'TARIFF';
+    }
+    if (text.includes('trade deal') || text.includes('agreement') || text.includes('phase one') ||
+        text.includes('negotiation') || text.includes('trade war') && text.includes('end')) {
+      return 'TRADE_DEAL';
+    }
+    if (text.includes('ban') || text.includes('restrict') || text.includes('embargo') ||
+        text.includes('halt') || text.includes('suspend export')) {
+      return 'EXPORT_BAN';
+    }
+    return 'POLICY_CHANGE';
+  }
+
+  /**
+   * Extract countries mentioned in trade news
+   */
+  private extractCountries(text: string): string[] {
+    const countries: string[] = [];
+    const textLower = text.toLowerCase();
+
+    const countryPatterns = [
+      { pattern: /china|chinese|beijing/i, name: 'China' },
+      { pattern: /brazil|brazilian/i, name: 'Brazil' },
+      { pattern: /argentina|argentine/i, name: 'Argentina' },
+      { pattern: /russia|russian|moscow/i, name: 'Russia' },
+      { pattern: /ukraine|ukrainian|kyiv/i, name: 'Ukraine' },
+      { pattern: /mexico|mexican/i, name: 'Mexico' },
+      { pattern: /canada|canadian/i, name: 'Canada' },
+      { pattern: /eu|europe|european union/i, name: 'EU' },
+      { pattern: /india|indian/i, name: 'India' },
+      { pattern: /japan|japanese/i, name: 'Japan' },
+    ];
+
+    for (const { pattern, name } of countryPatterns) {
+      if (pattern.test(text)) {
+        countries.push(name);
+      }
+    }
+
+    return countries.length > 0 ? countries : ['Global'];
   }
 
   // ===== Helper Methods =====

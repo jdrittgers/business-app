@@ -51,6 +51,13 @@ router.patch(
   (req, res) => grainBinController.updateBin(req, res)
 );
 
+// Delete a bin (soft delete)
+router.delete(
+  '/grain-bins/:binId',
+  authenticate,
+  (req, res) => grainBinController.deleteBin(req, res)
+);
+
 // Add grain to a bin
 router.post(
   '/grain-bins/:binId/add-grain',

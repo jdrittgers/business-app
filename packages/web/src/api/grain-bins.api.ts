@@ -39,6 +39,11 @@ export const grainBinsApi = {
     return response.data;
   },
 
+  // Delete a bin (soft delete)
+  deleteBin: async (binId: string): Promise<void> => {
+    await apiClient.delete(`/api/grain-bins/${binId}`);
+  },
+
   // Add grain to a bin
   addGrain: async (binId: string, data: AddGrainRequest): Promise<GrainBin> => {
     const response = await apiClient.post(`/api/grain-bins/${binId}/add-grain`, data);

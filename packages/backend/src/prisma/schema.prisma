@@ -1087,6 +1087,9 @@ enum MarketingSignalType {
   PUT_OPTION
   CALL_OPTION
   COLLAR_STRATEGY
+  TRADE_POLICY      // China tariffs, trade deals, export restrictions
+  WEATHER_ALERT     // Drought, floods, crop conditions
+  BREAKING_NEWS     // USDA reports, major announcements
 }
 
 enum SignalStrength {

@@ -29,15 +29,15 @@ export default function DashboardCard({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">{value}</p>
+    <div className="bg-white rounded-xl shadow-card border border-gray-100 p-5 sm:p-6 hover:shadow-card-hover hover:border-gray-200 transition-all duration-200">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide truncate">{title}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 truncate">{value}</p>
           {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
           {trend && (
-            <div className="mt-2 flex items-center text-sm">
-              <span className={trend.value >= 0 ? 'text-green-600' : 'text-red-600'}>
+            <div className="mt-3 flex items-center text-sm">
+              <span className={`font-medium ${trend.value >= 0 ? 'text-success-600' : 'text-danger-600'}`}>
                 {trend.value >= 0 ? '↑' : '↓'} {Math.abs(trend.value)}%
               </span>
               <span className="ml-2 text-gray-500">{trend.label}</span>
@@ -45,7 +45,7 @@ export default function DashboardCard({
           )}
         </div>
         {icon && (
-          <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
+          <div className={`p-3 rounded-xl flex-shrink-0 ${colorClasses[color]}`}>
             {icon}
           </div>
         )}

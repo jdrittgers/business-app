@@ -475,6 +475,47 @@ export class GrainBinService {
     return Object.values(summary);
   }
 
+  // Soft delete a grain bin
+  async deleteBin(binId: string, userId: string): Promise<void> {
+    // Verify user has access
+    const bin = await this.getById(binId);
+    if (!bin) {
+      throw new Error('Bin not found');
+    }
+
+    const membership = await prisma.businessMember.findFirst({
+      where: {
+        userId,
+        businessId: bin.businessId
+      }
+    });
+
+    if (!membership) {
+      throw new Error('Not authorized to delete this bin');
+    }
+
+    // Check if bin has any pending marketplace offers
+    const pendingOffers = await prisma.grainPurchaseOffer.count({
+      where: {
+        grainBinId: binId,
+        status: { in: ['PENDING', 'ACCEPTED'] }
+      }
+    });
+
+    if (pendingOffers > 0) {
+      throw new Error('Cannot delete bin with pending or accepted offers. Please complete or cancel offers first.');
+    }
+
+    // Soft delete - set deletedAt timestamp
+    await prisma.grainBin.update({
+      where: { id: binId },
+      data: {
+        deletedAt: new Date(),
+        isActive: false
+      }
+    });
+  }
+
   // Get accepted offers for a bin
   async getAcceptedOffers(binId: string) {
     const offers = await prisma.grainPurchaseOffer.findMany({

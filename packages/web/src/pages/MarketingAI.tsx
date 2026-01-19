@@ -35,7 +35,10 @@ const signalTypeLabels: Record<MarketingSignalType, string> = {
   ACCUMULATOR_INQUIRY: 'Check Accumulator',
   PUT_OPTION: 'Put Option',
   CALL_OPTION: 'Call Option',
-  COLLAR_STRATEGY: 'Collar'
+  COLLAR_STRATEGY: 'Collar',
+  TRADE_POLICY: 'Trade Policy',
+  WEATHER_ALERT: 'Weather Alert',
+  BREAKING_NEWS: 'Breaking News'
 };
 
 const commodityColors: Record<CommodityType, string> = {

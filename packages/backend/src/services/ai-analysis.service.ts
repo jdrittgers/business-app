@@ -78,7 +78,10 @@ export class AIAnalysisService {
       ACCUMULATOR_INQUIRY: 'check with elevator for accumulator contract pricing',
       PUT_OPTION: 'purchase put options for downside protection',
       CALL_OPTION: 'purchase call options for upside participation',
-      COLLAR_STRATEGY: 'implement a collar strategy (buy put, sell call)'
+      COLLAR_STRATEGY: 'implement a collar strategy (buy put, sell call)',
+      TRADE_POLICY: 'respond to trade policy news (tariffs, trade deals, etc.)',
+      WEATHER_ALERT: 'respond to weather events affecting crop conditions',
+      BREAKING_NEWS: 'respond to breaking news affecting agricultural markets'
     };
 
     // Build fundamental context section if available

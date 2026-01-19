@@ -10,7 +10,10 @@ export enum MarketingSignalType {
   ACCUMULATOR_INQUIRY = 'ACCUMULATOR_INQUIRY', // Prompt to check accumulator pricing
   PUT_OPTION = 'PUT_OPTION',
   CALL_OPTION = 'CALL_OPTION',
-  COLLAR_STRATEGY = 'COLLAR_STRATEGY'
+  COLLAR_STRATEGY = 'COLLAR_STRATEGY',
+  TRADE_POLICY = 'TRADE_POLICY',       // China tariffs, trade deals, export restrictions
+  WEATHER_ALERT = 'WEATHER_ALERT',     // Drought, floods, crop conditions
+  BREAKING_NEWS = 'BREAKING_NEWS'      // USDA reports, major announcements
 }
 
 export enum SignalStrength {
@@ -139,6 +142,22 @@ export interface MarketContext {
     profitLossPct?: number;
     contracts?: number;
     totalBushels?: number;
+  };
+  // Trade policy context
+  tradePolicyContext?: {
+    eventType: 'TARIFF' | 'TRADE_DEAL' | 'EXPORT_BAN' | 'POLICY_CHANGE';
+    countries: string[];
+    priceImpactEstimate: number; // % impact
+    urgency: 'IMMEDIATE' | 'SOON' | 'MONITOR';
+    headline: string;
+    analysis: string;
+  };
+  // Weather alert context
+  weatherContext?: {
+    eventType: 'DROUGHT' | 'FLOOD' | 'FROST' | 'HEAT' | 'HURRICANE';
+    regionsAffected: string[];
+    severityLevel: 'SEVERE' | 'MODERATE' | 'MINOR';
+    cropImpact: string;
   };
 }
 

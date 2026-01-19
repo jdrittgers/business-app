@@ -49,12 +49,14 @@ export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick }) 
 
   return (
     <div
-      className={`flex flex-col items-center ${onClick ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
+      className={`flex flex-col items-center p-4 rounded-xl bg-white border border-gray-100
+        ${onClick ? 'cursor-pointer hover:shadow-card-hover hover:scale-[1.02] hover:border-gray-200' : ''}
+        transition-all duration-200 shadow-card`}
       onClick={onClick}
     >
       {/* Bin name and crop year */}
-      <div className="text-center mb-2">
-        <h3 className="font-semibold text-gray-900">{bin.name}</h3>
+      <div className="text-center mb-3">
+        <h3 className="font-semibold text-gray-900 text-base">{bin.name}</h3>
         <p className="text-sm text-gray-500">{bin.cropYear} Crop</p>
       </div>
 
