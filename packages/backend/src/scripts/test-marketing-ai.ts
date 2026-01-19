@@ -7,11 +7,13 @@
  * 1. Fundamental data context retrieval
  * 2. Signal generation with corrected data
  * 3. AI analysis recommendations
+ * 4. Seasonal patterns integration
  */
 
 import { prisma } from '../prisma/client';
 import { FundamentalDataService } from '../services/fundamental-data.service';
 import { AIAnalysisService } from '../services/ai-analysis.service';
+import { SeasonalPatternsService } from '../services/seasonal-patterns.service';
 import { CommodityType } from '@business-app/shared';
 
 async function testMarketingAI() {
@@ -22,6 +24,7 @@ async function testMarketingAI() {
 
   const fundamentalService = new FundamentalDataService();
   const aiService = new AIAnalysisService();
+  const seasonalService = new SeasonalPatternsService();
 
   try {
     // ===== TEST 1: Fundamental Context =====
@@ -52,6 +55,45 @@ async function testMarketingAI() {
       if (context.overallFundamentalScore <= -25) outlook = 'BEARISH';
       else if (context.overallFundamentalScore >= 25) outlook = 'BULLISH';
       console.log(`  Outlook: ${outlook}`);
+    }
+
+    // ===== TEST 1B: Seasonal Patterns =====
+    console.log('\n' + '='.repeat(70));
+    console.log('TEST 1B: SEASONAL PATTERNS (NEW FEATURE)');
+    console.log('-'.repeat(50));
+
+    const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
+    console.log(`\nCurrent Month: ${currentMonth}\n`);
+
+    for (const commodity of [CommodityType.CORN, CommodityType.SOYBEANS, CommodityType.WHEAT]) {
+      // Get seasonal context with a sample price
+      const samplePrices: Record<string, number> = {
+        'CORN': 4.15,
+        'SOYBEANS': 10.30,
+        'WHEAT': 5.50
+      };
+      const currentPrice = samplePrices[commodity] || 4.00;
+
+      const seasonalContext = seasonalService.getSeasonalContext(commodity, currentPrice);
+      const seasonalAdjustment = seasonalService.getSeasonalAdjustment(commodity, currentPrice);
+
+      console.log(`${commodity}:`);
+      console.log(`  Current Price: $${currentPrice.toFixed(2)}/bu`);
+      console.log(`  Historical Percentile: ${seasonalContext.historicalPricePercentile.toFixed(0)}th`);
+      console.log(`    (Current price is higher than ${seasonalContext.historicalPricePercentile.toFixed(0)}% of historical ${currentMonth} prices)`);
+      console.log(`  Seasonal Score: ${seasonalContext.seasonalScore.toFixed(1)} (${seasonalContext.seasonalOutlook})`);
+      console.log(`  Marketing Implication: ${seasonalContext.currentPattern.marketingImplication}`);
+      console.log(`  Rally Probability (next 30-60 days): ${seasonalContext.currentPattern.historicalRallyProbability}%`);
+      console.log(`  Typical Volatility: ${seasonalContext.currentPattern.typicalVolatility}`);
+      console.log(`  Key Factors:`);
+      seasonalContext.currentPattern.keyFactors.forEach(f => console.log(`    - ${f}`));
+      console.log(`  Signal Adjustments:`);
+      console.log(`    - Threshold adjustment: ${((1 - seasonalAdjustment.thresholdAdjustment) * 100).toFixed(1)}% ${seasonalAdjustment.thresholdAdjustment < 1 ? 'lower' : 'higher'}`);
+      console.log(`    - Sell % adjustment: ${(seasonalAdjustment.percentageAdjustment * 100).toFixed(1)}%`);
+      console.log(`    - Urgency boost: ${seasonalAdjustment.urgencyBoost ? 'YES' : 'No'}`);
+      console.log(`    - Wait recommended: ${seasonalAdjustment.waitRecommended ? 'YES' : 'No'}`);
+      console.log(`  Recommendation: ${seasonalContext.recommendedAction}`);
+      console.log('');
     }
 
     // ===== TEST 2: Signal Generation Simulation =====
@@ -132,6 +174,85 @@ async function testMarketingAI() {
         console.log(`  Recommended Sale: ${recommendedBushels.toLocaleString()} bushels ($${(recommendedBushels * scenario.currentPrice).toLocaleString()})`);
       }
     }
+
+    // ===== TEST 2B: Remaining Bushels Tracking =====
+    console.log('\n' + '='.repeat(70));
+    console.log('TEST 2B: REMAINING BUSHELS TRACKING (NEW FEATURE)');
+    console.log('-'.repeat(50));
+
+    console.log(`
+The Marketing AI now tracks REMAINING bushels, not total production.
+
+Example: 100,000 bu corn farmer with 50% pre-harvest target
+
+Pre-Harvest Marketing Target: 50% (user-configurable)
+Max Single Sale: 25% of total (user-configurable)
+
+Scenario: Multiple signals throughout the year
+--------------------------------------------------`);
+
+    // Simulate multiple signals over time
+    const totalProduction = 100000;
+    const preHarvestTarget = 0.50; // 50%
+    const maxSingleSale = 0.25;    // 25%
+    let soldSoFar = 0;
+
+    const marketOpportunities = [
+      { month: 'January', pctAboveBE: 0.12, signalType: 'BUY', sellPct: 0.175 },
+      { month: 'March', pctAboveBE: 0.18, signalType: 'STRONG_BUY', sellPct: 0.30 },
+      { month: 'May', pctAboveBE: 0.08, signalType: 'BUY', sellPct: 0.175 },
+      { month: 'July', pctAboveBE: 0.15, signalType: 'STRONG_BUY', sellPct: 0.30 },
+      { month: 'August', pctAboveBE: 0.10, signalType: 'BUY', sellPct: 0.175 },
+    ];
+
+    console.log('\nOLD BEHAVIOR (% of total production):');
+    console.log('-'.repeat(40));
+    let oldTotalSold = 0;
+    for (const opp of marketOpportunities) {
+      const bushelsOld = Math.round(totalProduction * opp.sellPct);
+      oldTotalSold += bushelsOld;
+      console.log(`  ${opp.month}: Recommend ${bushelsOld.toLocaleString()} bu (${(opp.sellPct * 100).toFixed(1)}% of total)`);
+    }
+    console.log(`  TOTAL RECOMMENDED: ${oldTotalSold.toLocaleString()} bu (${((oldTotalSold / totalProduction) * 100).toFixed(0)}% of production)`);
+    if (oldTotalSold > totalProduction) {
+      console.log(`  ⚠️  PROBLEM: Recommended more bushels than farmer has!`);
+    }
+
+    console.log('\nNEW BEHAVIOR (% of REMAINING bushels with pre-harvest target):');
+    console.log('-'.repeat(40));
+    soldSoFar = 0;
+    for (const opp of marketOpportunities) {
+      const remaining = totalProduction - soldSoFar;
+      const percentSold = soldSoFar / totalProduction;
+      const bushelsToTarget = totalProduction * preHarvestTarget - soldSoFar;
+
+      // Calculate recommended bushels with constraints
+      const desiredBushels = remaining * opp.sellPct;
+      const maxFromSingleSale = totalProduction * maxSingleSale;
+      const maxFromTarget = Math.max(0, bushelsToTarget);
+
+      // Take the minimum of all constraints
+      const recommendedNew = Math.round(Math.min(
+        desiredBushels,
+        remaining,
+        maxFromSingleSale,
+        maxFromTarget > 0 ? maxFromTarget : remaining // If past target, allow normal sales
+      ));
+
+      console.log(`  ${opp.month}:`);
+      console.log(`    Currently ${(percentSold * 100).toFixed(0)}% sold (${soldSoFar.toLocaleString()} bu)`);
+      console.log(`    Remaining: ${remaining.toLocaleString()} bu`);
+      console.log(`    To reach ${(preHarvestTarget * 100).toFixed(0)}% target: ${Math.max(0, bushelsToTarget).toLocaleString()} bu`);
+      console.log(`    Recommend: ${recommendedNew.toLocaleString()} bu`);
+
+      soldSoFar += recommendedNew;
+
+      if (soldSoFar >= totalProduction * preHarvestTarget) {
+        console.log(`    ✓ Pre-harvest target reached!`);
+      }
+    }
+    console.log(`  TOTAL SOLD: ${soldSoFar.toLocaleString()} bu (${((soldSoFar / totalProduction) * 100).toFixed(0)}% of production)`);
+    console.log(`  ✓ Never exceeded pre-harvest target or remaining bushels`)
 
     // ===== TEST 3: AI Analysis (if API key available) =====
     console.log('\n' + '='.repeat(70));

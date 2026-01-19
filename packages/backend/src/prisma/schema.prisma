@@ -1153,6 +1153,15 @@ model MarketingPreferences {
   accumulatorPercentAboveBreakeven Decimal? @default(0.10) @map("accumulator_percent_above_breakeven") @db.Decimal(5, 4) // 10%
   accumulatorMarketingPercent Decimal?  @default(0.20) @map("accumulator_marketing_percent") @db.Decimal(5, 4) // 20%
 
+  // Pre-harvest marketing targets (% of crop to market before harvest)
+  // Farmers can set how aggressively they want to forward sell new crop
+  preHarvestTargetCorn      Decimal?    @default(0.50) @map("pre_harvest_target_corn") @db.Decimal(5, 4) // 50% default
+  preHarvestTargetSoybeans  Decimal?    @default(0.50) @map("pre_harvest_target_soybeans") @db.Decimal(5, 4) // 50% default
+  preHarvestTargetWheat     Decimal?    @default(0.50) @map("pre_harvest_target_wheat") @db.Decimal(5, 4) // 50% default
+
+  // Maximum single sale recommendation (% of remaining bushels per signal)
+  maxSingleSalePercent      Decimal?    @default(0.25) @map("max_single_sale_percent") @db.Decimal(5, 4) // 25% default
+
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
 

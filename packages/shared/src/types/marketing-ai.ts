@@ -85,6 +85,16 @@ export interface MarketContext {
   movingAverage50?: number;
   volatility?: number;
   seasonalPattern?: string;
+  // Seasonal context
+  seasonalContext?: {
+    seasonalOutlook: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    seasonalScore: number; // -100 to +100
+    historicalPricePercentile: number; // 0-100, where current price sits vs history for this month
+    historicalRallyProbability: number; // % chance of rally in next 30-60 days
+    marketingImplication: 'FAVORABLE_SELL' | 'HOLD' | 'UNFAVORABLE_SELL' | 'NEUTRAL';
+    keySeasonalFactors: string[];
+    recommendedAction: string;
+  };
   // Fundamental context
   fundamentalScore?: number; // -100 to +100
   fundamentalOutlook?: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
@@ -130,6 +140,11 @@ export interface MarketingPreferences {
   accumulatorMinPrice?: number; // Min price to consider accumulator (e.g., $4.50 for corn)
   accumulatorPercentAboveBreakeven?: number; // % above break-even to trigger inquiry (e.g., 10%)
   accumulatorMarketingPercent?: number; // Suggested % to market if conditions met (e.g., 20%)
+  // Pre-harvest marketing targets (% of crop to forward sell before harvest)
+  preHarvestTargetCorn?: number;     // e.g., 0.50 = 50% sold before harvest
+  preHarvestTargetSoybeans?: number;
+  preHarvestTargetWheat?: number;
+  maxSingleSalePercent?: number;     // Max % of remaining to recommend per signal (e.g., 0.25 = 25%)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -155,6 +170,27 @@ export interface UpdateMarketingPreferencesRequest {
   accumulatorMinPrice?: number;
   accumulatorPercentAboveBreakeven?: number;
   accumulatorMarketingPercent?: number;
+  // Pre-harvest marketing targets
+  preHarvestTargetCorn?: number;
+  preHarvestTargetSoybeans?: number;
+  preHarvestTargetWheat?: number;
+  maxSingleSalePercent?: number;
+}
+
+// ===== Marketing Position Tracking =====
+
+export interface MarketingPosition {
+  commodityType: CommodityType;
+  year: number;
+  totalProjectedBushels: number;    // Expected production
+  totalContractedBushels: number;   // Already sold/contracted
+  remainingBushels: number;         // Available to sell
+  percentSold: number;              // % already marketed
+  preHarvestTarget: number;         // User's target % before harvest
+  percentToTarget: number;          // How much more to sell to reach target
+  bushelsToTarget: number;          // Bushels needed to reach target
+  isHarvestComplete: boolean;       // Has harvest started?
+  averageSalePrice: number;         // Weighted avg price of sales
 }
 
 // ===== Signal Notification =====

@@ -4,6 +4,8 @@ import { BreakEvenAnalyticsService } from './breakeven-analytics.service';
 import { MarketingLearningService } from './marketing-learning.service';
 import { FundamentalDataService } from './fundamental-data.service';
 import { NewsSentimentService } from './news-sentiment.service';
+import { GrainAnalyticsService } from './grain-analytics.service';
+import { SeasonalPatternsService } from './seasonal-patterns.service';
 import {
   CommodityType,
   MarketingSignalType,
@@ -13,7 +15,8 @@ import {
   MarketingPreferences,
   RiskTolerance,
   MarketContext,
-  AccumulatorAnalysis
+  AccumulatorAnalysis,
+  MarketingPosition
 } from '@business-app/shared';
 
 interface GeneratedSignal {
@@ -56,6 +59,8 @@ export class SignalGenerationService {
   private learningService: MarketingLearningService;
   private fundamentalService: FundamentalDataService;
   private newsSentimentService: NewsSentimentService;
+  private grainAnalyticsService: GrainAnalyticsService;
+  private seasonalService: SeasonalPatternsService;
 
   constructor() {
     this.marketDataService = new MarketDataService();
@@ -63,6 +68,8 @@ export class SignalGenerationService {
     this.learningService = new MarketingLearningService();
     this.fundamentalService = new FundamentalDataService();
     this.newsSentimentService = new NewsSentimentService();
+    this.grainAnalyticsService = new GrainAnalyticsService();
+    this.seasonalService = new SeasonalPatternsService();
   }
 
   // ===== Main Signal Generation =====
@@ -77,6 +84,9 @@ export class SignalGenerationService {
     // Get break-even data
     const currentYear = new Date().getFullYear();
     const breakEvens = await this.breakEvenService.getOperationBreakEven(businessId, { year: currentYear });
+
+    // Get marketing positions (remaining bushels, pre-harvest targets)
+    const marketingPositions = await this.getMarketingPositions(businessId, currentYear, preferences);
 
     // Get enabled commodities
     const enabledCommodities = this.getEnabledCommodities(preferences);
@@ -113,6 +123,10 @@ export class SignalGenerationService {
       const fundamentalContext = await this.fundamentalService.getFundamentalContext(commodity);
       const fundamentalAdjustment = this.calculateFundamentalAdjustment(fundamentalContext);
 
+      // Fetch seasonal context for this commodity
+      const seasonalContext = this.seasonalService.getSeasonalContext(commodity, currentCashPrice);
+      const seasonalAdjustment = this.seasonalService.getSeasonalAdjustment(commodity, currentCashPrice);
+
       const marketContext: MarketContext = {
         futuresPrice: futuresQuote.closePrice,
         futuresMonth: futuresQuote.contractMonth,
@@ -123,6 +137,16 @@ export class SignalGenerationService {
         movingAverage20: trendAnalysis.movingAverage20,
         movingAverage50: trendAnalysis.movingAverage50,
         volatility: trendAnalysis.volatility,
+        // Add seasonal context
+        seasonalContext: {
+          seasonalOutlook: seasonalContext.seasonalOutlook,
+          seasonalScore: seasonalContext.seasonalScore,
+          historicalPricePercentile: seasonalContext.historicalPricePercentile,
+          historicalRallyProbability: seasonalContext.currentPattern.historicalRallyProbability,
+          marketingImplication: seasonalContext.currentPattern.marketingImplication,
+          keySeasonalFactors: seasonalContext.keySeasonalFactors,
+          recommendedAction: seasonalContext.recommendedAction
+        },
         // Add fundamental context
         fundamentalScore: fundamentalContext.overallFundamentalScore,
         fundamentalOutlook: fundamentalAdjustment.overallOutlook,
@@ -151,6 +175,9 @@ export class SignalGenerationService {
         }
       }
 
+      // Get marketing position for this commodity (remaining bushels, progress toward target)
+      const position = marketingPositions.get(commodity);
+
       // Generate signals for each enabled marketing tool
       if (preferences.cashSaleSignals) {
         const cashSignal = this.evaluateCashSaleSignal(
@@ -163,7 +190,9 @@ export class SignalGenerationService {
           marketContext,
           trendAnalysis,
           personalizedThreshold,
-          fundamentalAdjustment
+          fundamentalAdjustment,
+          position,
+          seasonalAdjustment
         );
         if (cashSignal) allSignals.push(cashSignal);
       }
@@ -177,7 +206,8 @@ export class SignalGenerationService {
           breakEvenPrice,
           commodityData.expectedBushels,
           preferences,
-          marketContext
+          marketContext,
+          position
         );
         if (basisSignal) allSignals.push(basisSignal);
       }
@@ -191,7 +221,8 @@ export class SignalGenerationService {
           breakEvenPrice,
           commodityData.expectedBushels,
           preferences,
-          marketContext
+          marketContext,
+          position
         );
         if (htaSignal) allSignals.push(htaSignal);
       }
@@ -308,7 +339,15 @@ export class SignalGenerationService {
     marketContext: MarketContext,
     trendAnalysis: any,
     personalizedThreshold?: { strongBuyThreshold: number; buyThreshold: number; confidence: number } | null,
-    fundamentalAdjustment?: FundamentalAdjustment
+    fundamentalAdjustment?: FundamentalAdjustment,
+    position?: MarketingPosition,
+    seasonalAdjustment?: {
+      percentageAdjustment: number;
+      thresholdAdjustment: number;
+      urgencyBoost: boolean;
+      waitRecommended: boolean;
+      rationale: string;
+    }
   ): GeneratedSignal | null {
     const riskMultiplier = RISK_MULTIPLIERS[preferences.riskTolerance];
     const targetMargin = Number(preferences.targetProfitMargin);
@@ -341,6 +380,14 @@ export class SignalGenerationService {
       }
     }
 
+    // Apply seasonal threshold adjustments
+    // Favorable seasonal windows = lower thresholds (sell more readily)
+    // Unfavorable windows = higher thresholds (wait for better timing)
+    if (seasonalAdjustment) {
+      strongBuyThreshold *= seasonalAdjustment.thresholdAdjustment;
+      buyThreshold *= seasonalAdjustment.thresholdAdjustment;
+    }
+
     const priceAboveBreakeven = currentPrice - breakEvenPrice;
     const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
 
@@ -351,7 +398,7 @@ export class SignalGenerationService {
     let recommendedAction: string;
     let recommendedBushels: number | undefined;
 
-    // Base sell percentage (will be adjusted by fundamentals)
+    // Base sell percentage (will be adjusted by fundamentals and seasonals)
     let sellPercentage = 0.125; // Default 12.5%
     let strongSellPercentage = 0.25; // Default 25%
 
@@ -359,14 +406,38 @@ export class SignalGenerationService {
       // Adjust sell percentage based on fundamental outlook
       sellPercentage += fundamentalAdjustment.percentageAdjustment;
       strongSellPercentage += fundamentalAdjustment.percentageAdjustment * 1.5;
-      // Clamp to reasonable range
-      sellPercentage = Math.max(0.05, Math.min(0.30, sellPercentage));
-      strongSellPercentage = Math.max(0.10, Math.min(0.40, strongSellPercentage));
     }
+
+    // Apply seasonal percentage adjustments
+    if (seasonalAdjustment) {
+      sellPercentage += seasonalAdjustment.percentageAdjustment;
+      strongSellPercentage += seasonalAdjustment.percentageAdjustment * 1.5;
+    }
+
+    // Clamp to reasonable range
+    sellPercentage = Math.max(0.05, Math.min(0.30, sellPercentage));
+    strongSellPercentage = Math.max(0.10, Math.min(0.40, strongSellPercentage));
 
     // Build fundamental context for rationale
     const fundamentalRationale = fundamentalAdjustment && fundamentalAdjustment.fundamentalFactors.length > 0
       ? ` Fundamentals: ${fundamentalAdjustment.fundamentalFactors.slice(0, 2).join('. ')}.`
+      : '';
+
+    // Build seasonal context for rationale
+    const seasonalRationale = seasonalAdjustment
+      ? ` Seasonal: ${seasonalAdjustment.rationale}`
+      : '';
+
+    // Use remaining bushels from position tracking (fall back to total if no position data)
+    const remainingBushels = position?.remainingBushels ?? totalBushels;
+    const percentSold = position?.percentSold ?? 0;
+    const preHarvestTarget = position?.preHarvestTarget ?? 0.50;
+    const bushelsToTarget = position?.bushelsToTarget ?? totalBushels * 0.50;
+
+    // Build position context for rationale
+    const positionRationale = position
+      ? ` You are currently ${(percentSold * 100).toFixed(0)}% sold (${position.totalContractedBushels.toLocaleString()} bu), ` +
+        `with ${remainingBushels.toLocaleString()} bu remaining.`
       : '';
 
     // Determine signal strength based on conditions (using personalized thresholds)
@@ -376,46 +447,95 @@ export class SignalGenerationService {
       // STRONG_BUY: High profit margin + downward momentum + overbought
       strength = SignalStrength.STRONG_BUY;
 
-      // Upgrade to stronger recommendation if fundamentals are also bearish
-      if (fundamentalAdjustment?.overallOutlook === 'BEARISH') {
+      // Upgrade to stronger recommendation if fundamentals are also bearish OR seasonal urgency
+      if (fundamentalAdjustment?.overallOutlook === 'BEARISH' || seasonalAdjustment?.urgencyBoost) {
         strongSellPercentage = Math.min(0.40, strongSellPercentage + 0.05);
-        title = `URGENT: ${commodityType} Cash Sale - Fundamentals Align`;
-        summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even. Technical AND fundamental indicators suggest selling now.`;
+        if (fundamentalAdjustment?.overallOutlook === 'BEARISH' && seasonalAdjustment?.urgencyBoost) {
+          title = `URGENT: ${commodityType} Cash Sale - Fundamentals & Seasonals Align`;
+          summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even. Technical, fundamental, AND seasonal indicators all suggest selling now.`;
+        } else if (fundamentalAdjustment?.overallOutlook === 'BEARISH') {
+          title = `URGENT: ${commodityType} Cash Sale - Fundamentals Align`;
+          summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even. Technical AND fundamental indicators suggest selling now.`;
+        } else {
+          title = `URGENT: ${commodityType} Cash Sale - Favorable Seasonal Window`;
+          summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even during historically favorable selling period.`;
+        }
       } else {
         title = `Strong ${commodityType} Cash Sale Opportunity`;
         summary = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even with downward price momentum.`;
       }
 
-      rationale = `Price shows overbought conditions (RSI: ${trendAnalysis.rsi.toFixed(0)}) with downward trend.${fundamentalRationale}`;
+      rationale = `Price shows overbought conditions (RSI: ${trendAnalysis.rsi.toFixed(0)}) with downward trend.${fundamentalRationale}${seasonalRationale}${positionRationale}`;
       if (personalizedThreshold?.confidence && personalizedThreshold.confidence > 50) {
         rationale += ` (Threshold personalized based on your selling history)`;
       }
-      recommendedAction = `Sell ${(strongSellPercentage * 100).toFixed(0)}% of remaining bushels at cash market`;
-      recommendedBushels = Math.round(totalBushels * strongSellPercentage);
+
+      // Calculate bushels using remaining inventory, respecting pre-harvest target
+      if (position) {
+        recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, strongSellPercentage);
+      } else {
+        recommendedBushels = Math.round(totalBushels * strongSellPercentage);
+      }
+      recommendedAction = `Sell ${recommendedBushels.toLocaleString()} bushels at cash market (${(strongSellPercentage * 100).toFixed(0)}% of remaining)`;
     } else if (percentAboveBreakeven >= buyThreshold &&
                priceAboveBreakeven >= targetMargin) {
       // BUY: Above target profit margin
       strength = SignalStrength.BUY;
-      title = `${commodityType} Cash Sale Signal`;
-      summary = `${commodityType} is $${priceAboveBreakeven.toFixed(2)}/bu above break-even, exceeding your target margin.`;
-      rationale = `Current profit margin of $${priceAboveBreakeven.toFixed(2)}/bu exceeds your target of $${targetMargin.toFixed(2)}/bu.${fundamentalRationale}`;
-      recommendedAction = `Consider selling ${(sellPercentage * 100).toFixed(0)}% of remaining bushels`;
-      recommendedBushels = Math.round(totalBushels * sellPercentage);
+
+      // Add seasonal context to title if favorable
+      if (seasonalAdjustment?.urgencyBoost) {
+        title = `${commodityType} Cash Sale Signal - Favorable Seasonal Window`;
+        summary = `${commodityType} is $${priceAboveBreakeven.toFixed(2)}/bu above break-even during historically good selling period.`;
+      } else {
+        title = `${commodityType} Cash Sale Signal`;
+        summary = `${commodityType} is $${priceAboveBreakeven.toFixed(2)}/bu above break-even, exceeding your target margin.`;
+      }
+      rationale = `Current profit margin of $${priceAboveBreakeven.toFixed(2)}/bu exceeds your target of $${targetMargin.toFixed(2)}/bu.${fundamentalRationale}${seasonalRationale}${positionRationale}`;
+
+      // Calculate bushels using remaining inventory
+      if (position) {
+        recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, sellPercentage);
+      } else {
+        recommendedBushels = Math.round(totalBushels * sellPercentage);
+      }
+      recommendedAction = `Consider selling ${recommendedBushels.toLocaleString()} bushels (${(sellPercentage * 100).toFixed(0)}% of remaining)`;
     } else if (percentAboveBreakeven >= minAboveBE && percentAboveBreakeven < 0.10) {
       // HOLD: Profitable but below target
-      // But if fundamentals are very bearish, consider downgrading to sell signal
-      if (fundamentalAdjustment?.overallOutlook === 'BEARISH' && fundamentalAdjustment.strengthModifier <= -1.5) {
+      // But if fundamentals are very bearish OR seasonal window is favorable, consider selling
+      const shouldSellDefensively = (fundamentalAdjustment?.overallOutlook === 'BEARISH' && fundamentalAdjustment.strengthModifier <= -1.5)
+        || (seasonalAdjustment?.urgencyBoost && fundamentalAdjustment?.overallOutlook !== 'BULLISH');
+
+      if (shouldSellDefensively) {
         strength = SignalStrength.BUY;
-        title = `${commodityType} Defensive Sale Signal`;
-        summary = `While below target, bearish fundamentals suggest taking some profit now.`;
-        rationale = `Price is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even but fundamentals are concerning.${fundamentalRationale}`;
-        recommendedAction = `Consider selling ${(sellPercentage * 0.5 * 100).toFixed(0)}% as defensive measure`;
-        recommendedBushels = Math.round(totalBushels * sellPercentage * 0.5);
+        if (seasonalAdjustment?.urgencyBoost) {
+          title = `${commodityType} Defensive Sale - Favorable Seasonal Window`;
+          summary = `While below target, favorable seasonal window suggests taking some profit now.`;
+        } else {
+          title = `${commodityType} Defensive Sale Signal`;
+          summary = `While below target, bearish fundamentals suggest taking some profit now.`;
+        }
+        rationale = `Price is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even.${fundamentalRationale}${seasonalRationale}${positionRationale}`;
+
+        // Calculate bushels using remaining inventory (smaller defensive position)
+        if (position) {
+          recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, sellPercentage * 0.5);
+        } else {
+          recommendedBushels = Math.round(totalBushels * sellPercentage * 0.5);
+        }
+        recommendedAction = `Consider selling ${recommendedBushels.toLocaleString()} bushels as defensive measure`;
+      } else if (seasonalAdjustment?.waitRecommended) {
+        // Seasonal suggests waiting
+        strength = SignalStrength.HOLD;
+        title = `${commodityType} Market Watch - Seasonal Patience Recommended`;
+        summary = `${commodityType} is profitable but seasonal patterns suggest better opportunities ahead.`;
+        rationale = `Current price $${currentPrice.toFixed(2)} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even.${seasonalRationale}${positionRationale}`;
+        recommendedAction = 'Hold current position. Seasonal patterns suggest waiting for post-harvest recovery.';
+        recommendedBushels = undefined;
       } else {
         strength = SignalStrength.HOLD;
         title = `${commodityType} Market Watch`;
         summary = `${commodityType} is profitable but below target margin. Monitor for better opportunities.`;
-        rationale = `Current price $${currentPrice.toFixed(2)} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even of $${breakEvenPrice.toFixed(2)}.${fundamentalRationale}`;
+        rationale = `Current price $${currentPrice.toFixed(2)} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even of $${breakEvenPrice.toFixed(2)}.${fundamentalRationale}${seasonalRationale}${positionRationale}`;
         recommendedAction = 'Hold current position, set price alerts';
         recommendedBushels = undefined;
       }
@@ -424,7 +544,7 @@ export class SignalGenerationService {
       strength = SignalStrength.SELL;
       title = `${commodityType} Break-Even Alert`;
       summary = `${commodityType} is near break-even. Selling now would yield minimal profit.`;
-      rationale = `Price margin of $${priceAboveBreakeven.toFixed(2)}/bu is below minimum threshold.${fundamentalRationale}`;
+      rationale = `Price margin of $${priceAboveBreakeven.toFixed(2)}/bu is below minimum threshold.${fundamentalRationale}${seasonalRationale}${positionRationale}`;
       recommendedAction = 'Consider hedging strategies to protect downside';
       recommendedBushels = undefined;
     } else {
@@ -432,7 +552,7 @@ export class SignalGenerationService {
       strength = SignalStrength.STRONG_SELL;
       title = `${commodityType} Below Break-Even Warning`;
       summary = `${commodityType} is currently below your break-even price by $${Math.abs(priceAboveBreakeven).toFixed(2)}/bu.`;
-      rationale = `Current market price of $${currentPrice.toFixed(2)} is below break-even of $${breakEvenPrice.toFixed(2)}. Avoid cash sales at current levels.${fundamentalRationale}`;
+      rationale = `Current market price of $${currentPrice.toFixed(2)} is below break-even of $${breakEvenPrice.toFixed(2)}. Avoid cash sales at current levels.${fundamentalRationale}${seasonalRationale}${positionRationale}`;
       recommendedAction = 'Do not sell. Consider put options for protection.';
       recommendedBushels = undefined;
     }
@@ -509,7 +629,8 @@ export class SignalGenerationService {
     breakEvenPrice: number,
     totalBushels: number,
     preferences: MarketingPreferences,
-    marketContext: MarketContext
+    marketContext: MarketContext,
+    position?: MarketingPosition
   ): Promise<GeneratedSignal | null> {
     const riskMultiplier = RISK_MULTIPLIERS[preferences.riskTolerance];
 
@@ -518,6 +639,9 @@ export class SignalGenerationService {
     const currentCashPrice = futuresPrice + currentBasis;
     const priceAboveBreakeven = currentCashPrice - breakEvenPrice;
     const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
+
+    // Use remaining bushels from position tracking
+    const remainingBushels = position?.remainingBushels ?? totalBushels;
 
     let strength: SignalStrength;
     let title: string;
@@ -533,16 +657,28 @@ export class SignalGenerationService {
       title = `Excellent ${commodityType} Basis Opportunity`;
       summary = `${commodityType} basis at ${currentBasis.toFixed(2)} is in the ${basisPercentile.toFixed(0)}th percentile historically.`;
       rationale = `Current basis is stronger than ${basisPercentile.toFixed(0)}% of historical values. Lock in this favorable basis before it weakens.`;
-      recommendedAction = 'Lock basis on 15-25% of unpriced bushels';
-      recommendedBushels = Math.round(totalBushels * 0.20);
+
+      // Use remaining bushels, respecting constraints
+      if (position) {
+        recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, 0.20);
+      } else {
+        recommendedBushels = Math.round(totalBushels * 0.20);
+      }
+      recommendedAction = `Lock basis on ${recommendedBushels.toLocaleString()} unpriced bushels`;
     } else if (basisPercentile >= 50 / riskMultiplier) {
       // Above average basis
       strength = SignalStrength.BUY;
       title = `${commodityType} Basis Signal`;
       summary = `${commodityType} basis at ${currentBasis.toFixed(2)} is above historical average.`;
       rationale = `Basis is in the ${basisPercentile.toFixed(0)}th percentile. Consider partial basis contract.`;
-      recommendedAction = 'Consider locking basis on 10% of bushels';
-      recommendedBushels = Math.round(totalBushels * 0.10);
+
+      // Use remaining bushels
+      if (position) {
+        recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, 0.10);
+      } else {
+        recommendedBushels = Math.round(totalBushels * 0.10);
+      }
+      recommendedAction = `Consider locking basis on ${recommendedBushels.toLocaleString()} bushels`;
     } else {
       // Weak basis - don't signal
       return null;
@@ -580,7 +716,8 @@ export class SignalGenerationService {
     breakEvenPrice: number,
     totalBushels: number,
     preferences: MarketingPreferences,
-    marketContext: MarketContext
+    marketContext: MarketContext,
+    position?: MarketingPosition
   ): GeneratedSignal | null {
     const riskMultiplier = RISK_MULTIPLIERS[preferences.riskTolerance];
     const targetMargin = Number(preferences.targetProfitMargin);
@@ -595,6 +732,9 @@ export class SignalGenerationService {
     const futuresAboveBE = (futuresPrice + currentBasis - breakEvenPrice) / breakEvenPrice;
     const basisWeak = currentBasis < -0.15;
 
+    // Use remaining bushels from position tracking
+    const remainingBushels = position?.remainingBushels ?? totalBushels;
+
     let strength: SignalStrength;
     let title: string;
     let summary: string;
@@ -608,16 +748,28 @@ export class SignalGenerationService {
       title = `Strong ${commodityType} HTA Opportunity`;
       summary = `${commodityType} futures are strong but basis is weak. Lock futures while waiting for basis improvement.`;
       rationale = `Futures at $${futuresPrice.toFixed(2)} provide ${(futuresAboveBE * 100).toFixed(1)}% margin above break-even. Current basis of ${currentBasis.toFixed(2)} has room to improve.`;
-      recommendedAction = 'Consider HTA on 15-20% of production';
-      recommendedBushels = Math.round(totalBushels * 0.175);
+
+      // Use remaining bushels, respecting constraints
+      if (position) {
+        recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, 0.175);
+      } else {
+        recommendedBushels = Math.round(totalBushels * 0.175);
+      }
+      recommendedAction = `Consider HTA on ${recommendedBushels.toLocaleString()} bushels`;
     } else if (futuresAboveBE >= 0.10 / riskMultiplier && basisWeak) {
       // Good HTA opportunity
       strength = SignalStrength.BUY;
       title = `${commodityType} HTA Signal`;
       summary = `${commodityType} futures offer protection with potential basis upside.`;
       rationale = `Lock in futures protection at $${futuresPrice.toFixed(2)} while keeping basis open.`;
-      recommendedAction = 'Consider HTA on 10% of unpriced bushels';
-      recommendedBushels = Math.round(totalBushels * 0.10);
+
+      // Use remaining bushels
+      if (position) {
+        recommendedBushels = this.calculateMaxRecommendedBushels(position, preferences, 0.10);
+      } else {
+        recommendedBushels = Math.round(totalBushels * 0.10);
+      }
+      recommendedAction = `Consider HTA on ${recommendedBushels.toLocaleString()} unpriced bushels`;
     } else {
       return null;
     }
@@ -915,6 +1067,11 @@ export class SignalGenerationService {
       accumulatorMinPrice: (prefs as any).accumulatorMinPrice ? Number((prefs as any).accumulatorMinPrice) : undefined,
       accumulatorPercentAboveBreakeven: (prefs as any).accumulatorPercentAboveBreakeven ? Number((prefs as any).accumulatorPercentAboveBreakeven) : undefined,
       accumulatorMarketingPercent: (prefs as any).accumulatorMarketingPercent ? Number((prefs as any).accumulatorMarketingPercent) : undefined,
+      // Pre-harvest marketing targets
+      preHarvestTargetCorn: prefs.preHarvestTargetCorn ? Number(prefs.preHarvestTargetCorn) : 0.50,
+      preHarvestTargetSoybeans: prefs.preHarvestTargetSoybeans ? Number(prefs.preHarvestTargetSoybeans) : 0.50,
+      preHarvestTargetWheat: prefs.preHarvestTargetWheat ? Number(prefs.preHarvestTargetWheat) : 0.50,
+      maxSingleSalePercent: prefs.maxSingleSalePercent ? Number(prefs.maxSingleSalePercent) : 0.25,
       createdAt: prefs.createdAt,
       updatedAt: prefs.updatedAt
     };
@@ -926,6 +1083,127 @@ export class SignalGenerationService {
     if (preferences.soybeansEnabled) enabled.push(CommodityType.SOYBEANS);
     if (preferences.wheatEnabled) enabled.push(CommodityType.WHEAT);
     return enabled;
+  }
+
+  // ===== Marketing Position Tracking =====
+
+  /**
+   * Get marketing positions for each commodity to track remaining bushels
+   * and progress toward pre-harvest marketing targets.
+   */
+  async getMarketingPositions(
+    businessId: string,
+    year: number,
+    preferences: MarketingPreferences
+  ): Promise<Map<CommodityType, MarketingPosition>> {
+    const positions = new Map<CommodityType, MarketingPosition>();
+
+    // Get production analytics from grain analytics service
+    const analytics = await this.grainAnalyticsService.getDashboardSummary(businessId, { year });
+
+    // Determine if harvest has started (rough estimate based on month)
+    const currentMonth = new Date().getMonth();
+    const harvestMonths: Record<CommodityType, number[]> = {
+      CORN: [8, 9, 10, 11],     // Sept-Dec
+      SOYBEANS: [8, 9, 10, 11], // Sept-Dec
+      WHEAT: [5, 6, 7]          // June-Aug
+    };
+
+    for (const commodityData of analytics.byCommodity) {
+      const commodity = commodityData.commodityType as CommodityType;
+
+      // Get pre-harvest target for this commodity
+      let preHarvestTarget = 0.50; // Default 50%
+      if (commodity === CommodityType.CORN) {
+        preHarvestTarget = preferences.preHarvestTargetCorn || 0.50;
+      } else if (commodity === CommodityType.SOYBEANS) {
+        preHarvestTarget = preferences.preHarvestTargetSoybeans || 0.50;
+      } else if (commodity === CommodityType.WHEAT) {
+        preHarvestTarget = preferences.preHarvestTargetWheat || 0.50;
+      }
+
+      const totalProjected = commodityData.projected;
+      const totalSold = commodityData.sold;
+      const remaining = totalProjected - totalSold;
+      const percentSold = totalProjected > 0 ? totalSold / totalProjected : 0;
+
+      // Calculate how much more to sell to reach target
+      const targetBushels = totalProjected * preHarvestTarget;
+      const bushelsToTarget = Math.max(0, targetBushels - totalSold);
+      const percentToTarget = preHarvestTarget - percentSold;
+
+      // Check if harvest has started for this commodity
+      const isHarvestComplete = harvestMonths[commodity]?.includes(currentMonth) ||
+        currentMonth > Math.max(...(harvestMonths[commodity] || [9]));
+
+      // Calculate weighted average sale price from contracts
+      const contracts = analytics.byEntity
+        .filter((e: { commodityType: string }) => e.commodityType === commodity)
+        .flatMap((e: { contracts: any[] }) => e.contracts);
+
+      let totalValue = 0;
+      let totalContractedBushels = 0;
+      for (const contract of contracts) {
+        if (contract.bushels && contract.cashPrice) {
+          totalValue += contract.bushels * contract.cashPrice;
+          totalContractedBushels += contract.bushels;
+        }
+      }
+      const averageSalePrice = totalContractedBushels > 0 ? totalValue / totalContractedBushels : 0;
+
+      positions.set(commodity, {
+        commodityType: commodity,
+        year,
+        totalProjectedBushels: totalProjected,
+        totalContractedBushels: totalSold,
+        remainingBushels: remaining,
+        percentSold,
+        preHarvestTarget,
+        percentToTarget: Math.max(0, percentToTarget),
+        bushelsToTarget,
+        isHarvestComplete,
+        averageSalePrice
+      });
+    }
+
+    return positions;
+  }
+
+  /**
+   * Calculate the maximum bushels that can be recommended for a single signal
+   * based on remaining bushels, pre-harvest target, and max single sale percent.
+   */
+  private calculateMaxRecommendedBushels(
+    position: MarketingPosition,
+    preferences: MarketingPreferences,
+    sellPercentage: number
+  ): number {
+    const maxSingleSale = preferences.maxSingleSalePercent || 0.25;
+
+    // Can't sell more than remaining bushels
+    const maxFromRemaining = position.remainingBushels;
+
+    // Can't sell more than max single sale percentage of total
+    const maxFromSingleSale = position.totalProjectedBushels * maxSingleSale;
+
+    // If pre-harvest and not yet at target, cap at bushels to target
+    // But if already past harvest or past target, use remaining bushels
+    let maxFromTarget = position.remainingBushels;
+    if (!position.isHarvestComplete && position.bushelsToTarget > 0) {
+      // Don't recommend more than what's needed to reach pre-harvest target
+      maxFromTarget = Math.min(position.bushelsToTarget, position.remainingBushels);
+    }
+
+    // Calculate desired amount based on sell percentage
+    const desiredBushels = position.remainingBushels * sellPercentage;
+
+    // Take the minimum of all constraints
+    return Math.round(Math.min(
+      desiredBushels,
+      maxFromRemaining,
+      maxFromSingleSale,
+      maxFromTarget
+    ));
   }
 
   private mapToMarketingSignal(dbSignal: any): MarketingSignal {
