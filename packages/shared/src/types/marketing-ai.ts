@@ -7,6 +7,7 @@ export enum MarketingSignalType {
   BASIS_CONTRACT = 'BASIS_CONTRACT',
   HTA_RECOMMENDATION = 'HTA_RECOMMENDATION',
   ACCUMULATOR_STRATEGY = 'ACCUMULATOR_STRATEGY',
+  ACCUMULATOR_INQUIRY = 'ACCUMULATOR_INQUIRY', // Prompt to check accumulator pricing
   PUT_OPTION = 'PUT_OPTION',
   CALL_OPTION = 'CALL_OPTION',
   COLLAR_STRATEGY = 'COLLAR_STRATEGY'
@@ -84,6 +85,15 @@ export interface MarketContext {
   movingAverage50?: number;
   volatility?: number;
   seasonalPattern?: string;
+  // Accumulator inquiry context
+  accumulatorContext?: {
+    estimatedCashPrice: number;
+    suggestedMinBasePrice: number; // Min accumulator base price to consider
+    suggestedMarketingPercent: number; // % of bushels to market
+    volatilityLevel: 'LOW' | 'MODERATE' | 'HIGH'; // Affects accumulator terms
+    timeUntilHarvest?: number; // Days until harvest (affects timing)
+    marketTiming: 'EARLY' | 'MID' | 'LATE'; // Seasonal timing
+  };
 }
 
 // ===== Marketing Preferences =====
@@ -103,10 +113,15 @@ export interface MarketingPreferences {
   basisContractSignals: boolean;
   htaSignals: boolean;
   accumulatorSignals: boolean;
+  accumulatorInquirySignals: boolean; // Notify when to check accumulator pricing
   optionsSignals: boolean;
   riskTolerance: RiskTolerance;
   targetProfitMargin: number;
   minAboveBreakeven: number;
+  // Accumulator inquiry thresholds
+  accumulatorMinPrice?: number; // Min price to consider accumulator (e.g., $4.50 for corn)
+  accumulatorPercentAboveBreakeven?: number; // % above break-even to trigger inquiry (e.g., 10%)
+  accumulatorMarketingPercent?: number; // Suggested % to market if conditions met (e.g., 20%)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -124,10 +139,14 @@ export interface UpdateMarketingPreferencesRequest {
   basisContractSignals?: boolean;
   htaSignals?: boolean;
   accumulatorSignals?: boolean;
+  accumulatorInquirySignals?: boolean;
   optionsSignals?: boolean;
   riskTolerance?: RiskTolerance;
   targetProfitMargin?: number;
   minAboveBreakeven?: number;
+  accumulatorMinPrice?: number;
+  accumulatorPercentAboveBreakeven?: number;
+  accumulatorMarketingPercent?: number;
 }
 
 // ===== Signal Notification =====

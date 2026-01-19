@@ -32,6 +32,7 @@ const signalTypeLabels: Record<MarketingSignalType, string> = {
   BASIS_CONTRACT: 'Basis Contract',
   HTA_RECOMMENDATION: 'HTA',
   ACCUMULATOR_STRATEGY: 'Accumulator',
+  ACCUMULATOR_INQUIRY: 'Check Accumulator',
   PUT_OPTION: 'Put Option',
   CALL_OPTION: 'Call Option',
   COLLAR_STRATEGY: 'Collar'

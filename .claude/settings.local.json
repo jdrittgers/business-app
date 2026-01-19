@@ -25,7 +25,8 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx tsx -e:*)",
       "Bash(git reset:*)",
       "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx prisma migrate deploy:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "WebSearch"
     ]
   }
 }

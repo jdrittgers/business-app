@@ -1081,6 +1081,7 @@ enum MarketingSignalType {
   BASIS_CONTRACT
   HTA_RECOMMENDATION
   ACCUMULATOR_STRATEGY
+  ACCUMULATOR_INQUIRY
   PUT_OPTION
   CALL_OPTION
   COLLAR_STRATEGY
@@ -1134,6 +1135,7 @@ model MarketingPreferences {
   basisContractSignals    Boolean       @default(true) @map("basis_contract_signals")
   htaSignals              Boolean       @default(true) @map("hta_signals")
   accumulatorSignals      Boolean       @default(true) @map("accumulator_signals")
+  accumulatorInquirySignals Boolean     @default(true) @map("accumulator_inquiry_signals")
   optionsSignals          Boolean       @default(false) @map("options_signals")
 
   // Risk tolerance affects signal thresholds
@@ -1144,6 +1146,11 @@ model MarketingPreferences {
 
   // Minimum percentage above break-even to trigger sell signal
   minAboveBreakeven       Decimal       @default(0.05) @map("min_above_breakeven") @db.Decimal(5, 4) // 5%
+
+  // Accumulator inquiry thresholds
+  accumulatorMinPrice     Decimal?      @map("accumulator_min_price") @db.Decimal(10, 4) // Min price to check accumulators
+  accumulatorPercentAboveBreakeven Decimal? @default(0.10) @map("accumulator_percent_above_breakeven") @db.Decimal(5, 4) // 10%
+  accumulatorMarketingPercent Decimal?  @default(0.20) @map("accumulator_marketing_percent") @db.Decimal(5, 4) // 20%
 
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")

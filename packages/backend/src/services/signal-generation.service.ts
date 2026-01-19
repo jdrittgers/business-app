@@ -146,10 +146,36 @@ export class SignalGenerationService {
       }
     }
 
-    // Generate accumulator signals
+    // Generate accumulator signals (for existing contracts)
     if (preferences.accumulatorSignals) {
       const accumulatorSignals = await this.generateAccumulatorSignals(businessId);
       allSignals.push(...accumulatorSignals);
+    }
+
+    // Generate accumulator inquiry signals (when to check pricing for NEW accumulators)
+    if ((preferences as any).accumulatorInquirySignals !== false) {
+      for (const commodityData of breakEvens.byCommodity) {
+        const commodity = commodityData.commodityType as CommodityType;
+        if (!enabledCommodities.includes(commodity)) continue;
+
+        const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodity);
+        const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+        const trendAnalysis = await this.marketDataService.analyzePriceTrend(commodity);
+
+        if (!futuresQuote) continue;
+
+        const inquirySignal = await this.evaluateAccumulatorInquirySignal(
+          businessId,
+          commodity,
+          futuresQuote.closePrice,
+          avgBasis,
+          commodityData.breakEvenPrice,
+          commodityData.expectedBushels,
+          preferences,
+          trendAnalysis
+        );
+        if (inquirySignal) allSignals.push(inquirySignal);
+      }
     }
 
     // Store signals in database
@@ -546,6 +572,156 @@ export class SignalGenerationService {
     return signals;
   }
 
+  // ===== Accumulator Inquiry Signal (When to Check for NEW Accumulators) =====
+
+  private async evaluateAccumulatorInquirySignal(
+    businessId: string,
+    commodityType: CommodityType,
+    futuresPrice: number,
+    currentBasis: number,
+    breakEvenPrice: number,
+    totalBushels: number,
+    preferences: MarketingPreferences,
+    trendAnalysis: any
+  ): Promise<GeneratedSignal | null> {
+    const riskMultiplier = RISK_MULTIPLIERS[preferences.riskTolerance];
+
+    // Get user's accumulator thresholds (with defaults)
+    const minPrice = (preferences as any).accumulatorMinPrice
+      ? Number((preferences as any).accumulatorMinPrice)
+      : this.getDefaultMinPrice(commodityType);
+    const percentThreshold = (preferences as any).accumulatorPercentAboveBreakeven
+      ? Number((preferences as any).accumulatorPercentAboveBreakeven)
+      : 0.10; // Default 10%
+    const marketingPercent = (preferences as any).accumulatorMarketingPercent
+      ? Number((preferences as any).accumulatorMarketingPercent)
+      : 0.20; // Default 20%
+
+    const currentCashPrice = futuresPrice + currentBasis;
+    const priceAboveBreakeven = currentCashPrice - breakEvenPrice;
+    const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
+
+    // Determine volatility level (affects accumulator terms)
+    const volatilityLevel = trendAnalysis.volatility > 0.05 ? 'HIGH'
+      : trendAnalysis.volatility > 0.02 ? 'MODERATE' : 'LOW';
+
+    // Seasonal timing (affects accumulator pricing)
+    const month = new Date().getMonth();
+    const marketTiming: 'EARLY' | 'MID' | 'LATE' =
+      month >= 0 && month <= 3 ? 'EARLY' :    // Jan-Apr: Early marketing
+      month >= 4 && month <= 7 ? 'MID' :      // May-Aug: Mid season
+      'LATE';                                  // Sep-Dec: Late/harvest
+
+    // Calculate days until typical harvest (rough estimate)
+    const harvestMonth = commodityType === CommodityType.WHEAT ? 6 : 9; // June for wheat, Sept for corn/beans
+    const currentMonth = new Date().getMonth();
+    const daysUntilHarvest = harvestMonth > currentMonth
+      ? (harvestMonth - currentMonth) * 30
+      : (12 - currentMonth + harvestMonth) * 30;
+
+    // Accumulator inquiry conditions:
+    // 1. Price is above break-even by user's threshold OR above minimum absolute price
+    // 2. Volatility is not extremely high (better accumulator terms)
+    // 3. Not too close to harvest (need time for accumulator to work)
+
+    const priceConditionMet = (percentAboveBreakeven >= percentThreshold / riskMultiplier)
+      || (currentCashPrice >= minPrice);
+    const volatilityAcceptable = volatilityLevel !== 'HIGH';
+    const timingAcceptable = daysUntilHarvest > 60; // At least 2 months to harvest
+
+    // Generate signal only if conditions are favorable
+    if (!priceConditionMet) {
+      return null;
+    }
+
+    let strength: SignalStrength;
+    let title: string;
+    let summary: string;
+    let rationale: string;
+    let recommendedAction: string;
+
+    // Determine signal strength based on how many conditions align
+    const conditionScore = [priceConditionMet, volatilityAcceptable, timingAcceptable].filter(Boolean).length;
+
+    if (conditionScore === 3 && percentAboveBreakeven >= 0.15 / riskMultiplier) {
+      // Excellent conditions - strong inquiry signal
+      strength = SignalStrength.STRONG_BUY;
+      title = `Check ${commodityType} Accumulator Pricing - Excellent Conditions`;
+      summary = `Market conditions are favorable for accumulator contracts. Contact your elevator for current pricing.`;
+      rationale = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even at $${currentCashPrice.toFixed(2)}/bu. ` +
+        `Volatility is ${volatilityLevel.toLowerCase()}, which typically means better accumulator terms. ` +
+        `${daysUntilHarvest} days until harvest provides good accumulation window.`;
+      recommendedAction = `If accumulator base price is above $${(breakEvenPrice + Number(preferences.targetProfitMargin)).toFixed(2)}, ` +
+        `consider marketing ${(marketingPercent * 100).toFixed(0)}% (${Math.round(totalBushels * marketingPercent).toLocaleString()} bu)`;
+    } else if (conditionScore >= 2) {
+      // Good conditions - standard inquiry signal
+      strength = SignalStrength.BUY;
+      title = `Consider ${commodityType} Accumulator Pricing`;
+      summary = `Current prices warrant checking accumulator offerings from your elevator.`;
+      rationale = `${commodityType} at $${currentCashPrice.toFixed(2)}/bu is ${(percentAboveBreakeven * 100).toFixed(1)}% above your break-even of $${breakEvenPrice.toFixed(2)}/bu. ` +
+        (volatilityAcceptable ? 'Market volatility is manageable. ' : 'Note: Higher volatility may affect terms. ') +
+        (timingAcceptable ? `${daysUntilHarvest} days until harvest.` : 'Harvest approaching - shorter accumulation window.');
+      recommendedAction = `Check elevator for accumulator pricing. Look for base price above $${breakEvenPrice.toFixed(2)}/bu. ` +
+        `Consider ${(marketingPercent * 100).toFixed(0)}% if terms are favorable.`;
+    } else {
+      // Marginal conditions - hold signal (informational)
+      strength = SignalStrength.HOLD;
+      title = `${commodityType} Accumulator Watch`;
+      summary = `Prices are reaching levels where accumulators may become attractive.`;
+      rationale = `Monitor ${commodityType} prices. Currently ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even.`;
+      recommendedAction = `Set price alert for $${(breakEvenPrice * (1 + percentThreshold)).toFixed(2)}/bu to check accumulator pricing.`;
+    }
+
+    // Build market context with accumulator-specific info
+    const marketContext: MarketContext = {
+      futuresPrice,
+      futuresMonth: '', // Will be populated by caller if needed
+      futuresTrend: trendAnalysis.trend,
+      basisLevel: currentBasis,
+      rsiValue: trendAnalysis.rsi,
+      movingAverage20: trendAnalysis.movingAverage20,
+      movingAverage50: trendAnalysis.movingAverage50,
+      volatility: trendAnalysis.volatility,
+      accumulatorContext: {
+        estimatedCashPrice: currentCashPrice,
+        suggestedMinBasePrice: breakEvenPrice + Number(preferences.targetProfitMargin),
+        suggestedMarketingPercent: marketingPercent,
+        volatilityLevel,
+        timeUntilHarvest: daysUntilHarvest,
+        marketTiming
+      }
+    };
+
+    return {
+      businessId,
+      signalType: MarketingSignalType.ACCUMULATOR_INQUIRY,
+      commodityType,
+      strength,
+      currentPrice: currentCashPrice,
+      breakEvenPrice,
+      targetPrice: breakEvenPrice + Number(preferences.targetProfitMargin),
+      priceAboveBreakeven,
+      percentAboveBreakeven,
+      title,
+      summary,
+      rationale,
+      marketContext,
+      recommendedBushels: Math.round(totalBushels * marketingPercent),
+      recommendedAction,
+      expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days - check pricing frequently
+    };
+  }
+
+  private getDefaultMinPrice(commodityType: CommodityType): number {
+    // Default minimum prices to consider accumulators (in $/bushel)
+    const defaults: Record<CommodityType, number> = {
+      CORN: 4.50,
+      SOYBEANS: 11.00,
+      WHEAT: 5.50
+    };
+    return defaults[commodityType] || 4.00;
+  }
+
   // ===== Helper Methods =====
 
   private async getOrCreatePreferences(businessId: string): Promise<MarketingPreferences> {
@@ -574,10 +750,14 @@ export class SignalGenerationService {
       basisContractSignals: prefs.basisContractSignals,
       htaSignals: prefs.htaSignals,
       accumulatorSignals: prefs.accumulatorSignals,
+      accumulatorInquirySignals: (prefs as any).accumulatorInquirySignals ?? true,
       optionsSignals: prefs.optionsSignals,
       riskTolerance: prefs.riskTolerance as RiskTolerance,
       targetProfitMargin: Number(prefs.targetProfitMargin),
       minAboveBreakeven: Number(prefs.minAboveBreakeven),
+      accumulatorMinPrice: (prefs as any).accumulatorMinPrice ? Number((prefs as any).accumulatorMinPrice) : undefined,
+      accumulatorPercentAboveBreakeven: (prefs as any).accumulatorPercentAboveBreakeven ? Number((prefs as any).accumulatorPercentAboveBreakeven) : undefined,
+      accumulatorMarketingPercent: (prefs as any).accumulatorMarketingPercent ? Number((prefs as any).accumulatorMarketingPercent) : undefined,
       createdAt: prefs.createdAt,
       updatedAt: prefs.updatedAt
     };

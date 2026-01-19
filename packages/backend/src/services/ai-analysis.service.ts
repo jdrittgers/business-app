@@ -75,6 +75,7 @@ export class AIAnalysisService {
       BASIS_CONTRACT: 'lock in the basis component while leaving futures price open',
       HTA_RECOMMENDATION: 'lock in futures price while leaving basis open (Hedge-to-Arrive)',
       ACCUMULATOR_STRATEGY: 'accumulator contract management',
+      ACCUMULATOR_INQUIRY: 'check with elevator for accumulator contract pricing',
       PUT_OPTION: 'purchase put options for downside protection',
       CALL_OPTION: 'purchase call options for upside participation',
       COLLAR_STRATEGY: 'implement a collar strategy (buy put, sell call)'
