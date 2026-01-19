@@ -70,11 +70,18 @@ interface FundamentalContext {
   keyFactors: string[];
 }
 
-// Historical stocks-to-use ratios for context
+// Historical stocks-to-use ratios for fundamental outlook determination
+// Based on 20-year historical analysis of price correlations
 const HISTORICAL_STOCKS_TO_USE: Record<CommodityType, { bearish: number; neutral: number; bullish: number }> = {
-  CORN: { bearish: 0.15, neutral: 0.12, bullish: 0.08 }, // >15% = bearish, <8% = bullish
-  SOYBEANS: { bearish: 0.12, neutral: 0.08, bullish: 0.05 },
-  WHEAT: { bearish: 0.35, neutral: 0.28, bullish: 0.20 }
+  // Corn: 10-year average S/U ~12%, so:
+  // >12% = bearish (above average stocks), <9% = bullish (tight stocks)
+  CORN: { bearish: 0.12, neutral: 0.10, bullish: 0.09 },
+  // Soybeans: Historical average S/U ~8%, so:
+  // >10% = bearish, <6% = bullish (tight stocks create rallies)
+  SOYBEANS: { bearish: 0.10, neutral: 0.07, bullish: 0.06 },
+  // Wheat: Higher S/U typical due to global stocks, but:
+  // >45% = bearish, <30% = bullish
+  WHEAT: { bearish: 0.45, neutral: 0.35, bullish: 0.30 }
 };
 
 export class FundamentalDataService {
@@ -127,10 +134,20 @@ export class FundamentalDataService {
   // ===== Supply & Demand (WASDE) =====
 
   async getLatestSupplyDemand(commodityType: CommodityType, marketingYear: string): Promise<SupplyDemandSummary | null> {
-    const latest = await prisma.supplyDemandData.findFirst({
+    // First try to get data for the specified marketing year
+    let latest = await prisma.supplyDemandData.findFirst({
       where: { commodityType, marketingYear },
       orderBy: { reportDate: 'desc' }
     });
+
+    // If not found, get the most recent data regardless of marketing year
+    // This handles the transition period where current MY data may not exist yet
+    if (!latest) {
+      latest = await prisma.supplyDemandData.findFirst({
+        where: { commodityType },
+        orderBy: { reportDate: 'desc' }
+      });
+    }
 
     if (!latest) return null;
 
@@ -161,7 +178,7 @@ export class FundamentalDataService {
 
     return {
       commodityType,
-      marketingYear,
+      marketingYear: latest.marketingYear, // Use actual data's marketing year
       endingStocks: Number(latest.endingStocks) || 0,
       stocksToUseRatio: stocksToUse,
       stocksToUsePercentile: percentile,
