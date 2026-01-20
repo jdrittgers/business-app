@@ -31,8 +31,7 @@ const navItems: NavItem[] = [
       { label: 'Overview', path: '/grain-contracts/dashboard' },
       { label: 'Contracts', path: '/grain-contracts' },
       { label: 'Production', path: '/grain-contracts/production' },
-      { label: 'Grain Bins', path: '/grain-contracts/bins' },
-      { label: 'Offers', path: '/grain-contracts/offers' }
+      { label: 'Grain Bins', path: '/grain-contracts/bins' }
     ]
   },
   {
