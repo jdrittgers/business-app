@@ -9,10 +9,9 @@ import ProgressBar from '../components/grain/ProgressBar';
 import PieChart from '../components/grain/PieChart';
 import MarketPriceWidget from '../components/grain/MarketPriceWidget';
 import { GrainBinVisual } from '../components/grain/GrainBinVisual';
-import MobileHeader from '../components/layout/MobileHeader';
 
 export default function GrainDashboard() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -21,12 +20,6 @@ export default function GrainDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<number>(2026);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     if (user && user.businessMemberships.length > 0 && !selectedBusinessId) {
@@ -71,46 +64,29 @@ export default function GrainDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
-
   if (!user) return null;
 
-  const navItems = [
-    { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Production', path: '/grain-contracts/production' },
-    { label: 'Contracts', path: '/grain-contracts' },
-    { label: 'Grain Bins', path: '/grain-contracts/bins' },
-    { label: 'Grain Offers', path: '/grain-contracts/offers' },
-    { label: 'Breakeven', path: '/breakeven' },
-    { label: 'Marketing AI', path: '/marketing-ai', highlight: true }
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <MobileHeader
-        title="Grain Marketing Dashboard"
-        subtitle={`Overview of production and sales for ${filterYear}`}
-        navItems={navItems}
-        onLogout={handleLogout}
-        rightContent={
-          <select
-            value={filterYear}
-            onChange={(e) => setFilterYear(parseInt(e.target.value))}
-            className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-          >
-            <option value={2024}>2024</option>
-            <option value={2025}>2025</option>
-            <option value={2026}>2026</option>
-            <option value={2027}>2027</option>
-          </select>
-        }
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Grain Marketing Dashboard</h1>
+          <p className="text-gray-600 mt-1">Overview of production and sales for {filterYear}</p>
+        </div>
+        <select
+          value={filterYear}
+          onChange={(e) => setFilterYear(parseInt(e.target.value))}
+          className="rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-4 py-2"
+        >
+          <option value={2024}>2024</option>
+          <option value={2025}>2025</option>
+          <option value={2026}>2026</option>
+          <option value={2027}>2027</option>
+        </select>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div>
         {/* Error Message */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
@@ -405,7 +381,7 @@ export default function GrainDashboard() {
             </button>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

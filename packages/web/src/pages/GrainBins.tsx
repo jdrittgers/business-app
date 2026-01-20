@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { grainBinsApi } from '../api/grain-bins.api';
 import { scaleTicketsApi } from '../api/scale-tickets.api';
@@ -154,7 +153,6 @@ function AssignBinModal({ isOpen, onClose, ticket, bins, onAssign }: AssignBinMo
 }
 
 export default function GrainBins() {
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [bins, setBins] = useState<GrainBin[]>([]);
   const [scaleTickets, setScaleTickets] = useState<ScaleTicket[]>([]);
@@ -361,50 +359,38 @@ export default function GrainBins() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mb-4"></div>
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mb-4"></div>
         <div className="text-gray-500">Loading grain bins...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <button
-            onClick={() => navigate('/grain-contracts/dashboard')}
-            className="text-primary-600 hover:text-primary-800 mb-3 sm:mb-4 flex items-center text-sm font-medium transition-colors"
-          >
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Grain Dashboard
-          </button>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Grain Bin Storage</h1>
-              <p className="mt-1 sm:mt-2 text-gray-600">Manage your grain bins and track inventory</p>
-            </div>
-            <button
-              onClick={() => {
-                setSelectedBin(null);
-                setShowBinModal(true);
-              }}
-              className="inline-flex items-center justify-center px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium shadow-sm transition-colors whitespace-nowrap"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create Bin
-            </button>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Grain Bin Storage</h1>
+          <p className="mt-1 text-gray-600">Manage your grain bins and track inventory</p>
         </div>
+        <button
+          onClick={() => {
+            setSelectedBin(null);
+            setShowBinModal(true);
+          }}
+          className="inline-flex items-center justify-center px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium shadow-sm transition-colors whitespace-nowrap"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Create Bin
+        </button>
+      </div>
 
         {/* Bins Grid */}
         {bins.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-card border border-gray-100 p-8 sm:p-12 text-center">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 sm:p-12 text-center">
             <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -417,7 +403,7 @@ export default function GrainBins() {
                 setSelectedBin(null);
                 setShowBinModal(true);
               }}
-              className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -426,7 +412,7 @@ export default function GrainBins() {
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-card border border-gray-100 p-4 sm:p-6 mb-6 sm:mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4 sm:mb-6">
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Your Bins</h2>
               <span className="text-sm text-gray-500">{bins.length} {bins.length === 1 ? 'bin' : 'bins'}</span>
@@ -447,13 +433,13 @@ export default function GrainBins() {
         )}
 
         {/* Scale Ticket Upload */}
-        <div className="bg-white rounded-xl shadow-card border border-gray-100 p-4 sm:p-6 mb-6 sm:mb-8">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Upload Scale Ticket</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Scale Ticket</h2>
 
           <div
             className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all duration-200 ${
               dragActive
-                ? 'border-primary-500 bg-primary-50'
+                ? 'border-teal-500 bg-teal-50'
                 : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
             }`}
             onDragEnter={handleDrag}
@@ -476,7 +462,7 @@ export default function GrainBins() {
             >
               <div className="flex flex-col items-center">
                 {uploading ? (
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mb-3"></div>
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mb-3"></div>
                 ) : (
                   <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
                     <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -495,7 +481,7 @@ export default function GrainBins() {
 
         {/* Recent Scale Tickets */}
         {scaleTickets.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Scale Tickets</h2>
             <ResponsiveTable
               columns={[
@@ -589,7 +575,6 @@ export default function GrainBins() {
             />
           </div>
         )}
-      </div>
 
       {/* Modals */}
       <BinModal

@@ -284,9 +284,9 @@ export default function MarketingAI() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Marketing AI</h1>
           <p className="text-gray-600">Intelligent grain marketing signals and recommendations</p>
@@ -294,7 +294,7 @@ export default function MarketingAI() {
         <button
           onClick={handleGenerateSignals}
           disabled={generating}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center gap-2"
+          className="px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-teal-400 flex items-center justify-center gap-2 font-medium transition-colors"
         >
           {generating ? (
             <>
@@ -303,7 +303,9 @@ export default function MarketingAI() {
             </>
           ) : (
             <>
-              <span>&#x2699;</span>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
               Generate Signals
             </>
           )}
@@ -311,22 +313,22 @@ export default function MarketingAI() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Active Signals</p>
           <p className="text-2xl font-bold text-gray-900">{activeSignals.length}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Opportunities</p>
           <p className="text-2xl font-bold text-green-600">{strongSignals.length}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Corn Signals</p>
           <p className="text-2xl font-bold text-yellow-600">
             {activeSignals.filter(s => s.commodityType === CommodityType.CORN).length}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Soybean Signals</p>
           <p className="text-2xl font-bold text-green-600">
             {activeSignals.filter(s => s.commodityType === CommodityType.SOYBEANS).length}
@@ -335,11 +337,11 @@ export default function MarketingAI() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-wrap gap-4">
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as SignalStatus | 'ALL')}
-          className="px-3 py-2 border rounded-lg text-sm"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-teal-500 focus:ring-teal-500"
         >
           <option value="ALL">All Statuses</option>
           <option value="ACTIVE">Active</option>
@@ -350,7 +352,7 @@ export default function MarketingAI() {
         <select
           value={commodityFilter}
           onChange={e => setCommodityFilter(e.target.value as CommodityType | 'ALL')}
-          className="px-3 py-2 border rounded-lg text-sm"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-teal-500 focus:ring-teal-500"
         >
           <option value="ALL">All Commodities</option>
           <option value="CORN">Corn</option>
@@ -360,7 +362,7 @@ export default function MarketingAI() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
@@ -371,10 +373,18 @@ export default function MarketingAI() {
           <h2 className="text-lg font-semibold text-gray-900">Marketing Signals</h2>
 
           {loading ? (
-            <div className="text-center py-8 text-gray-500">Loading signals...</div>
+            <div className="text-center py-8 text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-2"></div>
+              Loading signals...
+            </div>
           ) : signals.length === 0 ? (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <p className="text-gray-500 mb-4">No signals found.</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <p className="text-gray-600 mb-2">No signals found.</p>
               <p className="text-sm text-gray-400">
                 Click "Generate Signals" to analyze market conditions and generate recommendations.
               </p>
@@ -400,30 +410,31 @@ export default function MarketingAI() {
           {strategy ? (
             <StrategyCard recommendation={strategy} />
           ) : (
-            <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-              <p>Loading strategy recommendation...</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center text-gray-500">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600 mx-auto mb-2"></div>
+              <p>Loading strategy...</p>
             </div>
           )}
 
           {/* Quick Links */}
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="font-medium text-gray-900 mb-3">Quick Links</h3>
             <div className="space-y-2">
               <a
                 href="/grain-contracts/dashboard"
-                className="block text-sm text-blue-600 hover:text-blue-800"
+                className="block text-sm text-teal-600 hover:text-teal-800"
               >
                 View Grain Dashboard
               </a>
               <a
                 href="/breakeven"
-                className="block text-sm text-blue-600 hover:text-blue-800"
+                className="block text-sm text-teal-600 hover:text-teal-800"
               >
                 Break-Even Calculator
               </a>
               <a
                 href="/grain-contracts"
-                className="block text-sm text-blue-600 hover:text-blue-800"
+                className="block text-sm text-teal-600 hover:text-teal-800"
               >
                 Manage Contracts
               </a>

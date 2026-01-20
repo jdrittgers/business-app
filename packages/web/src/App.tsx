@@ -5,6 +5,7 @@ import { useRetailerAuthStore } from './store/retailerAuthStore';
 import { useSocket } from './hooks/useSocket';
 import { registerServiceWorker } from './utils/push-notifications';
 import { UserRole } from '@business-app/shared';
+import AppLayout from './components/layout/AppLayout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import FarmerRegister from './pages/FarmerRegister';
@@ -36,8 +37,15 @@ import DeletedItems from './pages/DeletedItems';
 import MarketingAI from './pages/MarketingAI';
 import RequireRole from './components/RequireRole';
 
+// Wrapper for authenticated routes with layout
+function AuthRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  return <AppLayout>{children}</AppLayout>;
+}
+
 function App() {
-  const { loadUser, isAuthenticated } = useAuthStore();
+  const { loadUser } = useAuthStore();
   const { loadRetailer, isAuthenticated: isRetailerAuthenticated } = useRetailerAuthStore();
 
   // Initialize socket connection
@@ -57,92 +65,29 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<FarmerRegister />} />
       <Route path="/accept-invitation" element={<AcceptInvitation />} />
-      <Route
-        path="/dashboard"
-        element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/team"
-        element={isAuthenticated ? <TeamManagement /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/settings"
-        element={isAuthenticated ? <UserSettings /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/calendar"
-        element={isAuthenticated ? <Calendar /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/tasks"
-        element={isAuthenticated ? <Tasks /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/grain-contracts"
-        element={isAuthenticated ? <GrainContracts /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/grain-contracts/production"
-        element={isAuthenticated ? <GrainProduction /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/grain-contracts/dashboard"
-        element={isAuthenticated ? <GrainDashboard /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/breakeven"
-        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><BreakEven /></RequireRole> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/breakeven/products"
-        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/breakeven/farms"
-        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmManagement /></RequireRole> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/breakeven/farms/:farmId/costs"
-        element={isAuthenticated ? <RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/input-bids"
-        element={isAuthenticated ? <InputBids /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/invoice-parsing"
-        element={isAuthenticated ? <InvoiceParsing /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/grain-contracts/bins"
-        element={isAuthenticated ? <GrainBins /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/grain-contracts/offers"
-        element={isAuthenticated ? <FarmerGrainOffers /> : <Navigate to="/login" />}
-      />
+      <Route path="/dashboard" element={<AuthRoute><Dashboard /></AuthRoute>} />
+      <Route path="/team" element={<AuthRoute><TeamManagement /></AuthRoute>} />
+      <Route path="/settings" element={<AuthRoute><UserSettings /></AuthRoute>} />
+      <Route path="/calendar" element={<AuthRoute><Calendar /></AuthRoute>} />
+      <Route path="/tasks" element={<AuthRoute><Tasks /></AuthRoute>} />
+      <Route path="/grain-contracts" element={<AuthRoute><GrainContracts /></AuthRoute>} />
+      <Route path="/grain-contracts/production" element={<AuthRoute><GrainProduction /></AuthRoute>} />
+      <Route path="/grain-contracts/dashboard" element={<AuthRoute><GrainDashboard /></AuthRoute>} />
+      <Route path="/breakeven" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><BreakEven /></RequireRole></AuthRoute>} />
+      <Route path="/breakeven/products" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole></AuthRoute>} />
+      <Route path="/breakeven/farms" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmManagement /></RequireRole></AuthRoute>} />
+      <Route path="/breakeven/farms/:farmId/costs" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole></AuthRoute>} />
+      <Route path="/input-bids" element={<AuthRoute><InputBids /></AuthRoute>} />
+      <Route path="/invoice-parsing" element={<AuthRoute><InvoiceParsing /></AuthRoute>} />
+      <Route path="/grain-contracts/bins" element={<AuthRoute><GrainBins /></AuthRoute>} />
+      <Route path="/grain-contracts/offers" element={<AuthRoute><FarmerGrainOffers /></AuthRoute>} />
 
       {/* Subscription Routes */}
-      <Route
-        path="/pricing"
-        element={isAuthenticated ? <PricingPage /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/subscription"
-        element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/subscription/success"
-        element={isAuthenticated ? <SubscriptionManagement /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/deleted-items"
-        element={isAuthenticated ? <DeletedItems /> : <Navigate to="/login" />}
-      />
-      <Route
-        path="/marketing-ai"
-        element={isAuthenticated ? <MarketingAI /> : <Navigate to="/login" />}
-      />
+      <Route path="/pricing" element={<AuthRoute><PricingPage /></AuthRoute>} />
+      <Route path="/subscription" element={<AuthRoute><SubscriptionManagement /></AuthRoute>} />
+      <Route path="/subscription/success" element={<AuthRoute><SubscriptionManagement /></AuthRoute>} />
+      <Route path="/deleted-items" element={<AuthRoute><DeletedItems /></AuthRoute>} />
+      <Route path="/marketing-ai" element={<AuthRoute><MarketingAI /></AuthRoute>} />
 
       {/* Retailer Routes */}
       <Route path="/retailer/login" element={<RetailerLogin />} />
