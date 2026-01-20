@@ -319,3 +319,21 @@ export interface UpdateOldCropInventoryRequest {
   unpricedBushels: number;
   cropYear: number;
 }
+
+// ===== LOCAL BASIS TYPES =====
+
+export interface LocalBasis {
+  id: string;
+  businessId: string;
+  commodityType: CommodityType;
+  basisValue: number; // e.g., -0.25 for 25 cents under
+  notes: string | null;
+  updatedAt: Date;
+  createdAt: Date;
+}
+
+export interface UpdateLocalBasisRequest {
+  commodityType: CommodityType;
+  basisValue: number;
+  notes?: string;
+}

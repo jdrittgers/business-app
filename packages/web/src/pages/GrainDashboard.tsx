@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/authStore';
 import { analyticsApi } from '../api/analytics.api';
 import { grainBinsApi } from '../api/grain-bins.api';
 import { oldCropInventoryApi } from '../api/old-crop-inventory.api';
-import { DashboardSummary, GrainBin, OldCropInventory, CommodityType } from '@business-app/shared';
+import { localBasisApi } from '../api/local-basis.api';
+import { DashboardSummary, GrainBin, OldCropInventory, LocalBasis, CommodityType } from '@business-app/shared';
 import DashboardCard from '../components/grain/DashboardCard';
 import ProgressBar from '../components/grain/ProgressBar';
 import PieChart from '../components/grain/PieChart';
@@ -25,6 +26,10 @@ export default function GrainDashboard() {
   const [oldCropExpanded, setOldCropExpanded] = useState(false);
   const [editingOldCrop, setEditingOldCrop] = useState<{commodity: CommodityType, bushels: string} | null>(null);
   const [savingOldCrop, setSavingOldCrop] = useState(false);
+  const [localBasis, setLocalBasis] = useState<LocalBasis[]>([]);
+  const [basisExpanded, setBasisExpanded] = useState(false);
+  const [editingBasis, setEditingBasis] = useState<{commodity: CommodityType, value: string, notes: string} | null>(null);
+  const [savingBasis, setSavingBasis] = useState(false);
 
   useEffect(() => {
     if (user && user.businessMemberships.length > 0 && !selectedBusinessId) {
@@ -71,6 +76,15 @@ export default function GrainDashboard() {
         console.error('Failed to load old crop inventory:', oldCropErr);
         setOldCropInventory([]);
       }
+
+      // Load local basis separately
+      try {
+        const basisData = await localBasisApi.getBasis(selectedBusinessId);
+        setLocalBasis(basisData);
+      } catch (basisErr) {
+        console.error('Failed to load local basis:', basisErr);
+        setLocalBasis([]);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
@@ -109,6 +123,39 @@ export default function GrainDashboard() {
       inv => inv.commodityType === commodity && inv.cropYear === oldCropYear
     );
     return entry?.unpricedBushels || 0;
+  };
+
+  const handleSaveBasis = async (commodity: CommodityType, value: number, notes: string) => {
+    if (!selectedBusinessId) return;
+
+    setSavingBasis(true);
+    try {
+      await localBasisApi.updateBasis(selectedBusinessId, {
+        commodityType: commodity,
+        basisValue: value,
+        notes: notes || undefined
+      });
+
+      // Reload basis
+      const updatedBasis = await localBasisApi.getBasis(selectedBusinessId);
+      setLocalBasis(updatedBasis);
+      setEditingBasis(null);
+    } catch (err: any) {
+      console.error('Failed to save local basis:', err);
+      alert('Failed to save local basis');
+    } finally {
+      setSavingBasis(false);
+    }
+  };
+
+  const getBasisValue = (commodity: CommodityType): number | null => {
+    const entry = localBasis.find(b => b.commodityType === commodity);
+    return entry?.basisValue ?? null;
+  };
+
+  const getBasisNotes = (commodity: CommodityType): string => {
+    const entry = localBasis.find(b => b.commodityType === commodity);
+    return entry?.notes || '';
   };
 
   if (!user) return null;
@@ -346,6 +393,133 @@ export default function GrainDashboard() {
 
                   <p className="mt-4 text-xs text-gray-500 text-center">
                     Old crop inventory is tracked separately and does not affect new crop break-even calculations.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Local Basis Section */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <button
+                onClick={() => setBasisExpanded(!basisExpanded)}
+                className="w-full px-6 py-4 flex items-center justify-between bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">📊</span>
+                  <div className="text-left">
+                    <h3 className="text-lg font-semibold text-gray-900">Local Basis</h3>
+                    <p className="text-sm text-gray-500">Your local cash price basis by commodity</p>
+                  </div>
+                </div>
+                <svg
+                  className={`w-5 h-5 text-gray-500 transition-transform ${basisExpanded ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {basisExpanded && (
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {(['CORN', 'SOYBEANS', 'WHEAT'] as CommodityType[]).map((commodity) => {
+                      const basisValue = getBasisValue(commodity);
+                      const notes = getBasisNotes(commodity);
+                      const isEditing = editingBasis?.commodity === commodity;
+
+                      return (
+                        <div
+                          key={commodity}
+                          className="border rounded-lg p-4"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl">
+                                {commodity === 'CORN' ? '🌽' : commodity === 'SOYBEANS' ? '🫘' : '🌾'}
+                              </span>
+                              <span className="font-medium text-gray-900">{commodity}</span>
+                            </div>
+                            {!isEditing && (
+                              <button
+                                onClick={() => setEditingBasis({
+                                  commodity,
+                                  value: basisValue?.toString() || '',
+                                  notes: notes
+                                })}
+                                className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingBasis.value}
+                                  onChange={(e) => setEditingBasis({
+                                    ...editingBasis,
+                                    value: e.target.value
+                                  })}
+                                  className="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                  placeholder="-0.25"
+                                  autoFocus
+                                />
+                                <span className="text-sm text-gray-500">/bu</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={editingBasis.notes}
+                                onChange={(e) => setEditingBasis({
+                                  ...editingBasis,
+                                  notes: e.target.value
+                                })}
+                                className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Notes (e.g., ADM Decatur)"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleSaveBasis(
+                                    commodity,
+                                    parseFloat(editingBasis.value) || 0,
+                                    editingBasis.notes
+                                  )}
+                                  disabled={savingBasis}
+                                  className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                                >
+                                  {savingBasis ? '...' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={() => setEditingBasis(null)}
+                                  className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className={`text-lg font-semibold ${basisValue !== null ? (basisValue >= 0 ? 'text-green-600' : 'text-red-600') : 'text-gray-400'}`}>
+                                {basisValue !== null ? `${basisValue >= 0 ? '+' : ''}${basisValue.toFixed(2)}/bu` : 'Not set'}
+                              </p>
+                              {notes && (
+                                <p className="text-xs text-gray-500 mt-1">{notes}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <p className="mt-4 text-xs text-gray-500 text-center">
+                    Basis is the difference between your local cash price and the futures price. Enter as dollars (e.g., -0.25 for 25 cents under).
                   </p>
                 </div>
               )}

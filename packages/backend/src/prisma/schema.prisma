@@ -137,6 +137,7 @@ model Business {
   subscription         BusinessSubscription?
   marketingPreferences MarketingPreferences?
   oldCropInventory     OldCropInventory[]
+  localBasis           LocalBasis[]
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -158,6 +159,23 @@ model OldCropInventory {
   @@unique([businessId, commodityType, cropYear])
   @@index([businessId])
   @@map("old_crop_inventory")
+}
+
+model LocalBasis {
+  id            String        @id @default(uuid())
+  businessId    String        @map("business_id")
+  commodityType CommodityType @map("commodity_type")
+  basisValue    Decimal       @map("basis_value") @db.Decimal(10, 4) // e.g., -0.25 for 25 cents under
+  notes         String?       // Optional notes like "ADM Decatur" or "Local elevator"
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, commodityType])
+  @@index([businessId])
+  @@map("local_basis")
 }
 
 model BusinessMember {

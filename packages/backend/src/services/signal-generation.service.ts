@@ -7,6 +7,7 @@ import { NewsSentimentService } from './news-sentiment.service';
 import { GrainAnalyticsService } from './grain-analytics.service';
 import { SeasonalPatternsService } from './seasonal-patterns.service';
 import { oldCropInventoryService } from './old-crop-inventory.service';
+import { localBasisService } from './local-basis.service';
 import {
   CommodityType,
   MarketingSignalType,
@@ -168,13 +169,17 @@ export class SignalGenerationService {
 
       // Fetch current market data
       const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodity);
-      const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+      const estimatedBasis = await this.marketDataService.getAverageBasis(commodity);
       const trendAnalysis = await this.marketDataService.analyzePriceTrend(commodity);
 
       if (!futuresQuote) {
         console.log(`No futures data available for ${commodity}`);
         continue;
       }
+
+      // Check for user-entered local basis, otherwise use estimated
+      const localBasis = await localBasisService.getBasisByCommodity(businessId, commodity);
+      const avgBasis = localBasis ? localBasis.basisValue : estimatedBasis;
 
       // Determine crop year from futures contract
       const { cropYear, isNewCrop } = determineCropYear(
@@ -390,7 +395,9 @@ export class SignalGenerationService {
         if (!enabledCommodities.includes(commodity)) continue;
 
         const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodity);
-        const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+        const estimatedBasisAcc = await this.marketDataService.getAverageBasis(commodity);
+        const localBasisAcc = await localBasisService.getBasisByCommodity(businessId, commodity);
+        const avgBasis = localBasisAcc ? localBasisAcc.basisValue : estimatedBasisAcc;
         const trendAnalysis = await this.marketDataService.analyzePriceTrend(commodity);
 
         if (!futuresQuote) continue;
@@ -436,7 +443,9 @@ export class SignalGenerationService {
         if (!enabledCommodities.includes(commodity)) continue;
 
         const futuresQuote = await this.marketDataService.getNearestFuturesQuote(commodity);
-        const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+        const estimatedBasisOpt = await this.marketDataService.getAverageBasis(commodity);
+        const localBasisOpt = await localBasisService.getBasisByCommodity(businessId, commodity);
+        const avgBasis = localBasisOpt ? localBasisOpt.basisValue : estimatedBasisOpt;
         const trendAnalysis = await this.marketDataService.analyzePriceTrend(commodity);
 
         if (!futuresQuote) continue;
@@ -1865,7 +1874,9 @@ export class SignalGenerationService {
           if (!futuresQuote) continue;
 
           const currentPrice = futuresQuote.closePrice;
-          const avgBasis = await this.marketDataService.getAverageBasis(commodity);
+          const estimatedBasisTP = await this.marketDataService.getAverageBasis(commodity);
+          const localBasisTP = await localBasisService.getBasisByCommodity(businessId, commodity);
+          const avgBasis = localBasisTP ? localBasisTP.basisValue : estimatedBasisTP;
           const cashPrice = currentPrice + avgBasis;
 
           // Get estimated impact for this commodity
