@@ -623,6 +623,9 @@ export class SignalGenerationService {
     const priceAboveBreakeven = currentPrice - breakEvenPrice;
     const percentAboveBreakeven = breakEvenPrice > 0 ? priceAboveBreakeven / breakEvenPrice : 0;
 
+    // Check if this is old crop (break-even = 0 means old crop)
+    const isOldCrop = breakEvenPrice === 0;
+
     let strength: SignalStrength;
     let title: string;
     let summary: string;
@@ -672,6 +675,56 @@ export class SignalGenerationService {
         `with ${remainingBushels.toLocaleString()} bu remaining.`
       : '';
 
+    // OLD CROP SIGNAL LOGIC - no break-even comparison, focus on market conditions
+    if (isOldCrop && position && position.remainingBushels > 0) {
+      // For old crop, generate signals based on market conditions and inventory
+      const remainingBu = position.remainingBushels;
+
+      // Determine strength based on market conditions
+      if (trendAnalysis.trend === 'DOWN' && trendAnalysis.rsi > 70) {
+        // Market showing weakness - good time to sell old crop
+        strength = SignalStrength.STRONG_BUY;
+        title = `${commodityType} Old Crop Sale Opportunity`;
+        summary = `Market showing weakness (RSI: ${trendAnalysis.rsi.toFixed(0)}). Good time to move old crop inventory.`;
+      } else if (trendAnalysis.rsi > 60 || fundamentalAdjustment?.overallOutlook === 'BEARISH') {
+        strength = SignalStrength.BUY;
+        title = `${commodityType} Old Crop Sale Signal`;
+        summary = `Consider selling old crop inventory at current price of $${currentPrice.toFixed(2)}/bu.`;
+      } else {
+        strength = SignalStrength.HOLD;
+        title = `${commodityType} Old Crop Monitor`;
+        summary = `Monitor old crop inventory. Current price: $${currentPrice.toFixed(2)}/bu.`;
+      }
+
+      // Calculate recommended bushels (suggest selling 20-30% of old crop)
+      const oldCropSellPct = strength === SignalStrength.STRONG_BUY ? 0.30 : 0.20;
+      recommendedBushels = Math.round(remainingBu * oldCropSellPct);
+
+      rationale = `You have ${remainingBu.toLocaleString()} bushels of old crop to sell.${fundamentalRationale}${seasonalRationale}`;
+      recommendedAction = strength === SignalStrength.HOLD
+        ? `Monitor ${remainingBu.toLocaleString()} bu of old crop inventory`
+        : `Sell ${recommendedBushels.toLocaleString()} bushels of old crop at $${currentPrice.toFixed(2)}/bu`;
+
+      return {
+        businessId,
+        signalType: MarketingSignalType.CASH_SALE,
+        commodityType,
+        strength,
+        currentPrice,
+        breakEvenPrice: 0, // No break-even for old crop
+        priceAboveBreakeven: 0,
+        percentAboveBreakeven: 0,
+        title,
+        summary,
+        rationale,
+        marketContext,
+        recommendedBushels,
+        recommendedAction,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+      };
+    }
+
+    // NEW CROP SIGNAL LOGIC - uses break-even comparison
     // Determine signal strength based on conditions (using personalized thresholds)
     if (percentAboveBreakeven >= strongBuyThreshold &&
         trendAnalysis.trend === 'DOWN' &&
