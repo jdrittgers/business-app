@@ -1038,24 +1038,24 @@ export class SignalGenerationService {
         });
       }
 
-      // Check for double-up status - double-up occurs when price is ABOVE the double-up level
-      // (farmer gets to accumulate 2x bushels at favorable high prices)
-      if (currentPrice >= doubleUpPrice && !details.isCurrentlyDoubled) {
+      // Check for double-up status - double-up occurs when price DROPS BELOW the double-up level
+      // This is UNFAVORABLE - you're accumulating 2x bushels at below-market prices
+      if (currentPrice <= doubleUpPrice && currentPrice > knockoutPrice) {
         signals.push({
           businessId,
           grainEntityId: contract.grainEntityId,
           signalType: MarketingSignalType.ACCUMULATOR_STRATEGY,
           commodityType,
-          strength: SignalStrength.STRONG_BUY,
+          strength: SignalStrength.SELL, // Warning - unfavorable position
           currentPrice,
           breakEvenPrice: basePrice,
           priceAboveBreakeven: currentPrice - basePrice,
           percentAboveBreakeven: basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0,
-          title: `${commodityType} Accumulator Double-Up Active!`,
-          summary: `Price above $${doubleUpPrice.toFixed(2)} triggers 2x daily accumulation at favorable prices.`,
-          rationale: `Current futures $${currentPrice.toFixed(2)} is above double-up trigger ($${doubleUpPrice.toFixed(2)}). ` +
-            `You're accumulating ${Number(details.dailyBushels) * 2} bushels/day instead of ${Number(details.dailyBushels)}. ` +
-            `This is favorable - more bushels marketed at high prices.`,
+          title: `${commodityType} Accumulator Double-Up Warning`,
+          summary: `Price dropped below $${doubleUpPrice.toFixed(2)} - accumulating 2x bushels at unfavorable prices.`,
+          rationale: `Current futures $${currentPrice.toFixed(2)} is below the double-up trigger ($${doubleUpPrice.toFixed(2)}). ` +
+            `You're now accumulating ${Number(details.dailyBushels) * 2} bushels/day at prices below what you could get on the open market. ` +
+            `Monitor closely - if price continues dropping toward knockout ($${knockoutPrice.toFixed(2)}), contract may terminate.`,
           marketContext: {
             futuresPrice: currentPrice,
             futuresMonth: futuresQuote.contractMonth,
@@ -1067,8 +1067,8 @@ export class SignalGenerationService {
               totalAccumulated: Number(details.totalBushelsMarketed)
             }
           },
-          recommendedAction: 'Great position - 2x accumulation at high prices. Monitor knockout level.',
-          expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days
+          recommendedAction: 'Consider your options: let it ride hoping for price recovery, or consult your merchandiser about alternatives.',
+          expiresAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000) // 1 day - check frequently
         });
       }
 
@@ -1187,30 +1187,31 @@ export class SignalGenerationService {
     if (conditionScore === 3 && percentAboveBreakeven >= 0.15 / riskMultiplier) {
       // Excellent conditions - strong inquiry signal
       strength = SignalStrength.STRONG_BUY;
-      title = `Check ${commodityType} Accumulator Pricing - Excellent Conditions`;
-      summary = `Market conditions are favorable for accumulator contracts. Contact your elevator for current pricing.`;
+      title = `Check ${commodityType} Accumulator Pricing`;
+      summary = `Market conditions may be favorable for accumulator contracts. Contact your elevator/merchandiser for current terms.`;
       rationale = `${commodityType} is ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even at $${currentCashPrice.toFixed(2)}/bu. ` +
-        `Volatility is ${volatilityLevel.toLowerCase()}, which typically means better accumulator terms. ` +
-        `${daysUntilHarvest} days until harvest provides good accumulation window.`;
-      recommendedAction = `If accumulator base price is above $${(breakEvenPrice + Number(preferences.targetProfitMargin)).toFixed(2)}, ` +
-        `consider marketing ${(marketingPercent * 100).toFixed(0)}% (${Math.round(totalBushels * marketingPercent).toLocaleString()} bu)`;
+        `Volatility is ${volatilityLevel.toLowerCase()}. ${daysUntilHarvest} days until harvest provides accumulation window. ` +
+        `Accumulator terms (base price, knockout, double-up levels) vary by merchandiser.`;
+      recommendedAction = `Contact your elevator for accumulator pricing. Look for a base price above your break-even ($${breakEvenPrice.toFixed(2)}/bu) ` +
+        `and ideally above current market. Terms vary by merchandiser - compare offerings.`;
     } else if (conditionScore >= 2) {
       // Good conditions - standard inquiry signal
       strength = SignalStrength.BUY;
-      title = `Consider ${commodityType} Accumulator Pricing`;
-      summary = `Current prices warrant checking accumulator offerings from your elevator.`;
+      title = `Consider ${commodityType} Accumulator Inquiry`;
+      summary = `Current prices warrant checking accumulator offerings. Terms vary by elevator.`;
       rationale = `${commodityType} at $${currentCashPrice.toFixed(2)}/bu is ${(percentAboveBreakeven * 100).toFixed(1)}% above your break-even of $${breakEvenPrice.toFixed(2)}/bu. ` +
         (volatilityAcceptable ? 'Market volatility is manageable. ' : 'Note: Higher volatility may affect terms. ') +
         (timingAcceptable ? `${daysUntilHarvest} days until harvest.` : 'Harvest approaching - shorter accumulation window.');
-      recommendedAction = `Check elevator for accumulator pricing. Look for base price above $${breakEvenPrice.toFixed(2)}/bu. ` +
-        `Consider ${(marketingPercent * 100).toFixed(0)}% if terms are favorable.`;
+      recommendedAction = `Ask your merchandiser about accumulator terms. Key things to evaluate: base price vs. break-even, ` +
+        `knockout level risk, and double-up trigger. Each elevator offers different terms.`;
     } else {
       // Marginal conditions - hold signal (informational)
       strength = SignalStrength.HOLD;
       title = `${commodityType} Accumulator Watch`;
-      summary = `Prices are reaching levels where accumulators may become attractive.`;
-      rationale = `Monitor ${commodityType} prices. Currently ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even.`;
-      recommendedAction = `Set price alert for $${(breakEvenPrice * (1 + percentThreshold)).toFixed(2)}/bu to check accumulator pricing.`;
+      summary = `Monitor prices - accumulators may become attractive if market improves.`;
+      rationale = `${commodityType} currently ${(percentAboveBreakeven * 100).toFixed(1)}% above break-even. ` +
+        `Accumulators work best when base price offered is above both break-even and current market.`;
+      recommendedAction = `Watch for price improvement. When checking accumulator terms, ensure base price exceeds your break-even of $${breakEvenPrice.toFixed(2)}/bu.`;
     }
 
     // Build market context with accumulator-specific info
