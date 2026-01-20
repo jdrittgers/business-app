@@ -54,16 +54,23 @@ export default function GrainDashboard() {
     setError(null);
 
     try {
-      const [dashboardData, binsData, oldCropData] = await Promise.all([
+      const [dashboardData, binsData] = await Promise.all([
         analyticsApi.getDashboardSummary(selectedBusinessId, {
           year: filterYear
         }),
-        grainBinsApi.getBinsByBusiness(selectedBusinessId),
-        oldCropInventoryApi.getInventory(selectedBusinessId)
+        grainBinsApi.getBinsByBusiness(selectedBusinessId)
       ]);
       setSummary(dashboardData);
       setBins(binsData);
-      setOldCropInventory(oldCropData);
+
+      // Load old crop inventory separately so it doesn't block the dashboard
+      try {
+        const oldCropData = await oldCropInventoryApi.getInventory(selectedBusinessId);
+        setOldCropInventory(oldCropData);
+      } catch (oldCropErr) {
+        console.error('Failed to load old crop inventory:', oldCropErr);
+        setOldCropInventory([]);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {

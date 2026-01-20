@@ -252,6 +252,11 @@ export class SignalGenerationService {
       let position = marketingPositions.get(commodity);
 
       // For old crop signals, use old crop inventory data instead of production data
+      // Also set break-even to 0 since it's not applicable for old crop
+      let effectiveBreakEvenPrice = breakEvenPrice;
+      let effectivePriceAboveBreakeven = priceAboveBreakeven;
+      let effectivePercentAboveBreakeven = percentAboveBreakeven;
+
       if (!isNewCrop) {
         const oldCropInventory = await oldCropInventoryService.getInventoryByCommodity(
           businessId,
@@ -274,6 +279,11 @@ export class SignalGenerationService {
             isHarvestComplete: true, // Old crop is already harvested
             averageSalePrice: 0
           };
+
+          // Old crop doesn't have a break-even (cost is from previous year)
+          effectiveBreakEvenPrice = 0;
+          effectivePriceAboveBreakeven = 0;
+          effectivePercentAboveBreakeven = 0;
         } else {
           // No old crop inventory - skip generating old crop signals for this commodity
           console.log(`No old crop inventory for ${commodity} year ${cropYear}, skipping old crop signals`);
@@ -290,7 +300,7 @@ export class SignalGenerationService {
           businessId,
           commodity,
           currentCashPrice,
-          breakEvenPrice,
+          effectiveBreakEvenPrice,
           commodityData.expectedBushels,
           preferences,
           marketContext,
@@ -304,6 +314,12 @@ export class SignalGenerationService {
           cashSignal.cropYear = cropYear;
           cashSignal.isNewCrop = isNewCrop;
           cashSignal.title = `[${cropYearLabel}] ${cashSignal.title}`;
+          // Override break-even values for old crop
+          if (!isNewCrop) {
+            cashSignal.breakEvenPrice = 0;
+            cashSignal.priceAboveBreakeven = 0;
+            cashSignal.percentAboveBreakeven = 0;
+          }
           allSignals.push(cashSignal);
         }
       }
@@ -314,7 +330,7 @@ export class SignalGenerationService {
           commodity,
           futuresQuote.closePrice,
           avgBasis,
-          breakEvenPrice,
+          effectiveBreakEvenPrice,
           commodityData.expectedBushels,
           preferences,
           marketContext,
@@ -324,6 +340,12 @@ export class SignalGenerationService {
           basisSignal.cropYear = cropYear;
           basisSignal.isNewCrop = isNewCrop;
           basisSignal.title = `[${cropYearLabel}] ${basisSignal.title}`;
+          // Override break-even values for old crop
+          if (!isNewCrop) {
+            basisSignal.breakEvenPrice = 0;
+            basisSignal.priceAboveBreakeven = 0;
+            basisSignal.percentAboveBreakeven = 0;
+          }
           allSignals.push(basisSignal);
         }
       }
@@ -334,7 +356,7 @@ export class SignalGenerationService {
           commodity,
           futuresQuote.closePrice,
           avgBasis,
-          breakEvenPrice,
+          effectiveBreakEvenPrice,
           commodityData.expectedBushels,
           preferences,
           marketContext,
@@ -344,6 +366,12 @@ export class SignalGenerationService {
           htaSignal.cropYear = cropYear;
           htaSignal.isNewCrop = isNewCrop;
           htaSignal.title = `[${cropYearLabel}] ${htaSignal.title}`;
+          // Override break-even values for old crop
+          if (!isNewCrop) {
+            htaSignal.breakEvenPrice = 0;
+            htaSignal.priceAboveBreakeven = 0;
+            htaSignal.percentAboveBreakeven = 0;
+          }
           allSignals.push(htaSignal);
         }
       }

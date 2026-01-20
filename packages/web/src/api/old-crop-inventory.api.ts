@@ -6,7 +6,7 @@ export const oldCropInventoryApi = {
    * Get all old crop inventory for a business
    */
   getInventory: async (businessId: string): Promise<OldCropInventory[]> => {
-    const response = await apiClient.get(`/businesses/${businessId}/old-crop-inventory`);
+    const response = await apiClient.get(`/api/businesses/${businessId}/old-crop-inventory`);
     return response.data;
   },
 
@@ -19,7 +19,7 @@ export const oldCropInventoryApi = {
     cropYear: number
   ): Promise<OldCropInventory> => {
     const response = await apiClient.get(
-      `/businesses/${businessId}/old-crop-inventory/${commodityType}/${cropYear}`
+      `/api/businesses/${businessId}/old-crop-inventory/${commodityType}/${cropYear}`
     );
     return response.data;
   },
@@ -32,7 +32,7 @@ export const oldCropInventoryApi = {
     data: UpdateOldCropInventoryRequest
   ): Promise<OldCropInventory> => {
     const response = await apiClient.put(
-      `/businesses/${businessId}/old-crop-inventory`,
+      `/api/businesses/${businessId}/old-crop-inventory`,
       data
     );
     return response.data;
@@ -47,7 +47,7 @@ export const oldCropInventoryApi = {
     cropYear: number
   ): Promise<void> => {
     await apiClient.delete(
-      `/businesses/${businessId}/old-crop-inventory/${commodityType}/${cropYear}`
+      `/api/businesses/${businessId}/old-crop-inventory/${commodityType}/${cropYear}`
     );
   }
 };
