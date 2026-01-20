@@ -342,7 +342,14 @@ export class SignalGenerationService {
           futuresQuote.contractMonth,
           futuresQuote.contractYear
         );
-        const inquiryCropLabel = inquiryIsNewCrop ? `${inquiryCropYear} New Crop` : `${inquiryCropYear} Old Crop`;
+
+        // IMPORTANT: Accumulators are ONLY for new crop - skip old crop
+        // Old crop grain is already harvested, so accumulating over time doesn't make sense
+        if (!inquiryIsNewCrop) {
+          continue;
+        }
+
+        const inquiryCropLabel = `${inquiryCropYear} New Crop`;
 
         const inquirySignal = await this.evaluateAccumulatorInquirySignal(
           businessId,
