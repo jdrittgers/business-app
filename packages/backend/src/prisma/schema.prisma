@@ -136,10 +136,28 @@ model Business {
   scaleTickets         ScaleTicket[]
   subscription         BusinessSubscription?
   marketingPreferences MarketingPreferences?
+  oldCropInventory     OldCropInventory[]
 
   @@index([latitude, longitude])
   @@index([deletedAt])
   @@map("businesses")
+}
+
+model OldCropInventory {
+  id              String        @id @default(uuid())
+  businessId      String        @map("business_id")
+  commodityType   CommodityType @map("commodity_type")
+  unpricedBushels Decimal       @default(0) @map("unpriced_bushels") @db.Decimal(15, 2)
+  cropYear        Int           @map("crop_year")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, commodityType, cropYear])
+  @@index([businessId])
+  @@map("old_crop_inventory")
 }
 
 model BusinessMember {

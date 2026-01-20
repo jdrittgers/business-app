@@ -9,6 +9,7 @@ import {
   CommodityType,
   StrategyRecommendation
 } from '@business-app/shared';
+import TakeActionModal from '../components/marketing/TakeActionModal';
 
 // Signal strength colors
 const strengthColors: Record<SignalStrength, { bg: string; text: string; border: string }> = {
@@ -47,10 +48,10 @@ const commodityColors: Record<CommodityType, string> = {
   WHEAT: 'bg-amber-600'
 };
 
-function SignalCard({ signal, onDismiss, onAction }: {
+function SignalCard({ signal, onDismiss, onTakeAction }: {
   signal: MarketingSignal;
   onDismiss: (id: string) => void;
-  onAction: (id: string, action: string) => void;
+  onTakeAction: (signal: MarketingSignal) => void;
 }) {
   const colors = strengthColors[signal.strength];
   const [showDetails, setShowDetails] = useState(false);
@@ -124,7 +125,7 @@ function SignalCard({ signal, onDismiss, onAction }: {
             </button>
             {(signal.strength === SignalStrength.STRONG_BUY || signal.strength === SignalStrength.BUY) && (
               <button
-                onClick={() => onAction(signal.id, 'Acted on recommendation')}
+                onClick={() => onTakeAction(signal)}
                 className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
               >
                 Take Action
@@ -189,6 +190,7 @@ export default function MarketingAI() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<SignalStatus | 'ALL'>(SignalStatus.ACTIVE);
   const [commodityFilter, setCommodityFilter] = useState<CommodityType | 'ALL'>('ALL');
+  const [actionSignal, setActionSignal] = useState<MarketingSignal | null>(null);
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
 
@@ -257,14 +259,20 @@ export default function MarketingAI() {
     }
   };
 
-  const handleAction = async (signalId: string, action: string) => {
-    if (!businessId) return;
+  const handleTakeAction = (signal: MarketingSignal) => {
+    setActionSignal(signal);
+  };
+
+  const handleActionSuccess = async () => {
+    if (!businessId || !actionSignal) return;
 
     try {
-      await marketingAiApi.recordAction(businessId, signalId, action);
+      // Mark the signal as triggered
+      await marketingAiApi.recordAction(businessId, actionSignal.id, 'Created contract from signal');
       setSignals(prev => prev.map(s =>
-        s.id === signalId ? { ...s, status: SignalStatus.TRIGGERED, actionTaken: action } : s
+        s.id === actionSignal.id ? { ...s, status: SignalStatus.TRIGGERED, actionTaken: 'Created contract from signal' } : s
       ));
+      setActionSignal(null);
     } catch (err) {
       console.error('Failed to record action:', err);
     }
@@ -396,7 +404,7 @@ export default function MarketingAI() {
                   key={signal.id}
                   signal={signal}
                   onDismiss={handleDismiss}
-                  onAction={handleAction}
+                  onTakeAction={handleTakeAction}
                 />
               ))}
             </div>
@@ -442,6 +450,16 @@ export default function MarketingAI() {
           </div>
         </div>
       </div>
+
+      {/* Take Action Modal */}
+      {actionSignal && businessId && (
+        <TakeActionModal
+          signal={actionSignal}
+          businessId={businessId}
+          onClose={() => setActionSignal(null)}
+          onSuccess={handleActionSuccess}
+        />
+      )}
     </div>
   );
 }

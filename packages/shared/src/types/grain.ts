@@ -301,3 +301,21 @@ export interface UpdateAccumulatorDetailsRequest {
   knockoutDate?: string;
   basisLocked?: boolean;
 }
+
+// ===== OLD CROP INVENTORY TYPES =====
+
+export interface OldCropInventory {
+  id: string;
+  businessId: string;
+  commodityType: CommodityType;
+  unpricedBushels: number;
+  cropYear: number;
+  updatedAt: Date;
+  createdAt: Date;
+}
+
+export interface UpdateOldCropInventoryRequest {
+  commodityType: CommodityType;
+  unpricedBushels: number;
+  cropYear: number;
+}

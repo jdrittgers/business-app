@@ -6,6 +6,7 @@ import { FundamentalDataService } from './fundamental-data.service';
 import { NewsSentimentService } from './news-sentiment.service';
 import { GrainAnalyticsService } from './grain-analytics.service';
 import { SeasonalPatternsService } from './seasonal-patterns.service';
+import { oldCropInventoryService } from './old-crop-inventory.service';
 import {
   CommodityType,
   MarketingSignalType,
@@ -248,7 +249,37 @@ export class SignalGenerationService {
       }
 
       // Get marketing position for this commodity (remaining bushels, progress toward target)
-      const position = marketingPositions.get(commodity);
+      let position = marketingPositions.get(commodity);
+
+      // For old crop signals, use old crop inventory data instead of production data
+      if (!isNewCrop) {
+        const oldCropInventory = await oldCropInventoryService.getInventoryByCommodity(
+          businessId,
+          commodity,
+          cropYear
+        );
+
+        if (oldCropInventory && oldCropInventory.unpricedBushels > 0) {
+          // Create a position based on old crop inventory
+          position = {
+            commodityType: commodity,
+            year: cropYear,
+            totalProjectedBushels: oldCropInventory.unpricedBushels,
+            totalContractedBushels: 0,
+            remainingBushels: oldCropInventory.unpricedBushels,
+            percentSold: 0,
+            preHarvestTarget: 1.0, // No pre-harvest target for old crop
+            percentToTarget: 0,
+            bushelsToTarget: 0,
+            isHarvestComplete: true, // Old crop is already harvested
+            averageSalePrice: 0
+          };
+        } else {
+          // No old crop inventory - skip generating old crop signals for this commodity
+          console.log(`No old crop inventory for ${commodity} year ${cropYear}, skipping old crop signals`);
+          continue;
+        }
+      }
 
       // Generate signals for each enabled marketing tool
       // All signals in this loop get the same crop year from the futures quote

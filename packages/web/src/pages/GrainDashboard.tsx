@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { analyticsApi } from '../api/analytics.api';
 import { grainBinsApi } from '../api/grain-bins.api';
-import { DashboardSummary, GrainBin } from '@business-app/shared';
+import { oldCropInventoryApi } from '../api/old-crop-inventory.api';
+import { DashboardSummary, GrainBin, OldCropInventory, CommodityType } from '@business-app/shared';
 import DashboardCard from '../components/grain/DashboardCard';
 import ProgressBar from '../components/grain/ProgressBar';
 import PieChart from '../components/grain/PieChart';
@@ -16,10 +17,14 @@ export default function GrainDashboard() {
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [bins, setBins] = useState<GrainBin[]>([]);
+  const [oldCropInventory, setOldCropInventory] = useState<OldCropInventory[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<number>(2026);
+  const [oldCropExpanded, setOldCropExpanded] = useState(false);
+  const [editingOldCrop, setEditingOldCrop] = useState<{commodity: CommodityType, bushels: string} | null>(null);
+  const [savingOldCrop, setSavingOldCrop] = useState(false);
 
   useEffect(() => {
     if (user && user.businessMemberships.length > 0 && !selectedBusinessId) {
@@ -49,19 +54,54 @@ export default function GrainDashboard() {
     setError(null);
 
     try {
-      const [dashboardData, binsData] = await Promise.all([
+      const [dashboardData, binsData, oldCropData] = await Promise.all([
         analyticsApi.getDashboardSummary(selectedBusinessId, {
           year: filterYear
         }),
-        grainBinsApi.getBinsByBusiness(selectedBusinessId)
+        grainBinsApi.getBinsByBusiness(selectedBusinessId),
+        oldCropInventoryApi.getInventory(selectedBusinessId)
       ]);
       setSummary(dashboardData);
       setBins(binsData);
+      setOldCropInventory(oldCropData);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load dashboard');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSaveOldCrop = async (commodity: CommodityType, bushels: number) => {
+    if (!selectedBusinessId) return;
+
+    setSavingOldCrop(true);
+    try {
+      // Use previous year as old crop year (e.g., 2025 for 2026 new crop year)
+      const oldCropYear = filterYear - 1;
+      await oldCropInventoryApi.updateInventory(selectedBusinessId, {
+        commodityType: commodity,
+        unpricedBushels: bushels,
+        cropYear: oldCropYear
+      });
+
+      // Reload inventory
+      const updatedInventory = await oldCropInventoryApi.getInventory(selectedBusinessId);
+      setOldCropInventory(updatedInventory);
+      setEditingOldCrop(null);
+    } catch (err: any) {
+      console.error('Failed to save old crop inventory:', err);
+      alert('Failed to save old crop inventory');
+    } finally {
+      setSavingOldCrop(false);
+    }
+  };
+
+  const getOldCropBushels = (commodity: CommodityType): number => {
+    const oldCropYear = filterYear - 1;
+    const entry = oldCropInventory.find(
+      inv => inv.commodityType === commodity && inv.cropYear === oldCropYear
+    );
+    return entry?.unpricedBushels || 0;
   };
 
   if (!user) return null;
@@ -199,6 +239,109 @@ export default function GrainDashboard() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Old Crop Inventory Section */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <button
+                onClick={() => setOldCropExpanded(!oldCropExpanded)}
+                className="w-full px-6 py-4 flex items-center justify-between bg-amber-50 hover:bg-amber-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">📦</span>
+                  <div className="text-left">
+                    <h3 className="text-lg font-semibold text-gray-900">Old Crop Inventory ({filterYear - 1})</h3>
+                    <p className="text-sm text-gray-500">Unpriced bushels from previous crop year</p>
+                  </div>
+                </div>
+                <svg
+                  className={`w-5 h-5 text-gray-500 transition-transform ${oldCropExpanded ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {oldCropExpanded && (
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {(['CORN', 'SOYBEANS', 'WHEAT'] as CommodityType[]).map((commodity) => {
+                      const bushels = getOldCropBushels(commodity);
+                      const isEditing = editingOldCrop?.commodity === commodity;
+
+                      return (
+                        <div
+                          key={commodity}
+                          className="border rounded-lg p-4 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">
+                              {commodity === 'CORN' ? '🌽' : commodity === 'SOYBEANS' ? '🫘' : '🌾'}
+                            </span>
+                            <div>
+                              <p className="font-medium text-gray-900">{commodity}</p>
+                              {isEditing ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <input
+                                    type="number"
+                                    value={editingOldCrop.bushels}
+                                    onChange={(e) => setEditingOldCrop({
+                                      commodity,
+                                      bushels: e.target.value
+                                    })}
+                                    className="w-28 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                                    placeholder="0"
+                                    autoFocus
+                                  />
+                                  <span className="text-sm text-gray-500">bu</span>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-amber-600 font-semibold">
+                                  {bushels > 0 ? `${bushels.toLocaleString()} bu unpriced` : 'No inventory'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {isEditing ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleSaveOldCrop(commodity, parseFloat(editingOldCrop.bushels) || 0)}
+                                disabled={savingOldCrop}
+                                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {savingOldCrop ? '...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => setEditingOldCrop(null)}
+                                className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingOldCrop({
+                                commodity,
+                                bushels: bushels.toString()
+                              })}
+                              className="px-3 py-1 text-sm bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <p className="mt-4 text-xs text-gray-500 text-center">
+                    Old crop inventory is tracked separately and does not affect new crop break-even calculations.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Grain Bin Storage Visual */}
