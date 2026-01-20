@@ -119,9 +119,11 @@ export interface CreateGrainContractRequest {
   notes?: string;
   // Accumulator specific fields
   accumulatorDetails?: {
+    accumulatorType?: AccumulatorType;
     knockoutPrice: number;
     doubleUpPrice: number;
     dailyBushels: number;
+    weeklyBushels?: number;
     startDate: string;
     endDate?: string;
     isDailyDouble?: boolean;

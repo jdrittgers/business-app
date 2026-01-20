@@ -7,7 +7,8 @@ import {
   GrainEntity,
   CropYear,
   ContractType,
-  CommodityType
+  CommodityType,
+  AccumulatorType
 } from '@business-app/shared';
 import { usePermissions } from '../hooks/usePermissions';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
@@ -51,11 +52,13 @@ export default function GrainContracts() {
     futuresMonth: '',
     basisPrice: '',
     // Accumulator specific fields
+    accumulatorType: 'WEEKLY' as AccumulatorType,
     isDailyDouble: false,
     basisLocked: false,
     knockoutPrice: '',
     doubleUpPrice: '',
-    dailyBushels: ''
+    dailyBushels: '',
+    weeklyBushels: ''
   });
 
   // Entity creation modal
@@ -208,11 +211,13 @@ export default function GrainContracts() {
       futuresPrice: '',
       futuresMonth: '',
       basisPrice: '',
+      accumulatorType: 'WEEKLY' as AccumulatorType,
       isDailyDouble: false,
       basisLocked: false,
       knockoutPrice: '',
       doubleUpPrice: '',
-      dailyBushels: ''
+      dailyBushels: '',
+      weeklyBushels: ''
     });
     setShowModal(true);
   };
@@ -235,11 +240,13 @@ export default function GrainContracts() {
       futuresPrice: contract.futuresPrice?.toString() || '',
       futuresMonth: contract.futuresMonth || '',
       basisPrice: contract.basisPrice?.toString() || '',
+      accumulatorType: (contract.accumulatorDetails?.accumulatorType || 'WEEKLY') as AccumulatorType,
       isDailyDouble: contract.accumulatorDetails?.isDailyDouble || false,
       basisLocked: contract.accumulatorDetails?.basisLocked || false,
       knockoutPrice: contract.accumulatorDetails?.knockoutPrice?.toString() || '',
       doubleUpPrice: contract.accumulatorDetails?.doubleUpPrice?.toString() || '',
-      dailyBushels: contract.accumulatorDetails?.dailyBushels?.toString() || ''
+      dailyBushels: contract.accumulatorDetails?.dailyBushels?.toString() || '',
+      weeklyBushels: contract.accumulatorDetails?.weeklyBushels?.toString() || ''
     });
     setShowModal(true);
   };
@@ -286,13 +293,16 @@ export default function GrainContracts() {
 
       // Add accumulator details if contract type is ACCUMULATOR
       if (formData.contractType === 'ACCUMULATOR') {
+        const dailyBu = parseFloat(formData.dailyBushels);
         contractData.accumulatorDetails = {
+          accumulatorType: formData.accumulatorType,
           knockoutPrice: parseFloat(formData.knockoutPrice),
           doubleUpPrice: parseFloat(formData.doubleUpPrice),
-          dailyBushels: parseFloat(formData.dailyBushels),
+          dailyBushels: dailyBu,
+          weeklyBushels: formData.accumulatorType === 'WEEKLY' ? dailyBu * 5 : undefined,
           startDate: formData.deliveryStartDate,
           endDate: formData.deliveryEndDate || undefined,
-          isDailyDouble: formData.isDailyDouble,
+          isDailyDouble: formData.accumulatorType === 'DAILY',
           basisLocked: formData.basisLocked
         };
       }
@@ -560,6 +570,15 @@ export default function GrainContracts() {
                           <span className={`px-2 py-1 text-xs rounded-full ${getContractTypeColor(contract.contractType)}`}>
                             {contract.contractType}
                           </span>
+                          {/* Show accumulator type badge */}
+                          {contract.contractType === 'ACCUMULATOR' && contract.accumulatorDetails && (
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                              {contract.accumulatorDetails.accumulatorType === 'DAILY' && 'Daily Double'}
+                              {contract.accumulatorDetails.accumulatorType === 'WEEKLY' && 'Weekly Double'}
+                              {contract.accumulatorDetails.accumulatorType === 'EURO' && 'Euro'}
+                              {!contract.accumulatorDetails.accumulatorType && 'Standard'}
+                            </span>
+                          )}
                           {/* Show HTA badge if accumulator with basis not locked */}
                           {contract.contractType === 'ACCUMULATOR' && contract.accumulatorDetails && !contract.accumulatorDetails.basisLocked && (
                             <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
@@ -597,10 +616,25 @@ export default function GrainContracts() {
                           {contract.accumulatorDetails && (
                             <>
                               <div>
-                                <span className="font-medium">Daily:</span> {contract.accumulatorDetails.dailyBushels.toLocaleString()} bu
+                                <span className="font-medium">Type:</span>{' '}
+                                {contract.accumulatorDetails.accumulatorType === 'DAILY' && 'Daily Double'}
+                                {contract.accumulatorDetails.accumulatorType === 'WEEKLY' && 'Weekly Double'}
+                                {contract.accumulatorDetails.accumulatorType === 'EURO' && 'Euro (End)'}
+                                {!contract.accumulatorDetails.accumulatorType && 'Standard'}
+                              </div>
+                              <div>
+                                <span className="font-medium">
+                                  {contract.accumulatorDetails.accumulatorType === 'WEEKLY' ? 'Weekly:' : 'Daily:'}
+                                </span>{' '}
+                                {contract.accumulatorDetails.accumulatorType === 'WEEKLY'
+                                  ? `${(contract.accumulatorDetails.weeklyBushels || contract.accumulatorDetails.dailyBushels * 5).toLocaleString()} bu`
+                                  : `${contract.accumulatorDetails.dailyBushels.toLocaleString()} bu`}
                               </div>
                               <div>
                                 <span className="font-medium">Knockout:</span> ${contract.accumulatorDetails.knockoutPrice.toFixed(4)}
+                              </div>
+                              <div>
+                                <span className="font-medium">Double Up:</span> ${contract.accumulatorDetails.doubleUpPrice.toFixed(4)}
                               </div>
                             </>
                           )}
@@ -879,6 +913,50 @@ export default function GrainContracts() {
               {formData.contractType === 'ACCUMULATOR' && (
                 <div className="border-t pt-4 mt-4">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Accumulator Details</h3>
+
+                  {/* Accumulator Type Selection */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Accumulator Type *</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, accumulatorType: 'DAILY' as AccumulatorType })}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          formData.accumulatorType === 'DAILY'
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <div className="font-semibold">Daily Double</div>
+                        <div className="text-xs mt-1 text-gray-500">Doubles each day price is below trigger</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, accumulatorType: 'WEEKLY' as AccumulatorType })}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          formData.accumulatorType === 'WEEKLY'
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <div className="font-semibold">Weekly Double</div>
+                        <div className="text-xs mt-1 text-gray-500">Doubles weekly if Friday close is below trigger</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, accumulatorType: 'EURO' as AccumulatorType })}
+                        className={`p-3 rounded-lg border-2 text-center transition-all ${
+                          formData.accumulatorType === 'EURO'
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                        }`}
+                      >
+                        <div className="font-semibold">Euro (End Double)</div>
+                        <div className="text-xs mt-1 text-gray-500">Entire contract doubles at expiration</div>
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Knockout Price ($/bu) *</label>
@@ -921,55 +999,115 @@ export default function GrainContracts() {
                       />
                       <p className="text-xs text-gray-500 mt-1">Calculated from total bushels ÷ number of days</p>
                     </div>
-                    <div className="flex flex-col justify-center">
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="isDailyDouble"
-                          checked={formData.isDailyDouble}
-                          onChange={(e) => setFormData({ ...formData, isDailyDouble: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="isDailyDouble" className="ml-2 block text-sm font-medium text-gray-700">
-                          Daily Double Accumulator
+                    {formData.accumulatorType === 'WEEKLY' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Weekly Bushels
+                          <span className="text-xs text-gray-500 font-normal ml-2">(Auto-calculated)</span>
                         </label>
-                      </div>
-                      <div className="flex items-center mt-2">
                         <input
-                          type="checkbox"
-                          id="basisLocked"
-                          checked={formData.basisLocked}
-                          onChange={(e) => setFormData({ ...formData, basisLocked: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          type="number"
+                          step="0.01"
+                          value={formData.weeklyBushels || (parseFloat(formData.dailyBushels || '0') * 5).toFixed(2)}
+                          onChange={(e) => setFormData({ ...formData, weeklyBushels: e.target.value })}
+                          className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-50"
+                          placeholder="Daily × 5"
+                          readOnly
                         />
-                        <label htmlFor="basisLocked" className="ml-2 block text-sm font-medium text-gray-700">
-                          Basis Locked
-                        </label>
+                        <p className="text-xs text-gray-500 mt-1">Daily bushels × 5 trading days</p>
                       </div>
-                    </div>
+                    )}
+                    {formData.accumulatorType !== 'WEEKLY' && (
+                      <div className="flex flex-col justify-center">
+                        <div className="flex items-center mt-2">
+                          <input
+                            type="checkbox"
+                            id="basisLocked"
+                            checked={formData.basisLocked}
+                            onChange={(e) => setFormData({ ...formData, basisLocked: e.target.checked })}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="basisLocked" className="ml-2 block text-sm font-medium text-gray-700">
+                            Basis Locked
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Daily Bushels Calculation Display */}
+                  {/* Basis Locked for WEEKLY type */}
+                  {formData.accumulatorType === 'WEEKLY' && (
+                    <div className="flex items-center mt-2">
+                      <input
+                        type="checkbox"
+                        id="basisLockedWeekly"
+                        checked={formData.basisLocked}
+                        onChange={(e) => setFormData({ ...formData, basisLocked: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="basisLockedWeekly" className="ml-2 block text-sm font-medium text-gray-700">
+                        Basis Locked
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Bushels Calculation Display */}
                   {formData.deliveryStartDate && formData.totalBushels && (
-                    <div className="mt-3 p-3 bg-green-50 rounded-md border border-green-200">
-                      <p className="text-sm text-gray-900">
-                        <strong>Calculated Daily Bushels:</strong> {calculateDailyBushels().toFixed(2)} bu/day
-                        <span className="text-gray-600 ml-2">
-                          ({parseFloat(formData.totalBushels).toLocaleString()} bu ÷ {calculateDays()} days)
-                        </span>
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Date range: {formData.deliveryStartDate} to {formData.deliveryEndDate || 'today'}
-                      </p>
+                    <div className="mt-4 p-4 bg-green-50 rounded-md border border-green-200">
+                      <div className="font-semibold text-green-800 mb-2">
+                        {formData.accumulatorType === 'DAILY' && 'Daily Double Accumulation'}
+                        {formData.accumulatorType === 'WEEKLY' && 'Weekly Double Accumulation'}
+                        {formData.accumulatorType === 'EURO' && 'Euro (End Double) Accumulation'}
+                      </div>
+                      <div className="text-sm text-gray-900 space-y-1">
+                        <p>
+                          <strong>Daily Bushels:</strong> {calculateDailyBushels().toFixed(2)} bu/day
+                        </p>
+                        {formData.accumulatorType === 'WEEKLY' && (
+                          <p>
+                            <strong>Weekly Bushels:</strong> {(calculateDailyBushels() * 5).toFixed(2)} bu/week
+                          </p>
+                        )}
+                        <p>
+                          <strong>Total Days:</strong> {calculateDays()} days
+                        </p>
+                        <p>
+                          <strong>Total Bushels:</strong> {parseFloat(formData.totalBushels).toLocaleString()} bu
+                        </p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          Date range: {formData.deliveryStartDate} to {formData.deliveryEndDate || 'today'}
+                        </p>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-green-200">
+                        <p className="text-sm text-gray-700">
+                          {formData.accumulatorType === 'DAILY' && (
+                            <>Each day market price is below <strong>${formData.doubleUpPrice || '?'}</strong>, that day's {calculateDailyBushels().toFixed(2)} bu doubles to {(calculateDailyBushels() * 2).toFixed(2)} bu.</>
+                          )}
+                          {formData.accumulatorType === 'WEEKLY' && (
+                            <>If Friday close is below <strong>${formData.doubleUpPrice || '?'}</strong>, that week's {(calculateDailyBushels() * 5).toFixed(2)} bu doubles to {(calculateDailyBushels() * 10).toFixed(2)} bu.</>
+                          )}
+                          {formData.accumulatorType === 'EURO' && (
+                            <>Bushels accumulate daily. At contract end, if price is below <strong>${formData.doubleUpPrice || '?'}</strong>, the entire contract ({parseFloat(formData.totalBushels).toLocaleString()} bu) doubles.</>
+                          )}
+                        </p>
+                      </div>
                     </div>
                   )}
 
                   <div className="mt-3 p-3 bg-blue-50 rounded-md">
                     <p className="text-sm text-gray-700">
-                      <strong>Knockout Price:</strong> Market price at which the contract stops accumulating.<br/>
-                      <strong>Double Up Price:</strong> Trigger price for daily double (if enabled).<br/>
-                      <strong>Daily Bushels:</strong> Auto-calculated from total bushels divided by number of days.<br/>
-                      <strong>Basis Locked:</strong> Check if basis is locked. If unchecked, accumulator acts as HTA until basis is locked.
+                      <strong>Knockout Price:</strong> If market drops to this price, contract stops accumulating.<br/>
+                      <strong>Double Up Price:</strong> Price trigger for doubling bushels.<br/>
+                      {formData.accumulatorType === 'DAILY' && (
+                        <><strong>Daily Double:</strong> Each day price is below trigger, that day's bushels double.<br/></>
+                      )}
+                      {formData.accumulatorType === 'WEEKLY' && (
+                        <><strong>Weekly Double:</strong> If Friday close is below trigger, that week's bushels double.<br/></>
+                      )}
+                      {formData.accumulatorType === 'EURO' && (
+                        <><strong>Euro (End Double):</strong> If price is below trigger at contract end, entire contract doubles.<br/></>
+                      )}
+                      <strong>Basis Locked:</strong> If unchecked, accumulator acts as HTA until basis is locked.
                     </p>
                   </div>
                 </div>

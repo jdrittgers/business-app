@@ -123,12 +123,14 @@ export class GrainContractService {
         notes: data.notes,
         accumulatorDetails: data.accumulatorDetails ? {
           create: {
+            accumulatorType: data.accumulatorDetails.accumulatorType || 'WEEKLY',
             knockoutPrice: data.accumulatorDetails.knockoutPrice,
             doubleUpPrice: data.accumulatorDetails.doubleUpPrice,
             dailyBushels: data.accumulatorDetails.dailyBushels,
+            weeklyBushels: data.accumulatorDetails.weeklyBushels || (data.accumulatorDetails.dailyBushels * 5),
             startDate: new Date(data.accumulatorDetails.startDate),
             endDate: data.accumulatorDetails.endDate ? new Date(data.accumulatorDetails.endDate) : null,
-            isDailyDouble: data.accumulatorDetails.isDailyDouble || false,
+            isDailyDouble: data.accumulatorDetails.accumulatorType === 'DAILY',
             basisLocked: data.accumulatorDetails.basisLocked || false
           }
         } : undefined
