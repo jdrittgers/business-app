@@ -27,7 +27,10 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx prisma migrate deploy:*)",
       "Bash(npx tsx:*)",
       "WebSearch",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx prisma migrate dev:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npm run dev:*)",
+      "Bash(timeout 15 tail:*)"
     ]
   }
 }

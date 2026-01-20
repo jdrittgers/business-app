@@ -1042,24 +1042,27 @@ export class SignalGenerationService {
       // This is an AWARENESS signal - farmer needs to know they're accumulating at 2x rate
       const accumulatorType = (details as any).accumulatorType || 'DAILY';
       const totalDoubledBushels = Number((details as any).totalDoubledBushels) || 0;
+      const dailyBu = Number(details.dailyBushels);
+
+      // Calculate estimated accumulated bushels based on days elapsed since start
+      const startDate = new Date(details.startDate);
+      const today = new Date();
+      const daysElapsed = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const estimatedAccumulated = Math.round(daysElapsed * dailyBu);
 
       if (currentPrice <= doubleUpPrice && currentPrice > knockoutPrice) {
         // Status notification - double-up is active
-        const accTypeLabel = accumulatorType === 'EURO' ? 'Euro' :
-                            accumulatorType === 'WEEKLY' ? 'Weekly' : 'Daily';
-        const dailyBu = Number(details.dailyBushels);
-
         let rateInfo = '';
         switch (accumulatorType) {
           case 'EURO':
-            rateInfo = `${dailyBu.toLocaleString()} bu/day | Doubles at expiration`;
+            rateInfo = `${dailyBu.toFixed(0)} bu/day | Doubles at expiration`;
             break;
           case 'WEEKLY':
-            rateInfo = `${(dailyBu * 10).toLocaleString()} bu/week (2x)`;
+            rateInfo = `${(dailyBu * 10).toFixed(0)} bu/week (2x rate)`;
             break;
           case 'DAILY':
           default:
-            rateInfo = `${(dailyBu * 2).toLocaleString()} bu/day (2x)`;
+            rateInfo = `${(dailyBu * 2).toFixed(0)} bu/day (2x rate)`;
         }
 
         signals.push({
@@ -1074,7 +1077,7 @@ export class SignalGenerationService {
           percentAboveBreakeven: basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0,
           title: `${commodityType} Accumulator Status`,
           summary: `Double-up active | Base: $${basePrice.toFixed(2)} | Market: $${currentPrice.toFixed(2)}`,
-          rationale: rateInfo,
+          rationale: `${rateInfo} | ~${estimatedAccumulated.toLocaleString()} bu est. accumulated (${daysElapsed} days)`,
           marketContext: {
             futuresPrice: currentPrice,
             futuresMonth: futuresQuote.contractMonth,
@@ -1083,33 +1086,32 @@ export class SignalGenerationService {
               knockoutPrice,
               doubleUpPrice,
               dailyBushels: dailyBu,
-              totalAccumulated: Number(details.totalBushelsMarketed),
+              totalAccumulated: estimatedAccumulated,
               totalDoubledBushels,
               accumulatorType,
               isCurrentlyDoubled: true
             }
           },
-          recommendedAction: `Accumulated: ${Number(details.totalBushelsMarketed).toLocaleString()} bu | Knockout: $${knockoutPrice.toFixed(2)}`,
+          recommendedAction: `Knockout: $${knockoutPrice.toFixed(2)} | Double-up trigger: $${doubleUpPrice.toFixed(2)}`,
           expiresAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000)
         });
       }
 
       // Normal accumulation status (price above double-up trigger)
       if (currentPrice > doubleUpPrice) {
-        const dailyBu = Number(details.dailyBushels);
         const weeklyBu = accumulatorType === 'WEEKLY' ? dailyBu * 5 : dailyBu * 7;
 
         let rateInfo = '';
         switch (accumulatorType) {
           case 'EURO':
-            rateInfo = `${dailyBu.toLocaleString()} bu/day`;
+            rateInfo = `${dailyBu.toFixed(0)} bu/day`;
             break;
           case 'WEEKLY':
-            rateInfo = `${weeklyBu.toLocaleString()} bu/week`;
+            rateInfo = `${weeklyBu.toFixed(0)} bu/week`;
             break;
           case 'DAILY':
           default:
-            rateInfo = `${dailyBu.toLocaleString()} bu/day`;
+            rateInfo = `${dailyBu.toFixed(0)} bu/day`;
         }
 
         signals.push({
@@ -1124,7 +1126,7 @@ export class SignalGenerationService {
           percentAboveBreakeven: basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0,
           title: `${commodityType} Accumulator Status`,
           summary: `Standard rate | Base: $${basePrice.toFixed(2)} | Market: $${currentPrice.toFixed(2)}`,
-          rationale: rateInfo,
+          rationale: `${rateInfo} | ~${estimatedAccumulated.toLocaleString()} bu est. accumulated (${daysElapsed} days)`,
           marketContext: {
             futuresPrice: currentPrice,
             futuresMonth: futuresQuote.contractMonth,
@@ -1133,13 +1135,13 @@ export class SignalGenerationService {
               knockoutPrice,
               doubleUpPrice,
               dailyBushels: dailyBu,
-              totalAccumulated: Number(details.totalBushelsMarketed),
+              totalAccumulated: estimatedAccumulated,
               totalDoubledBushels,
               accumulatorType,
               isCurrentlyDoubled: false
             }
           },
-          recommendedAction: `Accumulated: ${Number(details.totalBushelsMarketed).toLocaleString()} bu | Knockout: $${knockoutPrice.toFixed(2)}`,
+          recommendedAction: `Knockout: $${knockoutPrice.toFixed(2)} | Double-up trigger: $${doubleUpPrice.toFixed(2)}`,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         });
       }
