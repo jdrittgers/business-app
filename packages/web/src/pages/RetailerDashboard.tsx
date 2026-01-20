@@ -59,7 +59,7 @@ function CountdownTimer({ deadline }: { deadline: Date }) {
 }
 
 export default function RetailerDashboard() {
-  const { retailer, user, isAuthenticated, logout } = useRetailerAuthStore();
+  const { retailer, user, isAuthenticated } = useRetailerAuthStore();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'available' | 'my-bids' | 'accepted'>('available');
@@ -282,11 +282,6 @@ export default function RetailerDashboard() {
     setEditingBid(null);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   if (!retailer || !user) {
     return <div>Loading...</div>;
   }
@@ -380,43 +375,43 @@ export default function RetailerDashboard() {
         </div>
       </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {error}
-            <button onClick={() => setError(null)} className="float-right font-bold">×</button>
-          </div>
-        )}
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+          <button onClick={() => setError(null)} className="float-right font-bold">×</button>
+        </div>
+      )}
 
-        {/* Location Warning */}
-        {!retailer?.latitude && !retailer?.longitude && (
-          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">Location not set</h3>
-                  <p className="mt-1 text-sm text-yellow-700">
-                    Add your ZIP code to see bid requests near you and filter by distance.
-                  </p>
-                </div>
+      {/* Location Warning */}
+      {!retailer?.latitude && !retailer?.longitude && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
               </div>
-              <button
-                onClick={() => navigate('/retailer/profile')}
-                className="ml-4 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-md hover:bg-yellow-700 whitespace-nowrap"
-              >
-                Add ZIP Code
-              </button>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">Location not set</h3>
+                <p className="mt-1 text-sm text-yellow-700">
+                  Add your ZIP code to see bid requests near you and filter by distance.
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => navigate('/retailer/profile')}
+              className="ml-4 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-md hover:bg-yellow-700 whitespace-nowrap"
+            >
+              Add ZIP Code
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Tabs */}
-        <div className="mt-8 bg-white rounded-lg shadow">
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           <div className="border-b border-gray-200">
             <nav className="flex -mb-px">
               <button
@@ -742,7 +737,6 @@ export default function RetailerDashboard() {
               )
             )}
           </div>
-        </div>
       </div>
 
       {/* Submit/Edit Bid Modal */}
