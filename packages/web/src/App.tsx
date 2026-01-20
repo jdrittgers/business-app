@@ -6,6 +6,7 @@ import { useSocket } from './hooks/useSocket';
 import { registerServiceWorker } from './utils/push-notifications';
 import { UserRole } from '@business-app/shared';
 import AppLayout from './components/layout/AppLayout';
+import RetailerLayout from './components/layout/RetailerLayout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import FarmerRegister from './pages/FarmerRegister';
@@ -37,16 +38,23 @@ import DeletedItems from './pages/DeletedItems';
 import MarketingAI from './pages/MarketingAI';
 import RequireRole from './components/RequireRole';
 
-// Wrapper for authenticated routes with layout
+// Wrapper for authenticated farmer routes with layout
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" />;
   return <AppLayout>{children}</AppLayout>;
 }
 
+// Wrapper for authenticated retailer routes with layout
+function RetailerAuthRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useRetailerAuthStore();
+  if (!isAuthenticated) return <Navigate to="/retailer/login" />;
+  return <RetailerLayout>{children}</RetailerLayout>;
+}
+
 function App() {
   const { loadUser } = useAuthStore();
-  const { loadRetailer, isAuthenticated: isRetailerAuthenticated } = useRetailerAuthStore();
+  const { loadRetailer } = useRetailerAuthStore();
 
   // Initialize socket connection
   useSocket();
@@ -92,18 +100,9 @@ function App() {
       {/* Retailer Routes */}
       <Route path="/retailer/login" element={<RetailerLogin />} />
       <Route path="/retailer/register" element={<RetailerRegister />} />
-      <Route
-        path="/retailer/dashboard"
-        element={isRetailerAuthenticated ? <RetailerDashboard /> : <Navigate to="/retailer/login" />}
-      />
-      <Route
-        path="/retailer/profile"
-        element={isRetailerAuthenticated ? <RetailerProfile /> : <Navigate to="/retailer/login" />}
-      />
-      <Route
-        path="/retailer/grain-marketplace"
-        element={isRetailerAuthenticated ? <RetailerGrainMarketplace /> : <Navigate to="/retailer/login" />}
-      />
+      <Route path="/retailer/dashboard" element={<RetailerAuthRoute><RetailerDashboard /></RetailerAuthRoute>} />
+      <Route path="/retailer/profile" element={<RetailerAuthRoute><RetailerProfile /></RetailerAuthRoute>} />
+      <Route path="/retailer/grain-marketplace" element={<RetailerAuthRoute><RetailerGrainMarketplace /></RetailerAuthRoute>} />
     </Routes>
   );
 }

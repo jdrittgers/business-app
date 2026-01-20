@@ -1039,23 +1039,41 @@ export class SignalGenerationService {
       }
 
       // Check for double-up status - double-up occurs when price DROPS BELOW the double-up level
-      // This is UNFAVORABLE - you're accumulating 2x bushels at below-market prices
+      // This is an AWARENESS signal - farmer needs to know they're accumulating at 2x rate
+      const accumulatorType = (details as any).accumulatorType || 'DAILY';
+      const totalDoubledBushels = Number((details as any).totalDoubledBushels) || 0;
+
       if (currentPrice <= doubleUpPrice && currentPrice > knockoutPrice) {
+        // Determine messaging based on accumulator type
+        let typeExplanation = '';
+        switch (accumulatorType) {
+          case 'EURO':
+            typeExplanation = 'Since this is a Euro accumulator, if price is below double-up at contract expiration, your ENTIRE accumulated bushels will double.';
+            break;
+          case 'WEEKLY':
+            typeExplanation = 'Since this is a Weekly accumulator, bushels marketed this week will double if Friday\'s close is below the double-up price.';
+            break;
+          case 'DAILY':
+          default:
+            typeExplanation = `You're currently accumulating ${Number(details.dailyBushels) * 2} bushels/day (2x normal rate).`;
+        }
+
         signals.push({
           businessId,
           grainEntityId: contract.grainEntityId,
           signalType: MarketingSignalType.ACCUMULATOR_STRATEGY,
           commodityType,
-          strength: SignalStrength.SELL, // Warning - unfavorable position
+          strength: SignalStrength.HOLD, // Awareness signal - not a trading recommendation
           currentPrice,
           breakEvenPrice: basePrice,
           priceAboveBreakeven: currentPrice - basePrice,
           percentAboveBreakeven: basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0,
-          title: `${commodityType} Accumulator Double-Up Warning`,
-          summary: `Price dropped below $${doubleUpPrice.toFixed(2)} - accumulating 2x bushels at unfavorable prices.`,
-          rationale: `Current futures $${currentPrice.toFixed(2)} is below the double-up trigger ($${doubleUpPrice.toFixed(2)}). ` +
-            `You're now accumulating ${Number(details.dailyBushels) * 2} bushels/day at prices below what you could get on the open market. ` +
-            `Monitor closely - if price continues dropping toward knockout ($${knockoutPrice.toFixed(2)}), contract may terminate.`,
+          title: `${commodityType} Accumulator Double-Up Active`,
+          summary: `Price below $${doubleUpPrice.toFixed(2)} double-up trigger. ${typeExplanation}`,
+          rationale: `Current futures $${currentPrice.toFixed(2)} is below your double-up trigger ($${doubleUpPrice.toFixed(2)}). ` +
+            `Total accumulated so far: ${Number(details.totalBushelsMarketed).toLocaleString()} bushels` +
+            (totalDoubledBushels > 0 ? ` (${totalDoubledBushels.toLocaleString()} from double-up periods). ` : '. ') +
+            `Knockout level: $${knockoutPrice.toFixed(2)}. Distance to knockout: $${(currentPrice - knockoutPrice).toFixed(2)}.`,
           marketContext: {
             futuresPrice: currentPrice,
             futuresMonth: futuresQuote.contractMonth,
@@ -1064,19 +1082,25 @@ export class SignalGenerationService {
               knockoutPrice,
               doubleUpPrice,
               dailyBushels: Number(details.dailyBushels),
-              totalAccumulated: Number(details.totalBushelsMarketed)
+              totalAccumulated: Number(details.totalBushelsMarketed),
+              totalDoubledBushels,
+              accumulatorType,
+              isCurrentlyDoubled: true
             }
           },
-          recommendedAction: 'Consider your options: let it ride hoping for price recovery, or consult your merchandiser about alternatives.',
+          recommendedAction: 'Monitor price levels closely. Contact your merchandiser if you have questions about your contract terms or want to discuss options.',
           expiresAt: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000) // 1 day - check frequently
         });
       }
 
-      // Normal accumulation status (between knockout and double-up)
-      if (currentPrice > knockoutPrice && currentPrice < doubleUpPrice) {
+      // Normal accumulation status (price above double-up trigger)
+      if (currentPrice > doubleUpPrice) {
         // Only generate info signal if accumulator is performing well
         const aboveBase = basePrice > 0 ? (currentPrice - basePrice) / basePrice : 0;
         if (aboveBase > 0.05) {
+          const accTypeLabel = accumulatorType === 'EURO' ? 'Euro' :
+                               accumulatorType === 'WEEKLY' ? 'Weekly' : 'Daily';
+
           signals.push({
             businessId,
             grainEntityId: contract.grainEntityId,
@@ -1087,11 +1111,12 @@ export class SignalGenerationService {
             breakEvenPrice: basePrice,
             priceAboveBreakeven: currentPrice - basePrice,
             percentAboveBreakeven: aboveBase,
-            title: `${commodityType} Accumulator Performing Well`,
-            summary: `Accumulating ${Number(details.dailyBushels)} bu/day. Price ${(aboveBase * 100).toFixed(1)}% above base.`,
-            rationale: `Current futures $${currentPrice.toFixed(2)} is above your base price ($${basePrice.toFixed(2)}). ` +
-              `Total accumulated: ${Number(details.totalBushelsMarketed).toLocaleString()} bushels. ` +
-              `Knockout at $${knockoutPrice.toFixed(2)}, Double-up at $${doubleUpPrice.toFixed(2)}.`,
+            title: `${commodityType} ${accTypeLabel} Accumulator Performing Well`,
+            summary: `Accumulating at standard rate. Price ${(aboveBase * 100).toFixed(1)}% above base ($${basePrice.toFixed(2)}).`,
+            rationale: `Current futures $${currentPrice.toFixed(2)} is above your base price and above the double-up trigger ($${doubleUpPrice.toFixed(2)}). ` +
+              `Total accumulated: ${Number(details.totalBushelsMarketed).toLocaleString()} bushels` +
+              (totalDoubledBushels > 0 ? ` (${totalDoubledBushels.toLocaleString()} from double-up periods). ` : '. ') +
+              `Knockout at $${knockoutPrice.toFixed(2)}.`,
             marketContext: {
               futuresPrice: currentPrice,
               futuresMonth: futuresQuote.contractMonth,
@@ -1100,10 +1125,13 @@ export class SignalGenerationService {
                 knockoutPrice,
                 doubleUpPrice,
                 dailyBushels: Number(details.dailyBushels),
-                totalAccumulated: Number(details.totalBushelsMarketed)
+                totalAccumulated: Number(details.totalBushelsMarketed),
+                totalDoubledBushels,
+                accumulatorType,
+                isCurrentlyDoubled: false
               }
             },
-            recommendedAction: 'Continue monitoring. Consider additional sales if price approaches double-up.',
+            recommendedAction: 'Accumulator is performing as expected. Continue monitoring price levels.',
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
           });
         }

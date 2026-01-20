@@ -160,38 +160,26 @@ const RetailerGrainMarketplace: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/retailer/dashboard')}
-                className="text-indigo-200 hover:text-white"
-              >
-                ← Back to Dashboard
-              </button>
-              <div>
-                <h1 className="text-3xl font-bold">Grain Marketplace</h1>
-                <p className="mt-1 text-indigo-200">
-                  Browse available grain inventory and submit purchase offers
-                </p>
-              </div>
-            </div>
-            {!retailer?.latitude && !retailer?.longitude && (
-              <div className="bg-yellow-500 text-yellow-900 px-4 py-2 rounded-md text-sm">
-                ⚠️ Set your location in <button onClick={() => navigate('/retailer/profile')} className="underline font-medium">Profile Settings</button> to see bins
-              </div>
-            )}
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Grain Marketplace</h1>
+          <p className="text-gray-600 mt-1">
+            Browse available grain inventory and submit purchase offers
+          </p>
         </div>
+        {!retailer?.latitude && !retailer?.longitude && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-lg text-sm">
+            Set your location in <button onClick={() => navigate('/retailer/profile')} className="underline font-medium text-yellow-900">Profile Settings</button> to see bins
+          </div>
+        )}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <div className="space-y-6">
 
       {/* Search Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Search Filters</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -234,7 +222,7 @@ const RetailerGrainMarketplace: React.FC = () => {
       </div>
 
       {/* Available Bins */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Available Grain Inventory ({bins.length})
         </h2>
@@ -286,7 +274,7 @@ const RetailerGrainMarketplace: React.FC = () => {
       </div>
 
       {/* My Offers */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">My Offers ({myOffers.length})</h2>
         {myOffers.length === 0 ? (
           <p className="text-gray-500 text-center py-8">

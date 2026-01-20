@@ -83,32 +83,16 @@ export default function RetailerProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-indigo-700 text-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/retailer/dashboard')}
-              className="text-indigo-200 hover:text-white"
-            >
-              ← Back to Dashboard
-            </button>
-            <h1 className="text-3xl font-bold">Retailer Profile</h1>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Retailer Profile</h1>
+        <p className="text-gray-600 mt-1">Update your company details and delivery preferences</p>
       </div>
 
       {/* Profile Form */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow p-8">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Account Information</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Update your company details and delivery preferences
-            </p>
-          </div>
-
+      <div className="max-w-3xl">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
           {/* Account Info (Read-only) */}
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <div className="grid grid-cols-2 gap-4 text-sm">

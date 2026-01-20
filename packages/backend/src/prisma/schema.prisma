@@ -41,6 +41,12 @@ enum ContractType {
   ACCUMULATOR
 }
 
+enum AccumulatorType {
+  EURO      // On expiration, if price > double-up, entire contract doubles
+  WEEKLY    // If Friday close > double-up, that week's bushels double
+  DAILY     // Each day, if close > double-up, that day's bushels double
+}
+
 enum CommodityType {
   CORN
   SOYBEANS
@@ -340,11 +346,14 @@ model GrainContract {
 model AccumulatorDetails {
   id                    String                   @id @default(uuid())
   contractId            String                   @unique @map("contract_id")
+  accumulatorType       AccumulatorType          @default(WEEKLY) @map("accumulator_type")
   basePrice             Decimal?                 @map("base_price") @db.Decimal(10, 4)
   knockoutPrice         Decimal                  @map("knockout_price") @db.Decimal(10, 4)
   doubleUpPrice         Decimal                  @map("double_up_price") @db.Decimal(10, 4)
   dailyBushels          Decimal                  @map("daily_bushels") @db.Decimal(12, 2)
+  weeklyBushels         Decimal?                 @map("weekly_bushels") @db.Decimal(12, 2) // For weekly accumulators
   totalBushelsMarketed  Decimal                  @default(0) @map("total_bushels_marketed") @db.Decimal(12, 2)
+  totalDoubledBushels   Decimal                  @default(0) @map("total_doubled_bushels") @db.Decimal(12, 2) // Track doubled bushels separately
   startDate             DateTime                 @map("start_date")
   endDate               DateTime?                @map("end_date")
   isDailyDouble         Boolean                  @default(false) @map("is_daily_double")
@@ -352,6 +361,7 @@ model AccumulatorDetails {
   knockoutReached       Boolean                  @default(false) @map("knockout_reached")
   knockoutDate          DateTime?                @map("knockout_date")
   basisLocked           Boolean                  @default(false) @map("basis_locked")
+  lastProcessedDate     DateTime?                @map("last_processed_date") // Track when we last updated accumulation
   createdAt             DateTime                 @default(now()) @map("created_at")
   updatedAt             DateTime                 @updatedAt @map("updated_at")
 

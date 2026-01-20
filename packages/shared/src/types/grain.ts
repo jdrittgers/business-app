@@ -11,6 +11,12 @@ export enum ContractType {
   ACCUMULATOR = 'ACCUMULATOR'
 }
 
+export enum AccumulatorType {
+  EURO = 'EURO',       // On expiration, if price > double-up, entire contract doubles
+  WEEKLY = 'WEEKLY',   // If Friday close > double-up, that week's bushels double
+  DAILY = 'DAILY'      // Each day, if close > double-up, that day's bushels double
+}
+
 export enum CommodityType {
   CORN = 'CORN',
   SOYBEANS = 'SOYBEANS',
@@ -62,17 +68,21 @@ export interface GrainContract {
 export interface AccumulatorDetails {
   id: string;
   contractId: string;
+  accumulatorType: AccumulatorType;
   knockoutPrice: number;
   doubleUpPrice: number;
   dailyBushels: number;
+  weeklyBushels?: number; // For weekly accumulators
   totalBushelsMarketed: number;
+  totalDoubledBushels: number; // Track doubled bushels separately
   startDate: Date;
   endDate?: Date;
-  isDailyDouble: boolean; // NEW: Can double daily bushels
-  isCurrentlyDoubled: boolean; // NEW: Is currently doubled up
-  knockoutReached: boolean; // NEW: Knockout price reached
-  knockoutDate?: Date; // NEW: When knockout occurred
-  basisLocked: boolean; // NEW: Whether basis is locked (false = still HTA)
+  isDailyDouble: boolean;
+  isCurrentlyDoubled: boolean;
+  knockoutReached: boolean;
+  knockoutDate?: Date;
+  basisLocked: boolean;
+  lastProcessedDate?: Date; // Track when we last updated accumulation
   createdAt: Date;
   updatedAt: Date;
   dailyEntries?: AccumulatorDailyEntry[];

@@ -123,6 +123,9 @@ export interface MarketContext {
     doubleUpPrice?: number;
     dailyBushels?: number;
     totalAccumulated?: number;
+    totalDoubledBushels?: number;
+    accumulatorType?: 'EURO' | 'WEEKLY' | 'DAILY';
+    isCurrentlyDoubled?: boolean;
   };
   // Call option context
   callOptionContext?: {

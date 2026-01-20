@@ -332,86 +332,53 @@ export default function RetailerDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-indigo-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold">{retailer.companyName}</h1>
-              <p className="mt-1 text-indigo-200">
-                {user.firstName} {user.lastName} • {user.email}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => navigate('/retailer/dashboard')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
-              >
-                Input Marketplace
-              </button>
-              <button
-                onClick={() => navigate('/retailer/grain-marketplace')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
-              >
-                Grain Marketplace
-              </button>
-              <button
-                onClick={() => navigate('/retailer/profile')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
-              >
-                Profile Settings
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-800 rounded-md transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Input Marketplace Dashboard</h1>
+        <p className="text-gray-600 mt-1">
+          {user.firstName} {user.lastName} • {retailer.companyName}
+        </p>
       </div>
 
       {/* Stats */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-gray-500">Total Bids</div>
-            <div className="mt-2 text-3xl font-bold text-gray-900">{stats.totalBids}</div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-gray-500">Active Bids</div>
-            <div className="mt-2 text-3xl font-bold text-green-600">{stats.activeBids}</div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-gray-500">Accepted Bids</div>
-            <div className="mt-2 text-3xl font-bold text-purple-600">{stats.acceptedBids}</div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-gray-500">Available Requests</div>
-            <div className="mt-2 text-3xl font-bold text-blue-600">{stats.availableRequests}</div>
-          </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+          <div className="text-sm font-medium text-gray-500">Total Bids</div>
+          <div className="mt-2 text-2xl font-bold text-gray-900">{stats.totalBids}</div>
         </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+          <div className="text-sm font-medium text-gray-500">Active Bids</div>
+          <div className="mt-2 text-2xl font-bold text-green-600">{stats.activeBids}</div>
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+          <div className="text-sm font-medium text-gray-500">Accepted Bids</div>
+          <div className="mt-2 text-2xl font-bold text-purple-600">{stats.acceptedBids}</div>
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+          <div className="text-sm font-medium text-gray-500">Available Requests</div>
+          <div className="mt-2 text-2xl font-bold text-indigo-600">{stats.availableRequests}</div>
+        </div>
+      </div>
 
-        {/* Volume & Value Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-blue-700">Products Out for Bid (GAL)</div>
-            <div className="mt-2 text-3xl font-bold text-blue-900">{stats.totalGallons.toLocaleString()}</div>
-            <div className="text-xs text-blue-600 mt-1">Gallons</div>
-          </div>
-          <div className="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-green-700">Products Out for Bid (LB/TON)</div>
-            <div className="mt-2 text-3xl font-bold text-green-900">{stats.totalLbs.toLocaleString()}</div>
-            <div className="text-xs text-green-600 mt-1">Pounds</div>
-          </div>
-          <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-6 rounded-lg shadow">
-            <div className="text-sm font-medium text-purple-700">Accepted Bid Value</div>
-            <div className="mt-2 text-3xl font-bold text-purple-900">${stats.acceptedTotalValue.toLocaleString()}</div>
-            <div className="text-xs text-purple-600 mt-1">Total Revenue</div>
-          </div>
+      {/* Volume & Value Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 p-5 rounded-xl shadow-sm border border-indigo-200">
+          <div className="text-sm font-medium text-indigo-700">Products Out for Bid (GAL)</div>
+          <div className="mt-2 text-2xl font-bold text-indigo-900">{stats.totalGallons.toLocaleString()}</div>
+          <div className="text-xs text-indigo-600 mt-1">Gallons</div>
         </div>
+        <div className="bg-gradient-to-r from-green-50 to-green-100 p-5 rounded-xl shadow-sm border border-green-200">
+          <div className="text-sm font-medium text-green-700">Products Out for Bid (LB/TON)</div>
+          <div className="mt-2 text-2xl font-bold text-green-900">{stats.totalLbs.toLocaleString()}</div>
+          <div className="text-xs text-green-600 mt-1">Pounds</div>
+        </div>
+        <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200">
+          <div className="text-sm font-medium text-purple-700">Accepted Bid Value</div>
+          <div className="mt-2 text-2xl font-bold text-purple-900">${stats.acceptedTotalValue.toLocaleString()}</div>
+          <div className="text-xs text-purple-600 mt-1">Total Revenue</div>
+        </div>
+      </div>
 
         {/* Error Display */}
         {error && (
