@@ -2,13 +2,21 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
-import { OperationBreakEven } from '@business-app/shared';
+import { analyticsApi } from '../api/analytics.api';
+import { OperationBreakEven, DashboardSummary } from '@business-app/shared';
 
-// Default market prices (can be updated by user)
-const DEFAULT_PRICES: Record<string, number> = {
-  CORN: 4.50,
-  SOYBEANS: 10.50,
-  WHEAT: 5.75
+// Default futures prices (user can update)
+const DEFAULT_FUTURES: Record<string, number> = {
+  CORN: 4.85,
+  SOYBEANS: 11.20,
+  WHEAT: 6.10
+};
+
+// Default new crop basis estimates
+const DEFAULT_BASIS: Record<string, number> = {
+  CORN: -0.35,
+  SOYBEANS: -0.70,
+  WHEAT: -0.55
 };
 
 // Cost category colors for charts
@@ -65,14 +73,17 @@ export default function BreakEven() {
   const navigate = useNavigate();
 
   const [summary, setSummary] = useState<OperationBreakEven | null>(null);
+  const [grainAnalytics, setGrainAnalytics] = useState<DashboardSummary | null>(null);
   const [historicalData, setHistoricalData] = useState<OperationBreakEven[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Market prices state
-  const [marketPrices, setMarketPrices] = useState<Record<string, number>>(DEFAULT_PRICES);
+  // Pricing state - Futures and Basis for unmarketed grain
+  const [futuresPrices, setFuturesPrices] = useState<Record<string, number>>(DEFAULT_FUTURES);
+  const [basisEstimates, setBasisEstimates] = useState<Record<string, number>>(DEFAULT_BASIS);
+  const [useMarketedGrain, setUseMarketedGrain] = useState(true);
 
   // Scenario state
   const [scenarioMode, setScenarioMode] = useState(false);
@@ -123,10 +134,14 @@ export default function BreakEven() {
     setError(null);
 
     try {
-      const data = await breakevenApi.getBreakEvenSummary(selectedBusinessId, {
-        year: filterYear
-      });
-      setSummary(data);
+      // Load both break-even data and grain analytics in parallel
+      const [breakEvenData, analyticsData] = await Promise.all([
+        breakevenApi.getBreakEvenSummary(selectedBusinessId, { year: filterYear }),
+        analyticsApi.getDashboardSummary(selectedBusinessId, { year: filterYear }).catch(() => null)
+      ]);
+
+      setSummary(breakEvenData);
+      setGrainAnalytics(analyticsData);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load break-even data');
     } finally {
@@ -150,29 +165,80 @@ export default function BreakEven() {
     }
   };
 
-  // Calculate revenue and profit for each commodity
+  // Calculate cash price from futures and basis
+  const cashPrices = useMemo(() => {
+    const prices: Record<string, number> = {};
+    Object.keys(futuresPrices).forEach(commodity => {
+      prices[commodity] = futuresPrices[commodity] + basisEstimates[commodity];
+    });
+    return prices;
+  }, [futuresPrices, basisEstimates]);
+
+  // Calculate revenue and profit for each commodity with marketed grain integration
   const profitAnalysis = useMemo(() => {
     if (!summary) return [];
 
     return summary.byCommodity.map(commodity => {
-      const price = marketPrices[commodity.commodityType] || 0;
+      const futures = futuresPrices[commodity.commodityType] || 0;
+      const basis = basisEstimates[commodity.commodityType] || 0;
+      const cashPrice = futures + basis;
 
       // Apply scenario adjustments
       const adjustedYield = commodity.expectedYield * (1 + yieldAdjustment / 100);
-      const adjustedPrice = price * (1 + priceAdjustment / 100);
+      const adjustedCashPrice = cashPrice * (1 + priceAdjustment / 100);
       const adjustedCost = commodity.totalCost * (1 + costAdjustment / 100);
 
       const adjustedBushels = commodity.acres * adjustedYield;
-      const revenue = adjustedBushels * adjustedPrice;
-      const profit = revenue - adjustedCost;
+
+      // Get marketed grain data if available
+      const marketedData = grainAnalytics?.byCommodity.find(
+        c => c.commodityType === commodity.commodityType
+      );
+
+      let marketedBushels = 0;
+      let marketedRevenue = 0;
+      let marketedAvgPrice = 0;
+      let unmarketedBushels = adjustedBushels;
+      let unmarketedRevenue = adjustedBushels * adjustedCashPrice;
+      let totalRevenue = unmarketedRevenue;
+
+      if (useMarketedGrain && marketedData && marketedData.sold > 0) {
+        marketedBushels = marketedData.sold;
+        marketedAvgPrice = marketedData.averagePrice;
+        marketedRevenue = marketedBushels * marketedAvgPrice;
+
+        // Unmarketed is remaining from production or from break-even expected bushels
+        // Use the smaller of: production remaining OR break-even expected bushels - marketed
+        unmarketedBushels = Math.max(0, adjustedBushels - marketedBushels);
+        unmarketedRevenue = unmarketedBushels * adjustedCashPrice;
+
+        totalRevenue = marketedRevenue + unmarketedRevenue;
+      }
+
+      const profit = totalRevenue - adjustedCost;
       const profitPerAcre = commodity.acres > 0 ? profit / commodity.acres : 0;
-      const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+      const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
       const adjustedBreakEven = adjustedBushels > 0 ? adjustedCost / adjustedBushels : 0;
+
+      // Calculate blended price
+      const blendedPrice = adjustedBushels > 0 ? totalRevenue / adjustedBushels : 0;
 
       return {
         ...commodity,
-        marketPrice: adjustedPrice,
-        revenue,
+        // Price info
+        futuresPrice: futures,
+        basis,
+        cashPrice: adjustedCashPrice,
+        blendedPrice,
+        // Marketed grain
+        marketedBushels,
+        marketedAvgPrice,
+        marketedRevenue,
+        // Unmarketed grain
+        unmarketedBushels,
+        unmarketedRevenue,
+        // Totals
+        revenue: totalRevenue,
         profit,
         profitPerAcre,
         profitMargin,
@@ -181,7 +247,7 @@ export default function BreakEven() {
         adjustedCost
       };
     });
-  }, [summary, marketPrices, yieldAdjustment, priceAdjustment, costAdjustment]);
+  }, [summary, grainAnalytics, futuresPrices, basisEstimates, useMarketedGrain, yieldAdjustment, priceAdjustment, costAdjustment]);
 
   // Calculate total operation profit
   const totalProfit = useMemo(() => {
@@ -274,34 +340,121 @@ export default function BreakEven() {
       {/* Dashboard Content */}
       {!isLoading && summary && (
         <div className="space-y-6">
-          {/* Market Prices Input */}
+          {/* Pricing Section with Futures, Basis, and Marketed Grain */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Market Prices</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {Object.entries(marketPrices).map(([commodity, price]) => (
-                <div key={commodity} className="flex items-center gap-3">
-                  <span className="text-2xl">
-                    {commodity === 'CORN' ? '🌽' : commodity === 'SOYBEANS' ? '🫘' : '🌾'}
-                  </span>
-                  <div className="flex-1">
-                    <label className="block text-sm text-gray-600">{commodity}</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={price}
-                        onChange={(e) => setMarketPrices(prev => ({
-                          ...prev,
-                          [commodity]: parseFloat(e.target.value) || 0
-                        }))}
-                        className="w-full pl-7 pr-12 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">/bu</span>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Price Projections</h3>
+                <p className="text-sm text-gray-500">Set futures prices and basis estimates for unmarketed grain</p>
+              </div>
+              {grainAnalytics && grainAnalytics.totalSold > 0 && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useMarketedGrain}
+                    onChange={(e) => setUseMarketedGrain(e.target.checked)}
+                    className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                  />
+                  <span className="text-sm text-gray-700">Include contracted grain</span>
+                </label>
+              )}
+            </div>
+
+            {/* Marketed Grain Summary */}
+            {useMarketedGrain && grainAnalytics && grainAnalytics.totalSold > 0 && (
+              <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-medium text-green-800">Contracted Grain from Marketing Dashboard</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  {grainAnalytics.byCommodity.filter(c => c.sold > 0).map(c => (
+                    <div key={c.commodityType} className="bg-white rounded-lg p-3 border border-green-100">
+                      <div className="flex items-center gap-1 text-gray-600 mb-1">
+                        <span>{c.commodityType === 'CORN' ? '🌽' : c.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}</span>
+                        <span>{c.commodityType}</span>
+                      </div>
+                      <div className="font-semibold text-gray-900">{c.sold.toLocaleString()} bu</div>
+                      <div className="text-green-600 font-medium">${c.averagePrice.toFixed(2)}/bu avg</div>
                     </div>
+                  ))}
+                  <div className="bg-white rounded-lg p-3 border border-green-100">
+                    <div className="text-gray-600 mb-1">Total Marketed</div>
+                    <div className="font-semibold text-gray-900">{grainAnalytics.totalSold.toLocaleString()} bu</div>
+                    <div className="text-green-600 text-xs">{grainAnalytics.percentageSold.toFixed(0)}% of production</div>
                   </div>
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* Futures and Basis Inputs */}
+            <div className="space-y-4">
+              <div className="text-sm font-medium text-gray-700">Unmarketed Grain Pricing (Futures - Basis = Cash)</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 pr-4 font-medium text-gray-600">Commodity</th>
+                      <th className="text-left py-2 px-4 font-medium text-gray-600">Futures Price</th>
+                      <th className="text-left py-2 px-4 font-medium text-gray-600">Est. Basis</th>
+                      <th className="text-left py-2 pl-4 font-medium text-gray-600">Cash Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {['CORN', 'SOYBEANS', 'WHEAT'].map(commodity => (
+                      <tr key={commodity} className="border-b border-gray-100">
+                        <td className="py-3 pr-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">
+                              {commodity === 'CORN' ? '🌽' : commodity === 'SOYBEANS' ? '🫘' : '🌾'}
+                            </span>
+                            <span className="font-medium">{commodity}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="relative w-32">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={futuresPrices[commodity]}
+                              onChange={(e) => setFuturesPrices(prev => ({
+                                ...prev,
+                                [commodity]: parseFloat(e.target.value) || 0
+                              }))}
+                              className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"
+                            />
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="relative w-28">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={basisEstimates[commodity]}
+                              onChange={(e) => setBasisEstimates(prev => ({
+                                ...prev,
+                                [commodity]: parseFloat(e.target.value) || 0
+                              }))}
+                              className="w-full pl-3 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"
+                            />
+                          </div>
+                        </td>
+                        <td className="py-3 pl-4">
+                          <span className="font-bold text-teal-600">
+                            ${cashPrices[commodity]?.toFixed(2)}/bu
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-500">
+                Enter new crop futures prices and your estimated local basis. Cash price = Futures + Basis (negative basis reduces price).
+              </p>
             </div>
           </div>
 
@@ -459,10 +612,37 @@ export default function BreakEven() {
                         <span className="text-gray-600">Expected Bushels:</span>
                         <span className="font-medium">{commodity.adjustedBushels.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Market Price:</span>
-                        <span className="font-medium">${commodity.marketPrice.toFixed(2)}/bu</span>
-                      </div>
+
+                      {/* Marketing Breakdown */}
+                      {useMarketedGrain && commodity.marketedBushels > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                          <div className="text-xs font-medium text-gray-500 uppercase">Marketing Breakdown</div>
+                          <div className="flex justify-between">
+                            <span className="text-green-600">Contracted:</span>
+                            <span className="font-medium text-green-600">
+                              {commodity.marketedBushels.toLocaleString()} bu @ ${commodity.marketedAvgPrice.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-amber-600">Unmarketed:</span>
+                            <span className="font-medium text-amber-600">
+                              {commodity.unmarketedBushels.toLocaleString(undefined, { maximumFractionDigits: 0 })} bu @ ${commodity.cashPrice.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t border-gray-200 pt-2">
+                            <span className="text-gray-700 font-medium">Blended Price:</span>
+                            <span className="font-bold text-teal-600">${commodity.blendedPrice.toFixed(2)}/bu</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Simple price display when not using marketed grain */}
+                      {(!useMarketedGrain || commodity.marketedBushels === 0) && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Est. Cash Price:</span>
+                          <span className="font-medium">${commodity.cashPrice.toFixed(2)}/bu</span>
+                        </div>
+                      )}
 
                       <div className="border-t pt-3 space-y-2">
                         <div className="flex justify-between">
@@ -471,8 +651,24 @@ export default function BreakEven() {
                             ${commodity.adjustedCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </span>
                         </div>
+                        {useMarketedGrain && commodity.marketedBushels > 0 ? (
+                          <>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-500">Contracted Revenue:</span>
+                              <span className="text-green-600">
+                                ${commodity.marketedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-500">Projected Revenue:</span>
+                              <span className="text-amber-600">
+                                ${commodity.unmarketedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                          </>
+                        ) : null}
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Revenue:</span>
+                          <span className="text-gray-600">Total Revenue:</span>
                           <span className="font-medium text-blue-600">
                             ${commodity.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </span>
@@ -485,7 +681,7 @@ export default function BreakEven() {
 
                       <div className={`border-t pt-3 ${commodity.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         <div className="flex justify-between">
-                          <span className="font-medium">Profit:</span>
+                          <span className="font-medium">Projected Profit:</span>
                           <span className="text-lg font-bold">
                             {commodity.profit >= 0 ? '+' : ''}${commodity.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </span>
@@ -614,7 +810,7 @@ export default function BreakEven() {
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Break-Even by Entity</h3>
               <div className="space-y-4">
                 {summary.byEntity.map((entity) => {
-                  const price = marketPrices[entity.commodityType] || 0;
+                  const price = cashPrices[entity.commodityType] || 0;
                   const revenue = entity.expectedBushels * price;
                   const profit = revenue - entity.totalCost;
 
