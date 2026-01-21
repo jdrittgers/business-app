@@ -36,6 +36,7 @@ import PricingPage from './pages/PricingPage';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import DeletedItems from './pages/DeletedItems';
 import MarketingAI from './pages/MarketingAI';
+import Marketplace from './pages/Marketplace';
 import FarmerAccessManagement from './pages/FarmerAccessManagement';
 import RequireRole from './components/RequireRole';
 
@@ -86,10 +87,19 @@ function App() {
       <Route path="/breakeven/products" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/farms" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmManagement /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/farms/:farmId/costs" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole></AuthRoute>} />
-      <Route path="/input-bids" element={<AuthRoute><InputBids /></AuthRoute>} />
       <Route path="/invoice-parsing" element={<AuthRoute><InvoiceParsing /></AuthRoute>} />
       <Route path="/grain-contracts/bins" element={<AuthRoute><GrainBins /></AuthRoute>} />
-      <Route path="/grain-contracts/offers" element={<AuthRoute><FarmerGrainOffers /></AuthRoute>} />
+
+      {/* Marketplace Routes */}
+      <Route path="/marketplace" element={<AuthRoute><Marketplace /></AuthRoute>} />
+      <Route path="/marketplace/input-bids" element={<AuthRoute><InputBids /></AuthRoute>} />
+      <Route path="/marketplace/grain-offers" element={<AuthRoute><FarmerGrainOffers /></AuthRoute>} />
+      <Route path="/marketplace/retailer-access" element={<AuthRoute><FarmerAccessManagement /></AuthRoute>} />
+
+      {/* Legacy routes - redirect to new marketplace paths */}
+      <Route path="/input-bids" element={<Navigate to="/marketplace/input-bids" replace />} />
+      <Route path="/grain-contracts/offers" element={<Navigate to="/marketplace/grain-offers" replace />} />
+      <Route path="/retailer-access" element={<Navigate to="/marketplace/retailer-access" replace />} />
 
       {/* Subscription Routes */}
       <Route path="/pricing" element={<AuthRoute><PricingPage /></AuthRoute>} />
@@ -97,7 +107,6 @@ function App() {
       <Route path="/subscription/success" element={<AuthRoute><SubscriptionManagement /></AuthRoute>} />
       <Route path="/deleted-items" element={<AuthRoute><DeletedItems /></AuthRoute>} />
       <Route path="/marketing-ai" element={<AuthRoute><MarketingAI /></AuthRoute>} />
-      <Route path="/retailer-access" element={<AuthRoute><FarmerAccessManagement /></AuthRoute>} />
 
       {/* Retailer Routes */}
       <Route path="/retailer/login" element={<RetailerLogin />} />
