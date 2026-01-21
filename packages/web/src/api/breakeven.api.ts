@@ -179,5 +179,15 @@ export const breakevenApi = {
   getFarmBreakEven: async (businessId: string, farmId: string) => {
     const response = await apiClient.get(`/api/businesses/${businessId}/farms/${farmId}/breakeven`);
     return response.data;
+  },
+
+  // Area Price Averages - aggregated across all farmers
+  getAreaAverages: async (businessId: string): Promise<{
+    fertilizers: Array<{ name: string; unit: string; avgPrice: number; minPrice: number; maxPrice: number; farmerCount: number }>;
+    chemicals: Array<{ name: string; unit: string; avgPrice: number; minPrice: number; maxPrice: number; farmerCount: number }>;
+    seedHybrids: Array<{ name: string; commodityType: string; avgPrice: number; minPrice: number; maxPrice: number; farmerCount: number }>;
+  }> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/products/area-averages`);
+    return response.data;
   }
 };

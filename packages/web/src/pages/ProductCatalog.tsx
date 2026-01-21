@@ -6,6 +6,22 @@ import { Fertilizer, Chemical, SeedHybrid, UnitType, CommodityType } from '@busi
 
 type TabType = 'fertilizers' | 'chemicals' | 'seedHybrids';
 
+interface AreaAverage {
+  name: string;
+  unit?: string;
+  commodityType?: string;
+  avgPrice: number;
+  minPrice: number;
+  maxPrice: number;
+  farmerCount: number;
+}
+
+interface AreaAverages {
+  fertilizers: AreaAverage[];
+  chemicals: AreaAverage[];
+  seedHybrids: AreaAverage[];
+}
+
 export default function ProductCatalog() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -19,6 +35,9 @@ export default function ProductCatalog() {
   const [fertilizers, setFertilizers] = useState<Fertilizer[]>([]);
   const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [seedHybrids, setSeedHybrids] = useState<SeedHybrid[]>([]);
+
+  // Area averages for price comparison
+  const [areaAverages, setAreaAverages] = useState<AreaAverages | null>(null);
 
   // Selection state for bid request creation
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -54,6 +73,79 @@ export default function ProductCatalog() {
       loadProducts();
     }
   }, [selectedBusinessId, activeTab]);
+
+  // Fetch area averages for price comparison
+  useEffect(() => {
+    if (selectedBusinessId) {
+      loadAreaAverages();
+    }
+  }, [selectedBusinessId]);
+
+  const loadAreaAverages = async () => {
+    if (!selectedBusinessId) return;
+    try {
+      const data = await breakevenApi.getAreaAverages(selectedBusinessId);
+      setAreaAverages(data);
+    } catch (err) {
+      console.error('Failed to load area averages:', err);
+    }
+  };
+
+  // Helper function to get price comparison color and info
+  const getPriceComparison = (
+    productName: string,
+    price: number,
+    type: 'fertilizer' | 'chemical' | 'seedHybrid',
+    unit?: string,
+    commodityType?: string
+  ): { color: string; tooltip: string; avgPrice: number | null } => {
+    if (!areaAverages) return { color: 'text-gray-500', tooltip: '', avgPrice: null };
+
+    let averages: AreaAverage[] = [];
+    if (type === 'fertilizer') averages = areaAverages.fertilizers;
+    else if (type === 'chemical') averages = areaAverages.chemicals;
+    else averages = areaAverages.seedHybrids;
+
+    // Find matching product by normalized name (and unit/commodityType if applicable)
+    const normalizedName = productName.trim().toUpperCase();
+    const match = averages.find(a => {
+      const nameMatch = a.name === normalizedName;
+      if (type === 'seedHybrid') {
+        return nameMatch && a.commodityType === commodityType;
+      }
+      return nameMatch && a.unit === unit;
+    });
+
+    if (!match || match.farmerCount < 2) {
+      return { color: 'text-gray-500', tooltip: 'Not enough data for comparison', avgPrice: null };
+    }
+
+    const diff = price - match.avgPrice;
+    const percentDiff = ((diff / match.avgPrice) * 100).toFixed(1);
+
+    if (price < match.avgPrice) {
+      // Better price (lower than average) - GREEN
+      return {
+        color: 'text-green-600 font-semibold',
+        tooltip: `$${Math.abs(diff).toFixed(2)} below avg ($${match.avgPrice.toFixed(2)}) - ${Math.abs(Number(percentDiff))}% savings`,
+        avgPrice: match.avgPrice
+      };
+    } else if (price > match.avgPrice) {
+      // Higher price (above average) - RED
+      return {
+        color: 'text-red-600 font-semibold',
+        tooltip: `$${diff.toFixed(2)} above avg ($${match.avgPrice.toFixed(2)}) - ${percentDiff}% higher`,
+        avgPrice: match.avgPrice
+      };
+    } else {
+      // Equal to average
+      return {
+        color: 'text-gray-500',
+        tooltip: `At area average ($${match.avgPrice.toFixed(2)})`,
+        avgPrice: match.avgPrice
+      };
+    }
+  };
 
   const loadProducts = async () => {
     if (!selectedBusinessId) return;
@@ -374,56 +466,92 @@ export default function ProductCatalog() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {activeTab === 'fertilizers' && fertilizers.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            className="rounded"
-                            checked={selectedProducts.has(item.id)}
-                            onChange={() => toggleProductSelection(item.id)}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.pricePerUnit.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                          <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900">Edit</button>
-                          <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
-                        </td>
-                      </tr>
-                    ))}
-                    {activeTab === 'chemicals' && chemicals.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            className="rounded"
-                            checked={selectedProducts.has(item.id)}
-                            onChange={() => toggleProductSelection(item.id)}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.pricePerUnit.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                          <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900">Edit</button>
-                          <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
-                        </td>
-                      </tr>
-                    ))}
-                    {activeTab === 'seedHybrids' && seedHybrids.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.commodityType}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.pricePerBag.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.seedsPerBag.toLocaleString()}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                          <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900">Edit</button>
-                          <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {activeTab === 'fertilizers' && fertilizers.map((item) => {
+                      const priceInfo = getPriceComparison(item.name, item.pricePerUnit, 'fertilizer', item.unit);
+                      return (
+                        <tr key={item.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              className="rounded"
+                              checked={selectedProducts.has(item.id)}
+                              onChange={() => toggleProductSelection(item.id)}
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={priceInfo.color} title={priceInfo.tooltip}>
+                              ${item.pricePerUnit.toFixed(2)}
+                              {priceInfo.avgPrice !== null && (
+                                <span className="ml-1 text-xs">
+                                  {item.pricePerUnit < priceInfo.avgPrice ? '↓' : item.pricePerUnit > priceInfo.avgPrice ? '↑' : ''}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900">Edit</button>
+                            <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {activeTab === 'chemicals' && chemicals.map((item) => {
+                      const priceInfo = getPriceComparison(item.name, item.pricePerUnit, 'chemical', item.unit);
+                      return (
+                        <tr key={item.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              className="rounded"
+                              checked={selectedProducts.has(item.id)}
+                              onChange={() => toggleProductSelection(item.id)}
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={priceInfo.color} title={priceInfo.tooltip}>
+                              ${item.pricePerUnit.toFixed(2)}
+                              {priceInfo.avgPrice !== null && (
+                                <span className="ml-1 text-xs">
+                                  {item.pricePerUnit < priceInfo.avgPrice ? '↓' : item.pricePerUnit > priceInfo.avgPrice ? '↑' : ''}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900">Edit</button>
+                            <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {activeTab === 'seedHybrids' && seedHybrids.map((item) => {
+                      const priceInfo = getPriceComparison(item.name, item.pricePerBag, 'seedHybrid', undefined, item.commodityType);
+                      return (
+                        <tr key={item.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.commodityType}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={priceInfo.color} title={priceInfo.tooltip}>
+                              ${item.pricePerBag.toFixed(2)}
+                              {priceInfo.avgPrice !== null && (
+                                <span className="ml-1 text-xs">
+                                  {item.pricePerBag < priceInfo.avgPrice ? '↓' : item.pricePerBag > priceInfo.avgPrice ? '↑' : ''}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.seedsPerBag.toLocaleString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                            <button onClick={() => handleEdit(item)} className="text-blue-600 hover:text-blue-900">Edit</button>
+                            <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
 

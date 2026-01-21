@@ -368,4 +368,25 @@ router.get('/businesses/:businessId/breakeven/summary', async (req: AuthRequest,
   }
 });
 
+// ===== Area Price Averages =====
+// Get aggregated average prices for products across all farmers
+router.get('/businesses/:businessId/products/area-averages', async (req: AuthRequest, res: Response) => {
+  try {
+    const [fertilizerAverages, chemicalAverages, seedAverages] = await Promise.all([
+      fertilizerService.getAreaAverages(),
+      chemicalService.getAreaAverages(),
+      seedHybridService.getAreaAverages()
+    ]);
+
+    res.json({
+      fertilizers: fertilizerAverages,
+      chemicals: chemicalAverages,
+      seedHybrids: seedAverages
+    });
+  } catch (error: any) {
+    console.error('Error getting area averages:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
