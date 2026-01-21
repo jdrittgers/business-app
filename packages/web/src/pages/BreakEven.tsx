@@ -67,7 +67,7 @@ export default function BreakEven() {
   const [summary, setSummary] = useState<OperationBreakEven | null>(null);
   const [historicalData, setHistoricalData] = useState<OperationBreakEven[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
-  const [filterYear, setFilterYear] = useState<number>(2025);
+  const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
