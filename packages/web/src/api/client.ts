@@ -12,7 +12,11 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     // Check if this is a retailer endpoint
-    const isRetailerEndpoint = config.url?.includes('/retailer') || config.url?.includes('/grain-marketplace');
+    // - /api/retailer/* are retailer-specific endpoints
+    // - /grain-marketplace/* are retailer endpoints EXCEPT /grain-marketplace/businesses/* which are farmer endpoints
+    // - /businesses/* are always farmer endpoints (including /businesses/:id/retailer-access/*)
+    const isRetailerEndpoint = config.url?.includes('/api/retailer/') ||
+      (config.url?.includes('/grain-marketplace') && !config.url?.includes('/businesses/'));
 
     // Use appropriate token based on endpoint
     const token = isRetailerEndpoint
@@ -34,7 +38,8 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    const isRetailerEndpoint = originalRequest.url?.includes('/retailer') || originalRequest.url?.includes('/grain-marketplace');
+    const isRetailerEndpoint = originalRequest.url?.includes('/api/retailer/') ||
+      (originalRequest.url?.includes('/grain-marketplace') && !originalRequest.url?.includes('/businesses/'));
 
     // If error is 401 and we haven't already tried to refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
