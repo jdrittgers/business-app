@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRetailerAuthStore } from '../store/retailerAuthStore';
+import { RetailerInterest } from '@business-app/shared';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -14,7 +15,8 @@ export default function RetailerProfile() {
     zipCode: '',
     businessLicense: '',
     phone: '',
-    radiusPreference: 50
+    radiusPreference: 50,
+    interest: 'BOTH' as RetailerInterest
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,8 @@ export default function RetailerProfile() {
         zipCode: retailer.zipCode || '',
         businessLicense: retailer.businessLicense || '',
         phone: retailer.phone || '',
-        radiusPreference: retailer.radiusPreference || 50
+        radiusPreference: retailer.radiusPreference || 50,
+        interest: (retailer.interest || 'BOTH') as RetailerInterest
       });
     }
   }, [retailer]);
@@ -53,7 +56,8 @@ export default function RetailerProfile() {
           zipCode: formData.zipCode || undefined,
           businessLicense: formData.businessLicense || undefined,
           phone: formData.phone || undefined,
-          radiusPreference: formData.radiusPreference
+          radiusPreference: formData.radiusPreference,
+          interest: formData.interest
         },
         {
           headers: {
@@ -159,6 +163,24 @@ export default function RetailerProfile() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                What are you interested in?
+              </label>
+              <select
+                value={formData.interest}
+                onChange={(e) => setFormData({ ...formData, interest: e.target.value as RetailerInterest })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="BOTH">Both Farm Inputs & Grain</option>
+                <option value="INPUTS">Farm Inputs Only (fertilizer, chemicals, seed)</option>
+                <option value="GRAIN">Grain Only (buying grain from farmers)</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Changing this may send new access requests to farmers
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Default Search Radius
               </label>
               <select
@@ -173,7 +195,7 @@ export default function RetailerProfile() {
                 <option value={500}>500 miles</option>
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                Default radius for filtering bid requests on your dashboard
+                Increasing this may send new access requests to farmers in the expanded area
               </p>
             </div>
 

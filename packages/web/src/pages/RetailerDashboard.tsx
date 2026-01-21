@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRetailerAuthStore } from '../store/retailerAuthStore';
 import { biddingApi } from '../api/bidding.api';
+import { retailerAccessApi } from '../api/retailer-access.api';
 import {
   BidRequest,
   RetailerBid,
   BidRequestStatus,
   CreateRetailerBidItemInput,
-  formatDistance
+  formatDistance,
+  AccessSummary
 } from '@business-app/shared';
 
 // Countdown Timer Component
@@ -68,6 +70,7 @@ export default function RetailerDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRadius, setSelectedRadius] = useState<number>(50);
+  const [accessSummary, setAccessSummary] = useState<AccessSummary | null>(null);
 
   // Modal state
   const [showSubmitBidModal, setShowSubmitBidModal] = useState(false);
@@ -90,12 +93,27 @@ export default function RetailerDashboard() {
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
+    // Load access summary on mount
+    loadAccessSummary();
+  }, []);
+
+  useEffect(() => {
     if (activeTab === 'available') {
       loadOpenBidRequests();
     } else {
       loadMyBids();
     }
   }, [activeTab, selectedRadius]);
+
+  const loadAccessSummary = async () => {
+    try {
+      const summary = await retailerAccessApi.getMyAccessSummary();
+      setAccessSummary(summary);
+    } catch (err) {
+      // Silently fail - access summary is not critical
+      console.error('Failed to load access summary:', err);
+    }
+  };
 
   const loadOpenBidRequests = async () => {
     setIsLoading(true);
@@ -380,6 +398,36 @@ export default function RetailerDashboard() {
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
           {error}
           <button onClick={() => setError(null)} className="float-right font-bold">×</button>
+        </div>
+      )}
+
+      {/* Access Status Banner */}
+      {accessSummary && (
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center">
+                <svg className="h-5 w-5 text-indigo-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-sm font-medium text-gray-700">Farmer Access:</span>
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full font-medium">
+                  {accessSummary.approved} Approved
+                </span>
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-medium">
+                  {accessSummary.pending} Pending
+                </span>
+                <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full font-medium">
+                  {accessSummary.denied} Denied
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              You can only view data from approved farmers
+            </p>
+          </div>
         </div>
       )}
 

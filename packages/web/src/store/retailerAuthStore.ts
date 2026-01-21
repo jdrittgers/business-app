@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Retailer, UserRole } from '@business-app/shared';
+import { Retailer, UserRole, RetailerInterest } from '@business-app/shared';
 import { retailerAuthApi } from '../api/retailer-auth.api';
 
 interface RetailerAuthState {
@@ -24,6 +24,8 @@ interface RetailerAuthState {
     zipCode?: string;
     businessLicense?: string;
     phone?: string;
+    interest?: RetailerInterest;
+    radiusPreference?: number;
   }) => Promise<void>;
   logout: () => void;
   loadRetailer: () => Promise<void>;

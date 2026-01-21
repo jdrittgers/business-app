@@ -27,6 +27,7 @@ import softDeleteRoutes from './routes/soft-delete.routes';
 import marketingAiRoutes from './routes/marketing-ai.routes';
 import oldCropInventoryRoutes from './controllers/old-crop-inventory.controller';
 import localBasisRoutes from './controllers/local-basis.controller';
+import retailerAccessRoutes from './controllers/retailer-access.controller';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 import { startMarketingAIJobs } from './services/marketing-ai-job.service';
@@ -88,6 +89,7 @@ app.use('/api', grainBinRoutes);
 app.use('/api', scaleTicketRoutes);
 app.use('/api', oldCropInventoryRoutes);
 app.use('/api', localBasisRoutes);
+app.use('/api', retailerAccessRoutes);
 app.use('/api/grain-marketplace', grainMarketplaceRoutes);
 app.use('/api', marketingAiRoutes);
 

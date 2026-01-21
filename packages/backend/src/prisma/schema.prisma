@@ -73,6 +73,20 @@ enum GrainPurchaseOfferStatus {
   COMPLETED  // Transaction completed
 }
 
+// Retailer's declared interests for farmer data access
+enum RetailerInterest {
+  INPUTS     // Only interested in input bidding (fertilizer, chemicals, seed)
+  GRAIN      // Only interested in grain purchasing
+  BOTH       // Interested in both inputs and grain
+}
+
+// Status of retailer access request to farmer
+enum AccessRequestStatus {
+  PENDING    // Awaiting farmer response
+  APPROVED   // Farmer approved access
+  DENIED     // Farmer denied access
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -135,9 +149,10 @@ model Business {
   purchaseHistory      PurchaseHistory[]
   scaleTickets         ScaleTicket[]
   subscription         BusinessSubscription?
-  marketingPreferences MarketingPreferences?
-  oldCropInventory     OldCropInventory[]
-  localBasis           LocalBasis[]
+  marketingPreferences       MarketingPreferences?
+  oldCropInventory           OldCropInventory[]
+  localBasis                 LocalBasis[]
+  retailerAccessRequests     RetailerAccessRequest[]
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -667,27 +682,29 @@ model FarmOtherCost {
 // ===== Input Bidding System Models =====
 
 model Retailer {
-  id                String   @id @default(uuid())
-  userId            String   @unique @map("user_id")
-  companyName       String   @map("company_name")
-  businessLicense   String?  @map("business_license")
+  id                String           @id @default(uuid())
+  userId            String           @unique @map("user_id")
+  companyName       String           @map("company_name")
+  businessLicense   String?          @map("business_license")
   phone             String?
-  address           String?  // Street address for delivery
+  address           String?          // Street address for delivery
   city              String?
   state             String?
-  zipCode           String?  @map("zip_code")
-  latitude          Decimal? @db.Decimal(10, 8)
-  longitude         Decimal? @db.Decimal(11, 8)
-  radiusPreference  Int      @default(50) @map("radius_preference")
-  deletedAt         DateTime? @map("deleted_at")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  zipCode           String?          @map("zip_code")
+  latitude          Decimal?         @db.Decimal(10, 8)
+  longitude         Decimal?         @db.Decimal(11, 8)
+  radiusPreference  Int              @default(50) @map("radius_preference")
+  interest          RetailerInterest @default(BOTH) @map("interest")
+  deletedAt         DateTime?        @map("deleted_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   // Relations
-  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   bids                RetailerBid[]
   grainPurchaseOffers GrainPurchaseOffer[]
   subscription        RetailerSubscription?
+  accessRequests      RetailerAccessRequest[]
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -787,6 +804,40 @@ model RetailerBidItem {
   @@map("retailer_bid_items")
   @@index([retailerBidId])
   @@index([bidRequestItemId])
+}
+
+// ===== Retailer Access Control =====
+
+// Tracks retailer requests to access farmer data
+model RetailerAccessRequest {
+  id                  String              @id @default(uuid())
+  retailerId          String              @map("retailer_id")
+  businessId          String              @map("business_id")
+
+  // Separate permissions for inputs and grain
+  inputsStatus        AccessRequestStatus @default(PENDING) @map("inputs_status")
+  grainStatus         AccessRequestStatus @default(PENDING) @map("grain_status")
+
+  // Timestamps for audit trail
+  inputsRespondedAt   DateTime?           @map("inputs_responded_at")
+  grainRespondedAt    DateTime?           @map("grain_responded_at")
+  respondedBy         String?             @map("responded_by")
+
+  // Notification tracking
+  notificationSentAt  DateTime?           @map("notification_sent_at")
+
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  retailer            Retailer            @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  business            Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([retailerId, businessId])
+  @@index([businessId, inputsStatus])
+  @@index([businessId, grainStatus])
+  @@index([retailerId])
+  @@map("retailer_access_requests")
 }
 
 // ===== Invoice Parsing System Models =====

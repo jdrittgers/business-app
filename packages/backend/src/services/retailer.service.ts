@@ -1,14 +1,17 @@
 import { prisma } from '../prisma/client';
+import { RetailerInterest as PrismaRetailerInterest } from '@prisma/client';
 import {
   Retailer,
   CreateRetailerRequest,
   RetailerLoginRequest,
   RetailerLoginResponse,
-  UserRole
+  UserRole,
+  RetailerInterest
 } from '@business-app/shared';
 import { hashPassword, comparePassword } from '../utils/password';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt';
 import { GeocodingService } from './geocoding.service';
+import { retailerAccessService } from './retailer-access.service';
 
 export class RetailerService {
   private geocodingService: GeocodingService;
@@ -67,12 +70,20 @@ export class RetailerService {
           zipCode: data.zipCode,
           latitude: geocodeResult?.latitude,
           longitude: geocodeResult?.longitude,
-          radiusPreference: 50  // Default 50 miles
+          radiusPreference: (data as any).radiusPreference || 50,  // Default 50 miles
+          interest: ((data as any).interest as PrismaRetailerInterest) || 'BOTH'  // Default to BOTH
         }
       });
 
       return { user, retailer };
     });
+
+    // Create access requests for farmers within radius (async, don't block registration)
+    if (result.retailer.latitude && result.retailer.longitude) {
+      retailerAccessService.createAccessRequestsForRadius(result.retailer.id)
+        .then(count => console.log(`✅ Created ${count} access requests for new retailer ${result.retailer.companyName}`))
+        .catch(err => console.error('Failed to create access requests:', err));
+    }
 
     // Generate tokens
     const accessToken = generateAccessToken({
@@ -118,6 +129,7 @@ export class RetailerService {
         latitude: result.retailer.latitude ? Number(result.retailer.latitude) : undefined,
         longitude: result.retailer.longitude ? Number(result.retailer.longitude) : undefined,
         radiusPreference: result.retailer.radiusPreference,
+        interest: result.retailer.interest as RetailerInterest,
         createdAt: result.retailer.createdAt,
         updatedAt: result.retailer.updatedAt
       }
@@ -196,6 +208,7 @@ export class RetailerService {
         latitude: user.retailerProfile.latitude ? Number(user.retailerProfile.latitude) : undefined,
         longitude: user.retailerProfile.longitude ? Number(user.retailerProfile.longitude) : undefined,
         radiusPreference: user.retailerProfile.radiusPreference,
+        interest: user.retailerProfile.interest as RetailerInterest,
         createdAt: user.retailerProfile.createdAt,
         updatedAt: user.retailerProfile.updatedAt
       }
@@ -222,6 +235,7 @@ export class RetailerService {
       latitude: retailer.latitude ? Number(retailer.latitude) : undefined,
       longitude: retailer.longitude ? Number(retailer.longitude) : undefined,
       radiusPreference: retailer.radiusPreference,
+      interest: retailer.interest as RetailerInterest,
       createdAt: retailer.createdAt,
       updatedAt: retailer.updatedAt
     };
@@ -246,8 +260,21 @@ export class RetailerService {
       state?: string;
       zipCode?: string;
       radiusPreference?: number;
+      interest?: PrismaRetailerInterest;
     }
   ): Promise<Retailer> {
+    // Get current retailer for comparison
+    const currentRetailer = await prisma.retailer.findUnique({
+      where: { id: retailerId }
+    });
+
+    if (!currentRetailer) {
+      throw new Error('Retailer not found');
+    }
+
+    const oldRadius = currentRetailer.radiusPreference;
+    const oldInterest = currentRetailer.interest;
+
     // Geocode if ZIP code is being updated
     let geocodeUpdate = {};
     if (data.zipCode) {
@@ -272,6 +299,26 @@ export class RetailerService {
       }
     });
 
+    // If radius or interest changed, trigger access request updates
+    const newRadius = data.radiusPreference || oldRadius;
+    const newInterest = data.interest || oldInterest;
+
+    if (newRadius > oldRadius || newInterest !== oldInterest || Object.keys(geocodeUpdate).length > 0) {
+      retailerAccessService.handleRetailerProfileUpdate(
+        retailerId,
+        oldRadius,
+        newRadius,
+        oldInterest,
+        newInterest
+      )
+        .then(count => {
+          if (count > 0) {
+            console.log(`✅ Created ${count} new access requests for retailer ${retailer.companyName} after profile update`);
+          }
+        })
+        .catch(err => console.error('Failed to update access requests:', err));
+    }
+
     return {
       id: retailer.id,
       userId: retailer.userId,
@@ -285,6 +332,7 @@ export class RetailerService {
       latitude: retailer.latitude ? Number(retailer.latitude) : undefined,
       longitude: retailer.longitude ? Number(retailer.longitude) : undefined,
       radiusPreference: retailer.radiusPreference,
+      interest: retailer.interest as RetailerInterest,
       createdAt: retailer.createdAt,
       updatedAt: retailer.updatedAt
     };

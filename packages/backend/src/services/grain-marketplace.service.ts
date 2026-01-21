@@ -1,4 +1,5 @@
 import { PrismaClient, CommodityType, GrainPurchaseOfferStatus } from '@prisma/client';
+import { retailerAccessService } from './retailer-access.service';
 
 const prisma = new PrismaClient();
 
@@ -22,15 +23,23 @@ interface GetBinsWithinRadiusOptions {
   longitude: number;
   radiusMiles: number;
   commodityType?: CommodityType;
+  retailerId?: string;
 }
 
 export class GrainMarketplaceService {
   /**
    * Get all grain bins within a specified radius of a location
    * Uses Haversine formula for distance calculation
+   * If retailerId provided, only returns bins from businesses where retailer has grain access
    */
   async getBinsWithinRadius(options: GetBinsWithinRadiusOptions) {
-    const { latitude, longitude, radiusMiles, commodityType } = options;
+    const { latitude, longitude, radiusMiles, commodityType, retailerId } = options;
+
+    // Get list of business IDs retailer has grain access to (if retailerId provided)
+    let accessibleBusinessIds: string[] | null = null;
+    if (retailerId) {
+      accessibleBusinessIds = await retailerAccessService.getAccessibleBusinessIds(retailerId, 'grain');
+    }
 
     // Get all active bins with business location data
     const bins = await prisma.grainBin.findMany({
@@ -38,7 +47,13 @@ export class GrainMarketplaceService {
         isActive: true,
         isAvailableForSale: true, // Only show bins marked as available
         currentBushels: { gt: 0 }, // Only show bins with grain
-        ...(commodityType && { commodityType })
+        ...(commodityType && { commodityType }),
+        // Filter by accessible businesses if retailerId is provided
+        ...(accessibleBusinessIds !== null && {
+          grainEntity: {
+            businessId: { in: accessibleBusinessIds }
+          }
+        })
       },
       include: {
         grainEntity: {

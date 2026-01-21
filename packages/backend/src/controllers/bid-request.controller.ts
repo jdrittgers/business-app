@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
+import { RetailerAuthRequest } from '../middleware/retailer-auth';
 import { BidRequestService } from '../services/bid-request.service';
 
 const bidRequestService = new BidRequestService();
@@ -108,7 +109,7 @@ export async function deleteRetailerBid(req: AuthRequest, res: Response): Promis
   }
 }
 
-export async function getOpenBidRequests(req: AuthRequest, res: Response): Promise<void> {
+export async function getOpenBidRequests(req: RetailerAuthRequest, res: Response): Promise<void> {
   try {
     const { radiusMiles, latitude, longitude } = req.query;
 
@@ -145,7 +146,10 @@ export async function getOpenBidRequests(req: AuthRequest, res: Response): Promi
       }
     }
 
-    const bidRequests = await bidRequestService.getOpenBidRequests(query);
+    // Get retailer ID from authenticated user to filter by access
+    const retailerId = req.retailer?.id;
+
+    const bidRequests = await bidRequestService.getOpenBidRequests(query, retailerId);
     res.json(bidRequests);
   } catch (error) {
     console.error('Get open bid requests error:', error);

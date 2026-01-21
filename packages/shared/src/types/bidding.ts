@@ -16,6 +16,18 @@ export enum ProductType {
   CHEMICAL = 'CHEMICAL'
 }
 
+export enum RetailerInterest {
+  INPUTS = 'INPUTS',
+  GRAIN = 'GRAIN',
+  BOTH = 'BOTH'
+}
+
+export enum AccessRequestStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  DENIED = 'DENIED'
+}
+
 // ===== Retailer Types =====
 
 export interface Retailer {
@@ -31,8 +43,57 @@ export interface Retailer {
   latitude?: number;
   longitude?: number;
   radiusPreference?: number;
+  interest?: RetailerInterest;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ===== Retailer Access Request Types =====
+
+export interface RetailerAccessRequest {
+  id: string;
+  retailerId: string;
+  businessId: string;
+  inputsStatus: AccessRequestStatus;
+  grainStatus: AccessRequestStatus;
+  inputsRespondedAt?: Date;
+  grainRespondedAt?: Date;
+  respondedBy?: string;
+  notificationSentAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  retailer?: {
+    id: string;
+    companyName: string;
+    interest: RetailerInterest;
+    city?: string;
+    state?: string;
+    phone?: string;
+    distance?: number;
+    user?: {
+      email: string;
+      firstName: string;
+      lastName: string;
+    };
+  };
+  business?: {
+    id: string;
+    name: string;
+    city?: string;
+    state?: string;
+    distance?: number;
+  };
+}
+
+export interface RespondToAccessRequestData {
+  type: 'inputs' | 'grain';
+  status: 'APPROVED' | 'DENIED';
+}
+
+export interface AccessSummary {
+  approved: number;
+  pending: number;
+  denied: number;
 }
 
 export interface CreateRetailerRequest {
@@ -47,6 +108,8 @@ export interface CreateRetailerRequest {
   zipCode?: string;
   businessLicense?: string;
   phone?: string;
+  radiusPreference?: number;
+  interest?: RetailerInterest;
 }
 
 export interface RetailerLoginRequest {

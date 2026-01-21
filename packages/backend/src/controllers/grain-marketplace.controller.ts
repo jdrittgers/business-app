@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
 import { AuthRequest, authenticate } from '../middleware/auth';
 import { GrainMarketplaceService } from '../services/grain-marketplace.service';
-import { CommodityType, GrainPurchaseOfferStatus } from '@prisma/client';
+import { CommodityType, GrainPurchaseOfferStatus, UserRole } from '@prisma/client';
+import { prisma } from '../prisma/client';
 
 const router = Router();
 const marketplaceService = new GrainMarketplaceService();
@@ -24,11 +25,22 @@ router.get('/bins/search', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    // Get retailer ID if user is a retailer (for access filtering)
+    let retailerId: string | undefined;
+    if (req.user?.role === UserRole.RETAILER) {
+      const retailer = await prisma.retailer.findUnique({
+        where: { userId: req.user.userId },
+        select: { id: true }
+      });
+      retailerId = retailer?.id;
+    }
+
     const bins = await marketplaceService.getBinsWithinRadius({
       latitude: parseFloat(latitude as string),
       longitude: parseFloat(longitude as string),
       radiusMiles: parseInt(radiusMiles as string),
-      commodityType: commodityType as CommodityType | undefined
+      commodityType: commodityType as CommodityType | undefined,
+      retailerId
     });
 
     res.json(bins);

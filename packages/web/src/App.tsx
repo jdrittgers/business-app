@@ -36,6 +36,7 @@ import PricingPage from './pages/PricingPage';
 import SubscriptionManagement from './pages/SubscriptionManagement';
 import DeletedItems from './pages/DeletedItems';
 import MarketingAI from './pages/MarketingAI';
+import FarmerAccessManagement from './pages/FarmerAccessManagement';
 import RequireRole from './components/RequireRole';
 
 // Wrapper for authenticated farmer routes with layout
@@ -96,6 +97,7 @@ function App() {
       <Route path="/subscription/success" element={<AuthRoute><SubscriptionManagement /></AuthRoute>} />
       <Route path="/deleted-items" element={<AuthRoute><DeletedItems /></AuthRoute>} />
       <Route path="/marketing-ai" element={<AuthRoute><MarketingAI /></AuthRoute>} />
+      <Route path="/retailer-access" element={<AuthRoute><FarmerAccessManagement /></AuthRoute>} />
 
       {/* Retailer Routes */}
       <Route path="/retailer/login" element={<RetailerLogin />} />

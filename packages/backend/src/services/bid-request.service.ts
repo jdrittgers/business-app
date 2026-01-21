@@ -8,6 +8,7 @@ import {
   BidRequestStatus,
   calculateDistance
 } from '@business-app/shared';
+import { retailerAccessService } from './retailer-access.service';
 
 export class BidRequestService {
   async create(businessId: string, userId: string, data: CreateBidRequestRequest): Promise<BidRequest> {
@@ -96,10 +97,20 @@ export class BidRequestService {
     return bidRequests.map(br => this.mapToResponse(br));
   }
 
-  async getOpenBidRequests(query?: GetOpenBidRequestsQuery): Promise<BidRequest[]> {
+  async getOpenBidRequests(query?: GetOpenBidRequestsQuery, retailerId?: string): Promise<BidRequest[]> {
+    // Get list of business IDs retailer has input access to (if retailerId provided)
+    let accessibleBusinessIds: string[] | null = null;
+    if (retailerId) {
+      accessibleBusinessIds = await retailerAccessService.getAccessibleBusinessIds(retailerId, 'inputs');
+    }
+
     const bidRequests = await prisma.bidRequest.findMany({
       where: {
-        status: BidRequestStatus.OPEN
+        status: BidRequestStatus.OPEN,
+        // Filter by accessible businesses if retailerId is provided
+        ...(accessibleBusinessIds !== null && {
+          businessId: { in: accessibleBusinessIds }
+        })
       },
       include: {
         items: true,

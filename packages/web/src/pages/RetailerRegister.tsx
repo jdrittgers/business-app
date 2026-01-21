@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useRetailerAuthStore } from '../store/retailerAuthStore';
+import { RetailerInterest } from '@business-app/shared';
 
 export default function RetailerRegister() {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ export default function RetailerRegister() {
     zipCode: '',
     businessLicense: '',
     phone: '',
+    interest: 'BOTH' as RetailerInterest,
+    radiusPreference: 50,
     disclaimerAccepted: false
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +66,9 @@ export default function RetailerRegister() {
         companyName: formData.companyName,
         zipCode: formData.zipCode || undefined,
         businessLicense: formData.businessLicense || undefined,
-        phone: formData.phone || undefined
+        phone: formData.phone || undefined,
+        interest: formData.interest,
+        radiusPreference: formData.radiusPreference
       });
       navigate('/retailer/dashboard');
     } catch (err) {
@@ -195,6 +200,41 @@ export default function RetailerRegister() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="(555) 123-4567"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                What are you interested in? *
+              </label>
+              <select
+                value={formData.interest}
+                onChange={(e) => setFormData({ ...formData, interest: e.target.value as RetailerInterest })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="BOTH">Both Farm Inputs & Grain</option>
+                <option value="INPUTS">Farm Inputs Only (fertilizer, chemicals, seed)</option>
+                <option value="GRAIN">Grain Only (buying grain from farmers)</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                This determines what type of data you can request access to view
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Search Radius (miles) *
+              </label>
+              <input
+                type="number"
+                min="10"
+                max="500"
+                value={formData.radiusPreference}
+                onChange={(e) => setFormData({ ...formData, radiusPreference: parseInt(e.target.value) || 50 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Farmers within this radius will be notified of your access request
+              </p>
             </div>
 
             <div>
