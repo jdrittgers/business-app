@@ -1,10 +1,14 @@
 import { prisma } from '../prisma/client';
+import YahooFinance from 'yahoo-finance2';
 import {
   CommodityType,
   FuturesQuote,
   BasisData,
   PriceTrendAnalysis
 } from '@business-app/shared';
+
+// Initialize Yahoo Finance client (suppress survey notices)
+const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
 
 interface TwelveDataQuote {
   symbol: string;
@@ -800,71 +804,123 @@ export class MarketDataService {
   // ===== Harvest Contract Methods =====
 
   /**
-   * Get TwelveData symbols for futures
-   * Note: TwelveData only provides rolling front-month contracts (C_1, S_1)
-   * They don't support specific contract months like ZCZ26
+   * Get Yahoo Finance symbols for specific harvest contracts
+   * Corn: December contract (Z) - main harvest contract
+   * Soybeans: November contract (X) - main harvest contract
+   * Format: ZCZ26.CBT for December 2026 Corn, ZSX26.CBT for November 2026 Soybeans
    */
-  getTwelveDataSymbols(): { corn: string; soybeans: string } {
+  getYahooFinanceHarvestSymbols(harvestYear: number): { corn: string; soybeans: string; wheat: string } {
+    const yearCode = String(harvestYear).slice(-2);
     return {
-      corn: 'C_1',      // Rolling front-month corn
-      soybeans: 'S_1'   // Rolling front-month soybeans
+      corn: `ZCZ${yearCode}.CBT`,      // December corn (e.g., ZCZ26.CBT)
+      soybeans: `ZSX${yearCode}.CBT`,  // November soybeans (e.g., ZSX26.CBT)
+      wheat: `ZWZ${yearCode}.CBT`      // December wheat (e.g., ZWZ26.CBT)
     };
   }
 
   /**
-   * Fetch harvest contract quotes for a specific crop year
-   * Note: TwelveData only provides rolling contracts, not specific months
-   * We fetch the current futures price as the best available reference
+   * Fetch a single quote from Yahoo Finance
+   * Note: Grain futures prices are returned in cents, so we divide by 100
+   */
+  private async fetchYahooQuote(symbol: string): Promise<{
+    price: number;
+    change: number;
+    previousClose: number;
+  } | null> {
+    try {
+      const quote = await yahooFinance.quote(symbol);
+      if (quote && typeof quote.regularMarketPrice === 'number') {
+        // Yahoo returns grain futures in cents (450 = $4.50/bushel)
+        const price = quote.regularMarketPrice / 100;
+        const change = (quote.regularMarketChange || 0) / 100;
+        const previousClose = (quote.regularMarketPreviousClose || quote.regularMarketPrice) / 100;
+
+        return { price, change, previousClose };
+      }
+      return null;
+    } catch (error) {
+      console.error(`Yahoo Finance error for ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch harvest contract quotes for a specific crop year using Yahoo Finance
+   * Returns December corn and November soybeans for the given year
    */
   async fetchHarvestContractQuotes(harvestYear: number): Promise<{
     corn: FuturesQuote | null;
     soybeans: FuturesQuote | null;
     source: 'live' | 'mock';
   }> {
-    const symbols = this.getTwelveDataSymbols();
+    const symbols = this.getYahooFinanceHarvestSymbols(harvestYear);
     const yearCode = String(harvestYear).slice(-2);
 
-    if (!this.twelveDataApiKey) {
-      // Return mock data for harvest contracts
-      return {
-        corn: this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
-        soybeans: this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
-        source: 'mock'
-      };
-    }
-
     try {
-      // Fetch rolling contracts from TwelveData (C_1, S_1)
-      const batchQuotes = await this.fetchBatchQuotes([symbols.corn, symbols.soybeans]);
+      // Fetch both contracts from Yahoo Finance in parallel
+      const [cornData, soyData] = await Promise.all([
+        this.fetchYahooQuote(symbols.corn),
+        this.fetchYahooQuote(symbols.soybeans)
+      ]);
 
-      let cornQuote = batchQuotes.get(symbols.corn) || null;
-      let soyQuote = batchQuotes.get(symbols.soybeans) || null;
+      let cornQuote: FuturesQuote | null = null;
+      let soyQuote: FuturesQuote | null = null;
 
-      // Set proper commodity type and contract info
-      // Note: We label as harvest month but price is from rolling contract
-      if (cornQuote) {
-        cornQuote.commodityType = CommodityType.CORN;
-        cornQuote.contractMonth = `DEC${yearCode}`;
-        cornQuote.contractYear = harvestYear;
+      if (cornData) {
+        cornQuote = {
+          id: '',
+          commodityType: CommodityType.CORN,
+          contractMonth: `DEC${yearCode}`,
+          contractYear: harvestYear,
+          openPrice: cornData.previousClose,
+          highPrice: cornData.price,
+          lowPrice: cornData.price,
+          closePrice: cornData.price,
+          settlementPrice: cornData.price,
+          volume: 0,
+          priceChange: cornData.change,
+          quoteDate: new Date(),
+          source: 'YAHOO',
+          createdAt: new Date()
+        };
         await this.storeQuote(cornQuote);
       }
 
-      if (soyQuote) {
-        soyQuote.commodityType = CommodityType.SOYBEANS;
-        soyQuote.contractMonth = `NOV${yearCode}`;
-        soyQuote.contractYear = harvestYear;
+      if (soyData) {
+        soyQuote = {
+          id: '',
+          commodityType: CommodityType.SOYBEANS,
+          contractMonth: `NOV${yearCode}`,
+          contractYear: harvestYear,
+          openPrice: soyData.previousClose,
+          highPrice: soyData.price,
+          lowPrice: soyData.price,
+          closePrice: soyData.price,
+          settlementPrice: soyData.price,
+          volume: 0,
+          priceChange: soyData.change,
+          quoteDate: new Date(),
+          source: 'YAHOO',
+          createdAt: new Date()
+        };
         await this.storeQuote(soyQuote);
       }
 
-      // Fallback to mock if API returned no data
       const hasLiveData = cornQuote !== null || soyQuote !== null;
+
+      console.log(`Yahoo Finance harvest quotes for ${harvestYear}:`, {
+        corn: cornData ? `$${cornData.price.toFixed(2)}` : 'not available',
+        soybeans: soyData ? `$${soyData.price.toFixed(2)}` : 'not available',
+        source: hasLiveData ? 'live' : 'mock'
+      });
+
       return {
         corn: cornQuote || this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
         soybeans: soyQuote || this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
         source: hasLiveData ? 'live' : 'mock'
       };
     } catch (error) {
-      console.error('Error fetching harvest contracts:', error);
+      console.error('Error fetching harvest contracts from Yahoo Finance:', error);
       return {
         corn: this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
         soybeans: this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
