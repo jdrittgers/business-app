@@ -26,14 +26,21 @@ interface TwelveDataBatchResponse {
 }
 
 // TwelveData commodity futures symbols
-// Using continuous front-month contracts for efficiency
+// TwelveData uses C_1, S_1 format for rolling/continuous contracts
 const COMMODITY_SYMBOLS: Record<CommodityType, string[]> = {
-  // Corn futures - only track 2 nearest months to save calls
-  CORN: ['ZC1!', 'ZC2!'],  // Front month and second month
-  // Soybean futures - only track 2 nearest months
-  SOYBEANS: ['ZS1!', 'ZS2!'],
-  // Wheat disabled to save API calls (can enable if needed)
-  WHEAT: []
+  // Corn futures - TwelveData symbol is C_1 (not ZC1!)
+  CORN: ['C_1'],
+  // Soybean futures - TwelveData symbol is S_1 (not ZS1!)
+  SOYBEANS: ['S_1'],
+  // Wheat - TwelveData symbol is W_1
+  WHEAT: ['W_1']
+};
+
+// Mapping from TwelveData symbols to commodity types
+const SYMBOL_TO_COMMODITY: Record<string, CommodityType> = {
+  'C_1': CommodityType.CORN,
+  'S_1': CommodityType.SOYBEANS,
+  'W_1': CommodityType.WHEAT
 };
 
 // Contract month mapping
@@ -314,9 +321,14 @@ export class MarketDataService {
   }
 
   private getCommodityFromSymbol(symbol: string): CommodityType {
-    if (symbol.startsWith('ZC')) return CommodityType.CORN;
-    if (symbol.startsWith('ZS')) return CommodityType.SOYBEANS;
-    if (symbol.startsWith('ZW')) return CommodityType.WHEAT;
+    // Handle TwelveData format (C_1, S_1, W_1)
+    if (SYMBOL_TO_COMMODITY[symbol]) {
+      return SYMBOL_TO_COMMODITY[symbol];
+    }
+    // Fallback for legacy CME format
+    if (symbol.startsWith('ZC') || symbol.startsWith('C_')) return CommodityType.CORN;
+    if (symbol.startsWith('ZS') || symbol.startsWith('S_')) return CommodityType.SOYBEANS;
+    if (symbol.startsWith('ZW') || symbol.startsWith('W_')) return CommodityType.WHEAT;
     return CommodityType.CORN; // Default
   }
 
@@ -788,28 +800,28 @@ export class MarketDataService {
   // ===== Harvest Contract Methods =====
 
   /**
-   * Get harvest contract symbols for a given crop year
-   * Corn: December contract (Z) - main harvest contract
-   * Soybeans: November contract (X) - main harvest contract
+   * Get TwelveData symbols for futures
+   * Note: TwelveData only provides rolling front-month contracts (C_1, S_1)
+   * They don't support specific contract months like ZCZ26
    */
-  getHarvestContractSymbols(harvestYear: number): { corn: string; soybeans: string } {
-    const yearCode = String(harvestYear).slice(-2);
+  getTwelveDataSymbols(): { corn: string; soybeans: string } {
     return {
-      corn: `ZCZ${yearCode}`,      // December corn (e.g., ZCZ26 for 2026)
-      soybeans: `ZSX${yearCode}`   // November soybeans (e.g., ZSX26 for 2026)
+      corn: 'C_1',      // Rolling front-month corn
+      soybeans: 'S_1'   // Rolling front-month soybeans
     };
   }
 
   /**
    * Fetch harvest contract quotes for a specific crop year
-   * Returns December corn and November soybeans for the given year
+   * Note: TwelveData only provides rolling contracts, not specific months
+   * We fetch the current futures price as the best available reference
    */
   async fetchHarvestContractQuotes(harvestYear: number): Promise<{
     corn: FuturesQuote | null;
     soybeans: FuturesQuote | null;
     source: 'live' | 'mock';
   }> {
-    const symbols = this.getHarvestContractSymbols(harvestYear);
+    const symbols = this.getTwelveDataSymbols();
     const yearCode = String(harvestYear).slice(-2);
 
     if (!this.twelveDataApiKey) {
@@ -822,13 +834,14 @@ export class MarketDataService {
     }
 
     try {
-      // Batch fetch both harvest contracts
+      // Fetch rolling contracts from TwelveData (C_1, S_1)
       const batchQuotes = await this.fetchBatchQuotes([symbols.corn, symbols.soybeans]);
 
       let cornQuote = batchQuotes.get(symbols.corn) || null;
       let soyQuote = batchQuotes.get(symbols.soybeans) || null;
 
       // Set proper commodity type and contract info
+      // Note: We label as harvest month but price is from rolling contract
       if (cornQuote) {
         cornQuote.commodityType = CommodityType.CORN;
         cornQuote.contractMonth = `DEC${yearCode}`;
@@ -844,10 +857,11 @@ export class MarketDataService {
       }
 
       // Fallback to mock if API returned no data
+      const hasLiveData = cornQuote !== null || soyQuote !== null;
       return {
         corn: cornQuote || this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
         soybeans: soyQuote || this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
-        source: cornQuote || soyQuote ? 'live' : 'mock'
+        source: hasLiveData ? 'live' : 'mock'
       };
     } catch (error) {
       console.error('Error fetching harvest contracts:', error);
