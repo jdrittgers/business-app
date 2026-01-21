@@ -30,7 +30,10 @@
       "Bash(npx prisma generate:*)",
       "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npx prisma migrate dev:*)",
       "Bash(DATABASE_URL=\"postgresql://postgres:IFEGBjBrfpLQlpQadSsiyLOjyukaYkOu@trolley.proxy.rlwy.net:24210/railway\" npm run dev:*)",
-      "Bash(timeout 15 tail:*)"
+      "Bash(timeout 15 tail:*)",
+      "WebFetch(domain:www.procooperative.com)",
+      "WebFetch(domain:finance.yahoo.com)",
+      "Bash(npm install:*)"
     ]
   }
 }

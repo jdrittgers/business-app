@@ -1,27 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
 import { grainContractsApi } from '../api/grain-contracts.api';
+import { marketingAiApi } from '../api/marketing-ai.api';
 import {
   Farm,
   GrainEntity,
-  CommodityType
+  CommodityType,
+  FarmBreakEven
 } from '@business-app/shared';
 
+// Default harvest prices (will be updated from Yahoo Finance)
+const DEFAULT_PRICES: Record<string, number> = {
+  CORN: 4.50,
+  SOYBEANS: 10.50,
+  WHEAT: 5.80
+};
+
 export default function FarmManagement() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
 
   const [farms, setFarms] = useState<Farm[]>([]);
+  const [farmBreakEvens, setFarmBreakEvens] = useState<Map<string, FarmBreakEven>>(new Map());
   const [entities, setEntities] = useState<GrainEntity[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Market prices
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>(DEFAULT_PRICES);
+  const [pricesLoading, setPricesLoading] = useState(false);
+
   // Filters
   const [filterEntity, setFilterEntity] = useState<string>('ALL');
-  const [filterYear, setFilterYear] = useState<number>(2026);
+  const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
+  const [filterCommodity, setFilterCommodity] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -31,7 +47,7 @@ export default function FarmManagement() {
     name: '',
     acres: '',
     commodityType: 'CORN' as CommodityType,
-    year: 2026,
+    year: new Date().getFullYear(),
     projectedYield: '200',
     aph: '200',
     notes: ''
@@ -62,7 +78,26 @@ export default function FarmManagement() {
     if (selectedBusinessId) {
       loadData();
     }
-  }, [selectedBusinessId, filterEntity, filterYear]);
+  }, [selectedBusinessId, filterEntity, filterYear, filterCommodity]);
+
+  // Fetch market prices when year changes
+  useEffect(() => {
+    const loadPrices = async () => {
+      setPricesLoading(true);
+      try {
+        const data = await marketingAiApi.getHarvestContracts(filterYear);
+        const newPrices = { ...DEFAULT_PRICES };
+        if (data.corn?.closePrice) newPrices.CORN = data.corn.closePrice;
+        if (data.soybeans?.closePrice) newPrices.SOYBEANS = data.soybeans.closePrice;
+        setMarketPrices(newPrices);
+      } catch (err) {
+        console.error('Failed to load prices:', err);
+      } finally {
+        setPricesLoading(false);
+      }
+    };
+    loadPrices();
+  }, [filterYear]);
 
   const loadData = async () => {
     if (!selectedBusinessId) return;
@@ -71,16 +106,32 @@ export default function FarmManagement() {
     setError(null);
 
     try {
-      // Load entities
-      const entitiesData = await grainContractsApi.getGrainEntities(selectedBusinessId);
-      setEntities(entitiesData);
+      // Load entities and farms in parallel
+      const [entitiesData, farmsData] = await Promise.all([
+        grainContractsApi.getGrainEntities(selectedBusinessId),
+        breakevenApi.getFarms(selectedBusinessId, {
+          grainEntityId: filterEntity === 'ALL' ? undefined : filterEntity,
+          year: filterYear,
+          commodityType: filterCommodity === 'ALL' ? undefined : filterCommodity as CommodityType
+        })
+      ]);
 
-      // Load farms with filters
-      const farmsData = await breakevenApi.getFarms(selectedBusinessId, {
-        grainEntityId: filterEntity === 'ALL' ? undefined : filterEntity,
-        year: filterYear
-      });
+      setEntities(entitiesData);
       setFarms(farmsData);
+
+      // Load break-even data for each farm
+      const breakEvenMap = new Map<string, FarmBreakEven>();
+      await Promise.all(
+        farmsData.map(async (farm) => {
+          try {
+            const beData = await breakevenApi.getFarmBreakEven(selectedBusinessId, farm.id);
+            breakEvenMap.set(farm.id, beData);
+          } catch (err) {
+            // Farm might not have break-even data yet
+          }
+        })
+      );
+      setFarmBreakEvens(breakEvenMap);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load farms');
     } finally {
@@ -88,32 +139,64 @@ export default function FarmManagement() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
+  // Calculate P&L for each farm
+  const farmsWithPL = useMemo(() => {
+    return farms.map(farm => {
+      const be = farmBreakEvens.get(farm.id);
+      const price = marketPrices[farm.commodityType] || 0;
+
+      const totalCost = be?.totalCost || 0;
+      const costPerAcre = be?.costPerAcre || 0;
+      const expectedBushels = farm.acres * farm.projectedYield;
+      const projectedRevenue = expectedBushels * price;
+      const profit = projectedRevenue - totalCost;
+      const profitPerAcre = farm.acres > 0 ? profit / farm.acres : 0;
+      const breakEvenPrice = expectedBushels > 0 ? totalCost / expectedBushels : 0;
+
+      return {
+        ...farm,
+        breakEven: be,
+        totalCost,
+        costPerAcre,
+        expectedBushels,
+        projectedRevenue,
+        profit,
+        profitPerAcre,
+        breakEvenPrice,
+        marketPrice: price
+      };
+    });
+  }, [farms, farmBreakEvens, marketPrices]);
+
+  // Summary calculations
+  const summary = useMemo(() => {
+    const totalAcres = farmsWithPL.reduce((sum, f) => sum + f.acres, 0);
+    const totalCost = farmsWithPL.reduce((sum, f) => sum + f.totalCost, 0);
+    const totalRevenue = farmsWithPL.reduce((sum, f) => sum + f.projectedRevenue, 0);
+    const totalProfit = farmsWithPL.reduce((sum, f) => sum + f.profit, 0);
+    const avgCostPerAcre = totalAcres > 0 ? totalCost / totalAcres : 0;
+
+    const byCommodity = {
+      CORN: farmsWithPL.filter(f => f.commodityType === 'CORN'),
+      SOYBEANS: farmsWithPL.filter(f => f.commodityType === 'SOYBEANS'),
+      WHEAT: farmsWithPL.filter(f => f.commodityType === 'WHEAT')
+    };
+
+    return { totalAcres, totalCost, totalRevenue, totalProfit, avgCostPerAcre, byCommodity };
+  }, [farmsWithPL]);
 
   const getYieldDefaults = (commodityType: CommodityType) => {
     switch (commodityType) {
-      case 'CORN':
-        return { projectedYield: '200', aph: '200' };
-      case 'SOYBEANS':
-        return { projectedYield: '65', aph: '65' };
-      case 'WHEAT':
-        return { projectedYield: '80', aph: '80' };
-      default:
-        return { projectedYield: '0', aph: '0' };
+      case 'CORN': return { projectedYield: '200', aph: '200' };
+      case 'SOYBEANS': return { projectedYield: '65', aph: '65' };
+      case 'WHEAT': return { projectedYield: '80', aph: '80' };
+      default: return { projectedYield: '0', aph: '0' };
     }
   };
 
   const handleCommodityChange = (commodityType: CommodityType) => {
     const defaults = getYieldDefaults(commodityType);
-    setFormData({
-      ...formData,
-      commodityType,
-      projectedYield: defaults.projectedYield,
-      aph: defaults.aph
-    });
+    setFormData({ ...formData, commodityType, ...defaults });
   };
 
   const handleAdd = () => {
@@ -122,7 +205,7 @@ export default function FarmManagement() {
       grainEntityId: entities.length > 0 ? entities[0].id : '',
       name: '',
       acres: '',
-      commodityType: 'CORN' as any,
+      commodityType: CommodityType.CORN,
       year: filterYear,
       projectedYield: '200',
       aph: '200',
@@ -187,193 +270,334 @@ export default function FarmManagement() {
     }
   };
 
-  const handleViewCosts = (farmId: string) => {
-    navigate(`/breakeven/farms/${farmId}/costs`);
+  const getCommodityIcon = (type: string) => {
+    switch (type) {
+      case 'CORN': return '🌽';
+      case 'SOYBEANS': return '🫘';
+      case 'WHEAT': return '🌾';
+      default: return '🌱';
+    }
   };
 
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Farm Management</h1>
-              <p className="text-sm text-gray-600">Manage farms and track costs</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/breakeven')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => navigate('/breakeven/products')}
-                className="text-sm text-blue-600 hover:text-blue-700"
-              >
-                Products
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                Logout
-              </button>
-            </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Farm Management</h1>
+          <p className="text-sm text-gray-600">Track costs and profitability by field for {filterYear}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/breakeven')}
+            className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={handleAdd}
+            className="px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700"
+          >
+            Add Farm
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Total Farms</div>
+          <div className="text-2xl font-bold text-gray-900">{farms.length}</div>
+          <div className="text-xs text-gray-400">{summary.totalAcres.toLocaleString()} acres</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Total Costs</div>
+          <div className="text-2xl font-bold text-red-600">${summary.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <div className="text-xs text-gray-400">${summary.avgCostPerAcre.toFixed(0)}/acre avg</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Proj. Revenue</div>
+          <div className="text-2xl font-bold text-blue-600">${summary.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+        </div>
+        <div className={`rounded-xl shadow-sm border p-4 ${summary.totalProfit >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className="text-sm text-gray-500">Proj. Profit</div>
+          <div className={`text-2xl font-bold ${summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {summary.totalProfit >= 0 ? '+' : ''}${summary.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
         </div>
-      </header>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="text-sm text-gray-500">Market Prices</div>
+          <div className="text-sm font-medium text-gray-900">
+            <div>🌽 ${marketPrices.CORN?.toFixed(2)}</div>
+            <div>🫘 ${marketPrices.SOYBEANS?.toFixed(2)}</div>
+          </div>
+          {pricesLoading && <div className="text-xs text-gray-400">Updating...</div>}
+        </div>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Entity</label>
-              <select
-                value={filterEntity}
-                onChange={(e) => setFilterEntity(e.target.value)}
-                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="ALL">All Entities</option>
-                {entities.map(entity => (
-                  <option key={entity.id} value={entity.id}>{entity.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-              <select
-                value={filterYear}
-                onChange={(e) => setFilterYear(parseInt(e.target.value))}
-                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-                <option value={2027}>2027</option>
-              </select>
-            </div>
-
-            <div className="ml-auto">
-              <button
-                onClick={handleAdd}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-              >
-                Add Farm
-              </button>
-            </div>
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Year</label>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(parseInt(e.target.value))}
+              className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+            >
+              <option value={2024}>2024</option>
+              <option value={2025}>2025</option>
+              <option value={2026}>2026</option>
+              <option value={2027}>2027</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Entity</label>
+            <select
+              value={filterEntity}
+              onChange={(e) => setFilterEntity(e.target.value)}
+              className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+            >
+              <option value="ALL">All Entities</option>
+              {entities.map(entity => (
+                <option key={entity.id} value={entity.id}>{entity.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Commodity</label>
+            <select
+              value={filterCommodity}
+              onChange={(e) => setFilterCommodity(e.target.value)}
+              className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+            >
+              <option value="ALL">All Commodities</option>
+              <option value="CORN">Corn</option>
+              <option value="SOYBEANS">Soybeans</option>
+              <option value="WHEAT">Wheat</option>
+            </select>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500">View:</label>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`p-2 rounded ${viewMode === 'cards' ? 'bg-teal-100 text-teal-700' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Card view"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded ${viewMode === 'table' ? 'bg-teal-100 text-teal-700' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Table view"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-            {error}
-          </div>
-        )}
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          {error}
+        </div>
+      )}
 
-        {/* Loading State */}
-        {isLoading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Loading farms...</p>
-          </div>
-        )}
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+          <p className="mt-2 text-gray-600">Loading farms...</p>
+        </div>
+      )}
 
-        {/* Farms Table */}
-        {!isLoading && (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      {/* Farm Cards */}
+      {!isLoading && viewMode === 'cards' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {farmsWithPL.length === 0 ? (
+            <div className="col-span-full text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="text-gray-400 mb-4">
+                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-500 mb-4">No farms found for {filterYear}</p>
+              <button onClick={handleAdd} className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700">
+                Add Your First Farm
+              </button>
+            </div>
+          ) : (
+            farmsWithPL.map((farm) => (
+              <div
+                key={farm.id}
+                className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden ${
+                  farm.profit >= 0 ? 'border-green-200' : 'border-red-200'
+                }`}
+              >
+                {/* Card Header */}
+                <div className={`px-4 py-3 ${farm.profit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{getCommodityIcon(farm.commodityType)}</span>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{farm.name}</h3>
+                        <p className="text-xs text-gray-500">{farm.grainEntity?.name || 'No Entity'}</p>
+                      </div>
+                    </div>
+                    <div className={`text-right ${farm.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className="text-lg font-bold">
+                        {farm.profit >= 0 ? '+' : ''}${farm.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </div>
+                      <div className="text-xs">
+                        {farm.profitPerAcre >= 0 ? '+' : ''}${farm.profitPerAcre.toFixed(0)}/ac
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="p-4 space-y-3">
+                  {/* Farm Details */}
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="text-center p-2 bg-gray-50 rounded">
+                      <div className="text-gray-500 text-xs">Acres</div>
+                      <div className="font-semibold">{farm.acres.toLocaleString()}</div>
+                    </div>
+                    <div className="text-center p-2 bg-gray-50 rounded">
+                      <div className="text-gray-500 text-xs">Yield</div>
+                      <div className="font-semibold">{farm.projectedYield} bu/ac</div>
+                    </div>
+                    <div className="text-center p-2 bg-gray-50 rounded">
+                      <div className="text-gray-500 text-xs">Bushels</div>
+                      <div className="font-semibold">{farm.expectedBushels.toLocaleString()}</div>
+                    </div>
+                  </div>
+
+                  {/* Financial Summary */}
+                  <div className="space-y-2 text-sm border-t pt-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Cost:</span>
+                      <span className="font-medium text-red-600">${farm.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cost/Acre:</span>
+                      <span className="font-medium">${farm.costPerAcre.toFixed(0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Break-Even:</span>
+                      <span className="font-bold text-purple-600">${farm.breakEvenPrice.toFixed(2)}/bu</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-gray-600">Revenue @ ${farm.marketPrice.toFixed(2)}:</span>
+                      <span className="font-medium text-blue-600">${farm.projectedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2 border-t">
+                    <button
+                      onClick={() => navigate(`/breakeven/farms/${farm.id}/costs`)}
+                      className="flex-1 px-3 py-2 text-xs font-medium text-teal-700 bg-teal-50 rounded hover:bg-teal-100"
+                    >
+                      Manage Costs
+                    </button>
+                    <button
+                      onClick={() => handleEdit(farm)}
+                      className="px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(farm.id)}
+                      className="px-3 py-2 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Table View */}
+      {!isLoading && viewMode === 'table' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Farm Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Entity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Commodity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acres
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Year
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Farm</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entity</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Crop</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acres</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Cost</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost/Ac</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Break-Even</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {farms.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                      No farms found. Click "Add Farm" to create one.
+              <tbody className="divide-y divide-gray-200">
+                {farmsWithPL.map((farm) => (
+                  <tr key={farm.id} className={`hover:bg-gray-50 ${farm.profit >= 0 ? '' : 'bg-red-50'}`}>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <button
+                        onClick={() => navigate(`/breakeven/farms/${farm.id}/costs`)}
+                        className="font-medium text-teal-600 hover:text-teal-900"
+                      >
+                        {farm.name}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                      {farm.grainEntity?.name || '-'}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <span className="text-lg">{getCommodityIcon(farm.commodityType)}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                      {farm.acres.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600 font-medium">
+                      ${farm.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                      ${farm.costPerAcre.toFixed(0)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-purple-600 font-bold">
+                      ${farm.breakEvenPrice.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
+                      ${farm.projectedRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className={`px-4 py-3 whitespace-nowrap text-sm text-right font-bold ${farm.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {farm.profit >= 0 ? '+' : ''}${farm.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm space-x-2">
+                      <button onClick={() => handleEdit(farm)} className="text-teal-600 hover:text-teal-900">Edit</button>
+                      <button onClick={() => handleDelete(farm.id)} className="text-red-600 hover:text-red-900">Delete</button>
                     </td>
                   </tr>
-                ) : (
-                  farms.map((farm) => (
-                    <tr key={farm.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => handleViewCosts(farm.id)}
-                          className="text-blue-600 hover:text-blue-900 font-medium"
-                        >
-                          {farm.name}
-                        </button>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {farm.grainEntity?.name || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {farm.commodityType}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {farm.acres.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {farm.year}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => handleViewCosts(farm.id)}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          Costs
-                        </button>
-                        <button
-                          onClick={() => handleEdit(farm)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(farm.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               {editingFarm ? 'Edit Farm' : 'Add Farm'}
             </h2>
@@ -381,13 +605,11 @@ export default function FarmManagement() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Entity *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Entity *</label>
                   <select
                     value={formData.grainEntityId}
                     onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
                     required
                   >
                     <option value="">Select Entity</option>
@@ -398,107 +620,90 @@ export default function FarmManagement() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Farm Name *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Farm Name *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
                     placeholder="e.g., North 40"
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Acres *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.acres}
-                    onChange={(e) => setFormData({ ...formData, acres: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    placeholder="120.5"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Acres *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.acres}
+                      onChange={(e) => setFormData({ ...formData, acres: e.target.value })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Year *</label>
+                    <select
+                      value={formData.year}
+                      onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    >
+                      <option value={2024}>2024</option>
+                      <option value={2025}>2025</option>
+                      <option value={2026}>2026</option>
+                      <option value={2027}>2027</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Commodity *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Commodity *</label>
                   <select
                     value={formData.commodityType}
                     onChange={(e) => handleCommodityChange(e.target.value as CommodityType)}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
                   >
-                    <option value="CORN">Corn</option>
-                    <option value="SOYBEANS">Soybeans</option>
-                    <option value="WHEAT">Wheat</option>
+                    <option value="CORN">🌽 Corn</option>
+                    <option value="SOYBEANS">🫘 Soybeans</option>
+                    <option value="WHEAT">🌾 Wheat</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Year *
-                  </label>
-                  <select
-                    value={formData.year}
-                    onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  >
-                    <option value={2024}>2024</option>
-                    <option value={2025}>2025</option>
-                    <option value={2026}>2026</option>
-                    <option value={2027}>2027</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Projected Yield (bu/ac) *</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={formData.projectedYield}
+                      onChange={(e) => setFormData({ ...formData, projectedYield: e.target.value })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">APH (bu/ac) *</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={formData.aph}
+                      onChange={(e) => setFormData({ ...formData, aph: e.target.value })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Projected Yield (bu/acre) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formData.projectedYield}
-                    onChange={(e) => setFormData({ ...formData, projectedYield: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    placeholder="200"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    APH (bu/acre) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={formData.aph}
-                    onChange={(e) => setFormData({ ...formData, aph: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    placeholder="200"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    rows={3}
-                    placeholder="Optional notes about this farm"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    rows={2}
+                    placeholder="Optional notes"
                   />
                 </div>
               </div>
@@ -513,7 +718,7 @@ export default function FarmManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
                 >
                   {editingFarm ? 'Update' : 'Create'}
                 </button>
