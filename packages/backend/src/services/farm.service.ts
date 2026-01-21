@@ -650,6 +650,8 @@ export class FarmService {
         other: otherCostsTotal,
         total: totalCost
       },
+      // Also expose at top level for easier access
+      totalCost,
       costPerAcre,
       breakEvenPrice
     };
