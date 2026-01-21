@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { grainMarketplaceApi } from '../api/grain-marketplace.api';
-import { GrainPurchaseOfferWithDetails, GrainPurchaseOfferStatus } from '@business-app/shared';
+import { grainBinsApi } from '../api/grain-bins.api';
+import { GrainPurchaseOfferWithDetails, GrainPurchaseOfferStatus, GrainBin } from '@business-app/shared';
+
+interface AvailableInventory {
+  totalBushels: number;
+  byCommodity: { [key: string]: number };
+  bins: GrainBin[];
+}
 
 const FarmerGrainOffers: React.FC = () => {
   const { user } = useAuthStore();
   const [offers, setOffers] = useState<GrainPurchaseOfferWithDetails[]>([]);
+  const [allOffers, setAllOffers] = useState<GrainPurchaseOfferWithDetails[]>([]);
+  const [availableInventory, setAvailableInventory] = useState<AvailableInventory | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<GrainPurchaseOfferStatus | ''>('PENDING' as GrainPurchaseOfferStatus);
   const [selectedOffer, setSelectedOffer] = useState<GrainPurchaseOfferWithDetails | null>(null);
@@ -16,9 +25,49 @@ const FarmerGrainOffers: React.FC = () => {
 
   useEffect(() => {
     if (user && selectedBusinessId) {
+      loadData();
+    }
+  }, [user, selectedBusinessId]);
+
+  useEffect(() => {
+    if (user && selectedBusinessId) {
       loadOffers();
     }
   }, [user, selectedBusinessId, statusFilter]);
+
+  const loadData = async () => {
+    if (!selectedBusinessId) return;
+
+    try {
+      // Load bins and all offers in parallel
+      const [binsData, allOffersData] = await Promise.all([
+        grainBinsApi.getBinsByBusiness(selectedBusinessId),
+        grainMarketplaceApi.getFarmerOffers(selectedBusinessId)
+      ]);
+
+      // Calculate available inventory from bins marked for sale
+      const availableBins = binsData.filter(bin => bin.isAvailableForSale && bin.isActive);
+      const byCommodity: { [key: string]: number } = {};
+      let totalBushels = 0;
+
+      availableBins.forEach(bin => {
+        const availableBu = bin.currentBushels - (bin.contractedBushels || 0) - (bin.soldBushels || 0);
+        if (availableBu > 0) {
+          totalBushels += availableBu;
+          byCommodity[bin.commodityType] = (byCommodity[bin.commodityType] || 0) + availableBu;
+        }
+      });
+
+      setAvailableInventory({
+        totalBushels,
+        byCommodity,
+        bins: availableBins
+      });
+      setAllOffers(allOffersData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+  };
 
   const loadOffers = async () => {
     if (!selectedBusinessId) return;
@@ -117,6 +166,14 @@ const FarmerGrainOffers: React.FC = () => {
     );
   }
 
+  // Calculate offer stats
+  const pendingOffersBushels = allOffers
+    .filter(o => o.status === 'PENDING')
+    .reduce((sum, o) => sum + o.bushelsOffered, 0);
+  const acceptedOffersBushels = allOffers
+    .filter(o => o.status === 'ACCEPTED')
+    .reduce((sum, o) => sum + o.bushelsOffered, 0);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,6 +183,102 @@ const FarmerGrainOffers: React.FC = () => {
           View and manage purchase offers from retailers
         </p>
       </div>
+
+      {/* Available Inventory Summary */}
+      {availableInventory && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl shadow-sm border border-amber-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Your Marketplace Inventory</h2>
+              <p className="text-sm text-gray-600">Grain available for approved retailers to bid on</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Total Available */}
+            <div className="bg-white rounded-lg p-4 border border-amber-100">
+              <div className="text-sm text-gray-500 mb-1">Total Available</div>
+              <div className="text-2xl font-bold text-amber-600">
+                {availableInventory.totalBushels.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500">bushels</div>
+            </div>
+
+            {/* By Commodity */}
+            {Object.entries(availableInventory.byCommodity).map(([commodity, bushels]) => (
+              <div key={commodity} className="bg-white rounded-lg p-4 border border-amber-100">
+                <div className="text-sm text-gray-500 mb-1">{commodity}</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {bushels.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-500">bushels</div>
+              </div>
+            ))}
+
+            {/* Pending Offers */}
+            <div className="bg-white rounded-lg p-4 border border-yellow-200">
+              <div className="text-sm text-gray-500 mb-1">Pending Offers</div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {pendingOffersBushels.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500">bushels offered</div>
+            </div>
+
+            {/* Accepted Offers */}
+            <div className="bg-white rounded-lg p-4 border border-green-200">
+              <div className="text-sm text-gray-500 mb-1">Accepted Offers</div>
+              <div className="text-2xl font-bold text-green-600">
+                {acceptedOffersBushels.toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500">bushels committed</div>
+            </div>
+          </div>
+
+          {/* Bins Available for Sale */}
+          {availableInventory.bins.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-amber-200">
+              <div className="text-sm font-medium text-gray-700 mb-2">Bins on Marketplace:</div>
+              <div className="flex flex-wrap gap-2">
+                {availableInventory.bins.map(bin => {
+                  const availableBu = bin.currentBushels - (bin.contractedBushels || 0) - (bin.soldBushels || 0);
+                  return (
+                    <div
+                      key={bin.id}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-amber-200 text-sm"
+                    >
+                      <span className="font-medium text-gray-900">{bin.name}</span>
+                      <span className="text-gray-500">•</span>
+                      <span className="text-amber-600">{availableBu.toLocaleString()} bu</span>
+                      <span className="text-gray-400">{bin.commodityType}</span>
+                      {bin.targetPrice && (
+                        <>
+                          <span className="text-gray-500">•</span>
+                          <span className="text-green-600">${bin.targetPrice.toFixed(2)} target</span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {availableInventory.bins.length === 0 && (
+            <div className="mt-4 pt-4 border-t border-amber-200">
+              <p className="text-sm text-amber-700">
+                No bins are currently marked for sale. Go to{' '}
+                <a href="/grain-contracts/bins" className="font-medium underline">Grain Bins</a>
+                {' '}to mark bins as available for sale on the marketplace.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
