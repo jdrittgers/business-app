@@ -200,25 +200,43 @@ const FarmerGrainOffers: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Total Available */}
-            <div className="bg-white rounded-lg p-4 border border-amber-100">
-              <div className="text-sm text-gray-500 mb-1">Total Available</div>
-              <div className="text-2xl font-bold text-amber-600">
-                {availableInventory.totalBushels.toLocaleString()}
+            {/* Corn Available */}
+            <div className="bg-white rounded-lg p-4 border border-yellow-300">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <span className="text-sm text-gray-500">Corn Available</span>
+              </div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {(availableInventory.byCommodity['CORN'] || 0).toLocaleString()}
               </div>
               <div className="text-xs text-gray-500">bushels</div>
             </div>
 
-            {/* By Commodity */}
-            {Object.entries(availableInventory.byCommodity).map(([commodity, bushels]) => (
-              <div key={commodity} className="bg-white rounded-lg p-4 border border-amber-100">
-                <div className="text-sm text-gray-500 mb-1">{commodity}</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {bushels.toLocaleString()}
+            {/* Soybeans Available */}
+            <div className="bg-white rounded-lg p-4 border border-green-300">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-sm text-gray-500">Soybeans Available</span>
+              </div>
+              <div className="text-2xl font-bold text-green-600">
+                {(availableInventory.byCommodity['SOYBEANS'] || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500">bushels</div>
+            </div>
+
+            {/* Wheat Available (if any) */}
+            {availableInventory.byCommodity['WHEAT'] && (
+              <div className="bg-white rounded-lg p-4 border border-amber-300">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                  <span className="text-sm text-gray-500">Wheat Available</span>
+                </div>
+                <div className="text-2xl font-bold text-amber-600">
+                  {availableInventory.byCommodity['WHEAT'].toLocaleString()}
                 </div>
                 <div className="text-xs text-gray-500">bushels</div>
               </div>
-            ))}
+            )}
 
             {/* Pending Offers */}
             <div className="bg-white rounded-lg p-4 border border-yellow-200">
