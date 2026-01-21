@@ -785,6 +785,142 @@ export class MarketDataService {
     return Math.max(0, Math.min(100, strength));
   }
 
+  // ===== Harvest Contract Methods =====
+
+  /**
+   * Get harvest contract symbols for a given crop year
+   * Corn: December contract (Z) - main harvest contract
+   * Soybeans: November contract (X) - main harvest contract
+   */
+  getHarvestContractSymbols(harvestYear: number): { corn: string; soybeans: string } {
+    const yearCode = String(harvestYear).slice(-2);
+    return {
+      corn: `ZCZ${yearCode}`,      // December corn (e.g., ZCZ26 for 2026)
+      soybeans: `ZSX${yearCode}`   // November soybeans (e.g., ZSX26 for 2026)
+    };
+  }
+
+  /**
+   * Fetch harvest contract quotes for a specific crop year
+   * Returns December corn and November soybeans for the given year
+   */
+  async fetchHarvestContractQuotes(harvestYear: number): Promise<{
+    corn: FuturesQuote | null;
+    soybeans: FuturesQuote | null;
+    source: 'live' | 'mock';
+  }> {
+    const symbols = this.getHarvestContractSymbols(harvestYear);
+    const yearCode = String(harvestYear).slice(-2);
+
+    if (!this.twelveDataApiKey) {
+      // Return mock data for harvest contracts
+      return {
+        corn: this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
+        soybeans: this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
+        source: 'mock'
+      };
+    }
+
+    try {
+      // Batch fetch both harvest contracts
+      const batchQuotes = await this.fetchBatchQuotes([symbols.corn, symbols.soybeans]);
+
+      let cornQuote = batchQuotes.get(symbols.corn) || null;
+      let soyQuote = batchQuotes.get(symbols.soybeans) || null;
+
+      // Set proper commodity type and contract info
+      if (cornQuote) {
+        cornQuote.commodityType = CommodityType.CORN;
+        cornQuote.contractMonth = `DEC${yearCode}`;
+        cornQuote.contractYear = harvestYear;
+        await this.storeQuote(cornQuote);
+      }
+
+      if (soyQuote) {
+        soyQuote.commodityType = CommodityType.SOYBEANS;
+        soyQuote.contractMonth = `NOV${yearCode}`;
+        soyQuote.contractYear = harvestYear;
+        await this.storeQuote(soyQuote);
+      }
+
+      // Fallback to mock if API returned no data
+      return {
+        corn: cornQuote || this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
+        soybeans: soyQuote || this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
+        source: cornQuote || soyQuote ? 'live' : 'mock'
+      };
+    } catch (error) {
+      console.error('Error fetching harvest contracts:', error);
+      return {
+        corn: this.getMockHarvestQuote(CommodityType.CORN, harvestYear),
+        soybeans: this.getMockHarvestQuote(CommodityType.SOYBEANS, harvestYear),
+        source: 'mock'
+      };
+    }
+  }
+
+  /**
+   * Get harvest contract quote from database (if previously fetched)
+   */
+  async getStoredHarvestQuote(
+    commodityType: CommodityType,
+    harvestYear: number
+  ): Promise<FuturesQuote | null> {
+    const yearCode = String(harvestYear).slice(-2);
+    const contractMonth = commodityType === CommodityType.CORN
+      ? `DEC${yearCode}`
+      : `NOV${yearCode}`;
+
+    const quote = await prisma.futuresQuote.findFirst({
+      where: {
+        commodityType,
+        contractMonth,
+        contractYear: harvestYear
+      },
+      orderBy: { quoteDate: 'desc' }
+    });
+
+    return quote ? this.mapDbQuoteToFuturesQuote(quote) : null;
+  }
+
+  private getMockHarvestQuote(commodityType: CommodityType, harvestYear: number): FuturesQuote {
+    const basePrices: Record<CommodityType, number> = {
+      CORN: 4.50,
+      SOYBEANS: 10.50,
+      WHEAT: 5.80
+    };
+
+    const yearCode = String(harvestYear).slice(-2);
+    const contractMonth = commodityType === CommodityType.CORN
+      ? `DEC${yearCode}`
+      : commodityType === CommodityType.SOYBEANS
+        ? `NOV${yearCode}`
+        : `DEC${yearCode}`;
+
+    const basePrice = basePrices[commodityType];
+    // Add some variation
+    const variation = (Math.random() - 0.5) * 0.30;
+    const price = basePrice + variation;
+
+    return {
+      id: '',
+      commodityType,
+      contractMonth,
+      contractYear: harvestYear,
+      openPrice: price - 0.02,
+      highPrice: price + 0.08,
+      lowPrice: price - 0.06,
+      closePrice: price,
+      settlementPrice: price,
+      volume: Math.floor(Math.random() * 50000) + 10000,
+      openInterest: Math.floor(Math.random() * 200000) + 100000,
+      priceChange: (Math.random() - 0.5) * 0.10,
+      quoteDate: new Date(),
+      source: 'MOCK',
+      createdAt: new Date()
+    };
+  }
+
   // ===== Market Hours Check =====
 
   isMarketOpen(): boolean {

@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
 import { analyticsApi } from '../api/analytics.api';
 import { marketingAiApi } from '../api/marketing-ai.api';
-import { OperationBreakEven, DashboardSummary, CommodityType } from '@business-app/shared';
+import { OperationBreakEven, DashboardSummary } from '@business-app/shared';
 
 // Default futures prices (user can update)
 const DEFAULT_FUTURES: Record<string, number> = {
@@ -119,57 +119,43 @@ export default function BreakEven() {
     }
   }, [user, selectedBusinessId]);
 
-  // Fetch live futures prices from TwelveData on mount
+  // Fetch harvest contract prices from TwelveData based on selected year
   useEffect(() => {
-    const loadLivePrices = async () => {
+    const loadHarvestPrices = async () => {
       setPricesLoading(true);
       try {
-        // Fetch corn and soybeans futures in parallel
-        const [cornQuotes, soyQuotes] = await Promise.all([
-          marketingAiApi.getFuturesQuotes(CommodityType.CORN).catch(() => []),
-          marketingAiApi.getFuturesQuotes(CommodityType.SOYBEANS).catch(() => [])
-        ]);
+        // Fetch harvest contracts for the selected year (Dec corn, Nov soybeans)
+        const harvestData = await marketingAiApi.getHarvestContracts(filterYear);
 
         const newPrices = { ...DEFAULT_FUTURES };
         let hasLiveData = false;
 
-        // Get the most recent quote for each commodity
-        if (cornQuotes.length > 0) {
-          // Sort by quote date descending and get front month
-          const sortedCorn = [...cornQuotes].sort((a, b) =>
-            new Date(b.quoteDate).getTime() - new Date(a.quoteDate).getTime()
-          );
-          if (sortedCorn[0]?.closePrice) {
-            newPrices.CORN = sortedCorn[0].closePrice;
-            hasLiveData = true;
-          }
+        if (harvestData.corn?.closePrice) {
+          newPrices.CORN = harvestData.corn.closePrice;
+          hasLiveData = true;
         }
 
-        if (soyQuotes.length > 0) {
-          const sortedSoy = [...soyQuotes].sort((a, b) =>
-            new Date(b.quoteDate).getTime() - new Date(a.quoteDate).getTime()
-          );
-          if (sortedSoy[0]?.closePrice) {
-            newPrices.SOYBEANS = sortedSoy[0].closePrice;
-            hasLiveData = true;
-          }
+        if (harvestData.soybeans?.closePrice) {
+          newPrices.SOYBEANS = harvestData.soybeans.closePrice;
+          hasLiveData = true;
         }
 
+        setFuturesPrices(newPrices);
+        setPricesSource(harvestData.source === 'live' ? 'live' : 'default');
         if (hasLiveData) {
-          setFuturesPrices(newPrices);
-          setPricesSource('live');
           setPricesLastUpdated(new Date());
         }
       } catch (err) {
-        console.error('Failed to fetch live prices:', err);
+        console.error('Failed to fetch harvest prices:', err);
         // Keep default prices on error
+        setPricesSource('default');
       } finally {
         setPricesLoading(false);
       }
     };
 
-    loadLivePrices();
-  }, []);
+    loadHarvestPrices();
+  }, [filterYear]);
 
   useEffect(() => {
     if (selectedBusinessId) {
@@ -402,7 +388,9 @@ export default function BreakEven() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Price Projections</h3>
                 <div className="flex items-center gap-2">
-                  <p className="text-sm text-gray-500">Set futures prices and basis estimates for unmarketed grain</p>
+                  <p className="text-sm text-gray-500">
+                  Harvest {filterYear} contracts: Dec Corn, Nov Soybeans
+                </p>
                   {pricesLoading ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
                       <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
@@ -484,14 +472,24 @@ export default function BreakEven() {
                     </tr>
                   </thead>
                   <tbody>
-                    {['CORN', 'SOYBEANS', 'WHEAT'].map(commodity => (
+                    {['CORN', 'SOYBEANS', 'WHEAT'].map(commodity => {
+                      const yearCode = String(filterYear).slice(-2);
+                      const contractLabel = commodity === 'CORN'
+                        ? `Dec '${yearCode}`
+                        : commodity === 'SOYBEANS'
+                          ? `Nov '${yearCode}`
+                          : `Dec '${yearCode}`;
+                      return (
                       <tr key={commodity} className="border-b border-gray-100">
                         <td className="py-3 pr-4">
                           <div className="flex items-center gap-2">
                             <span className="text-xl">
                               {commodity === 'CORN' ? '🌽' : commodity === 'SOYBEANS' ? '🫘' : '🌾'}
                             </span>
-                            <span className="font-medium">{commodity}</span>
+                            <div>
+                              <span className="font-medium">{commodity}</span>
+                              <span className="text-xs text-gray-500 ml-1">({contractLabel})</span>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-4">
@@ -529,7 +527,8 @@ export default function BreakEven() {
                           </span>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

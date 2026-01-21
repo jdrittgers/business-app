@@ -462,6 +462,47 @@ export class MarketingAIController {
     }
   }
 
+  async getHarvestContracts(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated' });
+        return;
+      }
+
+      const { year } = req.params;
+      const harvestYear = parseInt(year);
+
+      if (isNaN(harvestYear) || harvestYear < 2020 || harvestYear > 2030) {
+        res.status(400).json({ error: 'Invalid harvest year' });
+        return;
+      }
+
+      const result = await marketDataService.fetchHarvestContractQuotes(harvestYear);
+
+      res.json({
+        harvestYear,
+        corn: result.corn ? {
+          contractMonth: result.corn.contractMonth,
+          closePrice: result.corn.closePrice,
+          priceChange: result.corn.priceChange,
+          quoteDate: result.corn.quoteDate,
+          source: result.corn.source
+        } : null,
+        soybeans: result.soybeans ? {
+          contractMonth: result.soybeans.contractMonth,
+          closePrice: result.soybeans.closePrice,
+          priceChange: result.soybeans.priceChange,
+          quoteDate: result.soybeans.quoteDate,
+          source: result.soybeans.source
+        } : null,
+        source: result.source
+      });
+    } catch (error) {
+      console.error('Get harvest contracts error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   // ===== Options Positions =====
 
   async getOptionsPositions(req: AuthRequest, res: Response): Promise<void> {

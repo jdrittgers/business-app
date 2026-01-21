@@ -105,6 +105,12 @@ router.get(
   (req, res) => controller.getPriceTrend(req, res)
 );
 
+// Get harvest contract prices for a specific crop year (Dec corn, Nov soybeans)
+router.get(
+  '/market-data/harvest/:year',
+  (req, res) => controller.getHarvestContracts(req, res)
+);
+
 // ===== Options Positions =====
 
 // Get all options positions

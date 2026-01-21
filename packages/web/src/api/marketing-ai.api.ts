@@ -151,6 +151,16 @@ export const marketingAiApi = {
     return response.data;
   },
 
+  getHarvestContracts: async (harvestYear: number): Promise<{
+    harvestYear: number;
+    corn: { contractMonth: string; closePrice: number; priceChange?: number; quoteDate: string; source: string } | null;
+    soybeans: { contractMonth: string; closePrice: number; priceChange?: number; quoteDate: string; source: string } | null;
+    source: 'live' | 'mock';
+  }> => {
+    const response = await apiClient.get(`/api/market-data/harvest/${harvestYear}`);
+    return response.data;
+  },
+
   // ===== Options Positions =====
 
   getOptionsPositions: async (businessId: string): Promise<OptionsPosition[]> => {
