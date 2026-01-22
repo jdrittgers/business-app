@@ -184,6 +184,10 @@ export interface FarmFertilizerUsage {
   amountUsed: number;
   ratePerAcre?: number;
   acresApplied?: number;
+  completedAt?: Date;
+  completedById?: string;
+  completedByName?: string; // Populated from User relation
+  calendarEventId?: string;
   createdAt: Date;
   updatedAt: Date;
   fertilizer?: Fertilizer;
@@ -210,6 +214,10 @@ export interface FarmChemicalUsage {
   amountUsed: number;
   ratePerAcre?: number;
   acresApplied?: number;
+  completedAt?: Date;
+  completedById?: string;
+  completedByName?: string; // Populated from User relation
+  calendarEventId?: string;
   createdAt: Date;
   updatedAt: Date;
   chemical?: Chemical;
@@ -239,6 +247,10 @@ export interface FarmSeedUsage {
   isVRT: boolean;
   vrtMinRate?: number;
   vrtMaxRate?: number;
+  completedAt?: Date;
+  completedById?: string;
+  completedByName?: string; // Populated from User relation
+  calendarEventId?: string;
   createdAt: Date;
   updatedAt: Date;
   seedHybrid?: SeedHybrid;
@@ -537,4 +549,10 @@ export interface CreateNotificationRequest {
   message: string;
   link?: string;
   metadata?: Record<string, any>;
+}
+
+// ===== Activity Completion Types =====
+
+export interface MarkActivityCompleteRequest {
+  completedAt?: Date; // Defaults to today if not provided
 }

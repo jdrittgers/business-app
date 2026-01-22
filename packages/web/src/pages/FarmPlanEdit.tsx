@@ -49,6 +49,14 @@ export default function FarmPlanEdit() {
   const [trialPlotLocation, setTrialPlotLocation] = useState('');
   const [trialNotes, setTrialNotes] = useState('');
 
+  // Completion modal
+  const [showCompletionModal, setShowCompletionModal] = useState<{
+    type: 'seed' | 'fertilizer' | 'chemical';
+    id: string;
+    productName: string;
+  } | null>(null);
+  const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
+
   const userRole = user?.businessMemberships.find(m => m.businessId === selectedBusinessId)?.role;
   const canApprove = userRole === UserRole.OWNER || userRole === UserRole.MANAGER;
 
@@ -213,6 +221,62 @@ export default function FarmPlanEdit() {
     setTrialNotes('');
   };
 
+  const handleMarkComplete = async () => {
+    if (!selectedBusinessId || !showCompletionModal) return;
+    setSaving(true);
+    setError(null);
+
+    try {
+      const date = new Date(completionDate);
+      const { type, id } = showCompletionModal;
+
+      if (type === 'seed') {
+        await breakevenApi.markSeedUsageComplete(selectedBusinessId, id, date);
+      } else if (type === 'fertilizer') {
+        await breakevenApi.markFertilizerUsageComplete(selectedBusinessId, id, date);
+      } else if (type === 'chemical') {
+        await breakevenApi.markChemicalUsageComplete(selectedBusinessId, id, date);
+      }
+
+      await loadFarmData();
+      setShowCompletionModal(null);
+      setCompletionDate(new Date().toISOString().split('T')[0]);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to mark complete');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUndoComplete = async (type: 'seed' | 'fertilizer' | 'chemical', id: string) => {
+    if (!selectedBusinessId) return;
+    setSaving(true);
+    setError(null);
+
+    try {
+      if (type === 'seed') {
+        await breakevenApi.undoSeedUsageComplete(selectedBusinessId, id);
+      } else if (type === 'fertilizer') {
+        await breakevenApi.undoFertilizerUsageComplete(selectedBusinessId, id);
+      } else if (type === 'chemical') {
+        await breakevenApi.undoChemicalUsageComplete(selectedBusinessId, id);
+      }
+
+      await loadFarmData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to undo completion');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatCompletionDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   const getCommodityColor = (type: CommodityType) => {
     switch (type) {
       case CommodityType.CORN: return 'bg-yellow-100 text-yellow-800 border-yellow-300';
@@ -302,21 +366,50 @@ export default function FarmPlanEdit() {
                 + Add Seed
               </button>
             </div>
-            {farmPlan.seedPlan.length > 0 ? (
+            {farm?.seedUsage && farm.seedUsage.length > 0 ? (
               <div className="space-y-3">
-                {farmPlan.seedPlan.map((seed, idx) => (
-                  <div key={idx} className="p-3 bg-purple-50 rounded-lg">
-                    <p className="font-medium text-gray-900">{seed.hybridName}</p>
-                    <p className="text-sm text-gray-600">
-                      {seed.isVRT ? (
-                        <span className="text-purple-600">
-                          VRT: {seed.vrtMinRate?.toLocaleString()} - {seed.vrtMaxRate?.toLocaleString()} seeds/acre
-                        </span>
-                      ) : (
-                        <span>{seed.population.toLocaleString()} seeds/acre</span>
+                {farm.seedUsage.map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-purple-100 border border-purple-300' : 'bg-purple-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('seed', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'seed', id: usage.id, productName: usage.seedHybrid?.name || 'Seed' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-purple-500 border-purple-500 text-white'
+                          : 'border-gray-300 hover:border-purple-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
                       )}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">{seed.acresApplied} acres</p>
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{usage.seedHybrid?.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {usage.isVRT ? (
+                          <span className="text-purple-600">
+                            VRT: {usage.vrtMinRate?.toLocaleString()} - {usage.vrtMaxRate?.toLocaleString()} seeds/acre
+                          </span>
+                        ) : (
+                          <span>{usage.ratePerAcre?.toLocaleString()} seeds/acre</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-purple-600 mt-1">
+                          Planted {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -339,13 +432,42 @@ export default function FarmPlanEdit() {
                 + Add Fertilizer
               </button>
             </div>
-            {farmPlan.fertilizerPlan.length > 0 ? (
+            {farm?.fertilizerUsage && farm.fertilizerUsage.length > 0 ? (
               <div className="space-y-3">
-                {farmPlan.fertilizerPlan.map((fert, idx) => (
-                  <div key={idx} className="p-3 bg-blue-50 rounded-lg">
-                    <p className="font-medium text-gray-900">{fert.productName}</p>
-                    <p className="text-sm text-gray-600">{fert.ratePerAcre} {fert.unit}/acre</p>
-                    <p className="text-xs text-gray-500 mt-1">{fert.acresApplied} acres</p>
+                {farm.fertilizerUsage.map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-blue-100 border border-blue-300' : 'bg-blue-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('fertilizer', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'fertilizer', id: usage.id, productName: usage.fertilizer?.name || 'Fertilizer' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-blue-500 border-blue-500 text-white'
+                          : 'border-gray-300 hover:border-blue-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{usage.fertilizer?.name}</p>
+                      <p className="text-sm text-gray-600">{usage.ratePerAcre} {usage.fertilizer?.unit}/acre</p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          Applied {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -371,13 +493,44 @@ export default function FarmPlanEdit() {
                 + Add In-Furrow
               </button>
             </div>
-            {farmPlan.inFurrowPlan.length > 0 ? (
+            {farm?.chemicalUsage && farm.chemicalUsage.filter(u => u.chemical?.category === ChemicalCategory.IN_FURROW).length > 0 ? (
               <div className="space-y-3">
-                {farmPlan.inFurrowPlan.map((item, idx) => (
-                  <div key={idx} className="p-3 bg-teal-50 rounded-lg">
-                    <p className="font-medium text-gray-900">{item.productName}</p>
-                    <p className="text-sm text-gray-600">{item.ratePerAcre} {item.unit}/acre</p>
-                    <p className="text-xs text-gray-500 mt-1">{item.acresApplied} acres</p>
+                {farm.chemicalUsage
+                  .filter(usage => usage.chemical?.category === ChemicalCategory.IN_FURROW)
+                  .map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-teal-100 border border-teal-300' : 'bg-teal-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('chemical', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'In-Furrow' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-teal-500 border-teal-500 text-white'
+                          : 'border-gray-300 hover:border-teal-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                      <p className="text-sm text-gray-600">{usage.ratePerAcre} {usage.chemical?.unit}/acre</p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-teal-600 mt-1">
+                          Applied {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -403,13 +556,44 @@ export default function FarmPlanEdit() {
                 + Add Herbicide
               </button>
             </div>
-            {farmPlan.chemicalPlan.length > 0 ? (
+            {farm?.chemicalUsage && farm.chemicalUsage.filter(u => u.chemical?.category === ChemicalCategory.HERBICIDE || !u.chemical?.category).length > 0 ? (
               <div className="space-y-3">
-                {farmPlan.chemicalPlan.map((chem, idx) => (
-                  <div key={idx} className="p-3 bg-green-50 rounded-lg">
-                    <p className="font-medium text-gray-900">{chem.productName}</p>
-                    <p className="text-sm text-gray-600">{chem.ratePerAcre} {chem.unit}/acre</p>
-                    <p className="text-xs text-gray-500 mt-1">{chem.acresApplied} acres</p>
+                {farm.chemicalUsage
+                  .filter(usage => usage.chemical?.category === ChemicalCategory.HERBICIDE || !usage.chemical?.category)
+                  .map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-green-100 border border-green-300' : 'bg-green-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('chemical', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'Herbicide' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-green-500 border-green-500 text-white'
+                          : 'border-gray-300 hover:border-green-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                      <p className="text-sm text-gray-600">{usage.ratePerAcre} {usage.chemical?.unit}/acre</p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-green-600 mt-1">
+                          Sprayed {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -435,13 +619,44 @@ export default function FarmPlanEdit() {
                 + Add Fungicide
               </button>
             </div>
-            {farmPlan.fungicidePlan.length > 0 ? (
+            {farm?.chemicalUsage && farm.chemicalUsage.filter(u => u.chemical?.category === ChemicalCategory.FUNGICIDE).length > 0 ? (
               <div className="space-y-3">
-                {farmPlan.fungicidePlan.map((fung, idx) => (
-                  <div key={idx} className="p-3 bg-indigo-50 rounded-lg">
-                    <p className="font-medium text-gray-900">{fung.productName}</p>
-                    <p className="text-sm text-gray-600">{fung.ratePerAcre} {fung.unit}/acre</p>
-                    <p className="text-xs text-gray-500 mt-1">{fung.acresApplied} acres</p>
+                {farm.chemicalUsage
+                  .filter(usage => usage.chemical?.category === ChemicalCategory.FUNGICIDE)
+                  .map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-indigo-100 border border-indigo-300' : 'bg-indigo-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('chemical', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'Fungicide' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-indigo-500 border-indigo-500 text-white'
+                          : 'border-gray-300 hover:border-indigo-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                      <p className="text-sm text-gray-600">{usage.ratePerAcre} {usage.chemical?.unit}/acre</p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-indigo-600 mt-1">
+                          Sprayed {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -688,6 +903,56 @@ export default function FarmPlanEdit() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? 'Adding...' : 'Add Trial'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Date Modal */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Mark as Complete</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {showCompletionModal.productName}
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Completion Date
+              </label>
+              <input
+                type="date"
+                value={completionDate}
+                onChange={(e) => setCompletionDate(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This will create a calendar event
+              </p>
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-600 mb-4">{error}</p>
+            )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCompletionModal(null);
+                  setError(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkComplete}
+                disabled={saving}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Complete'}
               </button>
             </div>
           </div>

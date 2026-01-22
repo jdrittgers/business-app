@@ -137,6 +137,9 @@ model User {
   approvedFarmPlans   Farm[]          @relation("FarmPlanApprover")
   binTransactions     BinTransaction[] @relation("BinTransactionCreator")
   marketingProfile    UserMarketingProfile?
+  completedSeedUsage      FarmSeedUsage[]       @relation("SeedCompletedBy")
+  completedFertilizerUsage FarmFertilizerUsage[] @relation("FertilizerCompletedBy")
+  completedChemicalUsage  FarmChemicalUsage[]   @relation("ChemicalCompletedBy")
 
   @@map("users")
 }
@@ -275,6 +278,9 @@ model CalendarEvent {
   // Relations
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seedUsageCompletions       FarmSeedUsage[]       @relation("SeedCalendarEvent")
+  fertilizerUsageCompletions FarmFertilizerUsage[] @relation("FertilizerCalendarEvent")
+  chemicalUsageCompletions   FarmChemicalUsage[]   @relation("ChemicalCalendarEvent")
 
   @@index([businessId, startTime])
   @@index([userId, startTime])
@@ -643,18 +649,23 @@ model Farm {
 }
 
 model FarmFertilizerUsage {
-  id           String   @id @default(uuid())
-  farmId       String   @map("farm_id")
-  fertilizerId String   @map("fertilizer_id")
-  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
-  ratePerAcre  Decimal? @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 150 lbs/acre)
-  acresApplied Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this fertilizer was applied to
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String    @id @default(uuid())
+  farmId          String    @map("farm_id")
+  fertilizerId    String    @map("fertilizer_id")
+  amountUsed      Decimal   @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
+  ratePerAcre     Decimal?  @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 150 lbs/acre)
+  acresApplied    Decimal?  @map("acres_applied") @db.Decimal(10, 2) // Acres this fertilizer was applied to
+  completedAt     DateTime? @map("completed_at")
+  completedById   String?   @map("completed_by_id")
+  calendarEventId String?   @map("calendar_event_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  farm         Farm      @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  fertilizer   Fertilizer @relation(fields: [fertilizerId], references: [id], onDelete: Cascade)
+  farm          Farm            @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  fertilizer    Fertilizer      @relation(fields: [fertilizerId], references: [id], onDelete: Cascade)
+  completedBy   User?           @relation("FertilizerCompletedBy", fields: [completedById], references: [id])
+  calendarEvent CalendarEvent?  @relation("FertilizerCalendarEvent", fields: [calendarEventId], references: [id])
 
   @@map("farm_fertilizer_usage")
   @@index([farmId])
@@ -662,18 +673,23 @@ model FarmFertilizerUsage {
 }
 
 model FarmChemicalUsage {
-  id           String   @id @default(uuid())
-  farmId       String   @map("farm_id")
-  chemicalId   String   @map("chemical_id")
-  amountUsed   Decimal  @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
-  ratePerAcre  Decimal? @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 2.5 gal/acre)
-  acresApplied Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this chemical was applied to
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String    @id @default(uuid())
+  farmId          String    @map("farm_id")
+  chemicalId      String    @map("chemical_id")
+  amountUsed      Decimal   @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
+  ratePerAcre     Decimal?  @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 2.5 gal/acre)
+  acresApplied    Decimal?  @map("acres_applied") @db.Decimal(10, 2) // Acres this chemical was applied to
+  completedAt     DateTime? @map("completed_at")
+  completedById   String?   @map("completed_by_id")
+  calendarEventId String?   @map("calendar_event_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  farm         Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  chemical     Chemical @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+  farm          Farm            @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  chemical      Chemical        @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
+  completedBy   User?           @relation("ChemicalCompletedBy", fields: [completedById], references: [id])
+  calendarEvent CalendarEvent?  @relation("ChemicalCalendarEvent", fields: [calendarEventId], references: [id])
 
   @@map("farm_chemical_usage")
   @@index([farmId])
@@ -681,21 +697,26 @@ model FarmChemicalUsage {
 }
 
 model FarmSeedUsage {
-  id             String   @id @default(uuid())
-  farmId         String   @map("farm_id")
-  seedHybridId   String   @map("seed_hybrid_id")
-  bagsUsed       Decimal  @map("bags_used") @db.Decimal(10, 2) // Total bags used (calculated from population * acresApplied / seedsPerBag)
-  ratePerAcre    Decimal? @map("rate_per_acre") @db.Decimal(10, 2) // Seeding rate (population - seeds per acre, e.g., 32000)
-  acresApplied   Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this seed was applied to
-  isVRT          Boolean  @default(false) @map("is_vrt")  // Is this variable rate technology?
-  vrtMinRate     Decimal? @map("vrt_min_rate") @db.Decimal(10, 2)  // VRT minimum population
-  vrtMaxRate     Decimal? @map("vrt_max_rate") @db.Decimal(10, 2)  // VRT maximum population
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id              String    @id @default(uuid())
+  farmId          String    @map("farm_id")
+  seedHybridId    String    @map("seed_hybrid_id")
+  bagsUsed        Decimal   @map("bags_used") @db.Decimal(10, 2) // Total bags used (calculated from population * acresApplied / seedsPerBag)
+  ratePerAcre     Decimal?  @map("rate_per_acre") @db.Decimal(10, 2) // Seeding rate (population - seeds per acre, e.g., 32000)
+  acresApplied    Decimal?  @map("acres_applied") @db.Decimal(10, 2) // Acres this seed was applied to
+  isVRT           Boolean   @default(false) @map("is_vrt")  // Is this variable rate technology?
+  vrtMinRate      Decimal?  @map("vrt_min_rate") @db.Decimal(10, 2)  // VRT minimum population
+  vrtMaxRate      Decimal?  @map("vrt_max_rate") @db.Decimal(10, 2)  // VRT maximum population
+  completedAt     DateTime? @map("completed_at")
+  completedById   String?   @map("completed_by_id")
+  calendarEventId String?   @map("calendar_event_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  farm           Farm       @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  seedHybrid     SeedHybrid @relation(fields: [seedHybridId], references: [id], onDelete: Cascade)
+  farm          Farm            @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  seedHybrid    SeedHybrid      @relation(fields: [seedHybridId], references: [id], onDelete: Cascade)
+  completedBy   User?           @relation("SeedCompletedBy", fields: [completedById], references: [id])
+  calendarEvent CalendarEvent?  @relation("SeedCalendarEvent", fields: [calendarEventId], references: [id])
 
   @@map("farm_seed_usage")
   @@index([farmId])

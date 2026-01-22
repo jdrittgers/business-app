@@ -56,13 +56,22 @@ export class FarmService {
       include: {
         grainEntity: true,
         fertilizerUsage: {
-          include: { fertilizer: true }
+          include: {
+            fertilizer: true,
+            completedBy: { select: { firstName: true, lastName: true } }
+          }
         },
         chemicalUsage: {
-          include: { chemical: true }
+          include: {
+            chemical: true,
+            completedBy: { select: { firstName: true, lastName: true } }
+          }
         },
         seedUsage: {
-          include: { seedHybrid: true }
+          include: {
+            seedHybrid: true,
+            completedBy: { select: { firstName: true, lastName: true } }
+          }
         },
         otherCosts: true
       }
@@ -82,10 +91,18 @@ export class FarmService {
       planApprovedAt: farm.planApprovedAt || undefined,
       planApprovedBy: farm.planApprovedBy || undefined,
       fertilizerUsage: farm.fertilizerUsage?.map(fu => ({
-        ...fu,
+        id: fu.id,
+        farmId: fu.farmId,
+        fertilizerId: fu.fertilizerId,
         amountUsed: Number(fu.amountUsed),
         ratePerAcre: fu.ratePerAcre ? Number(fu.ratePerAcre) : undefined,
         acresApplied: fu.acresApplied ? Number(fu.acresApplied) : undefined,
+        completedAt: fu.completedAt || undefined,
+        completedById: fu.completedById || undefined,
+        completedByName: (fu as any).completedBy ? `${(fu as any).completedBy.firstName} ${(fu as any).completedBy.lastName}` : undefined,
+        calendarEventId: fu.calendarEventId || undefined,
+        createdAt: fu.createdAt,
+        updatedAt: fu.updatedAt,
         fertilizer: fu.fertilizer ? {
           ...fu.fertilizer,
           pricePerUnit: Number(fu.fertilizer.pricePerUnit),
@@ -94,10 +111,18 @@ export class FarmService {
         } : undefined
       })),
       chemicalUsage: farm.chemicalUsage?.map(cu => ({
-        ...cu,
+        id: cu.id,
+        farmId: cu.farmId,
+        chemicalId: cu.chemicalId,
         amountUsed: Number(cu.amountUsed),
         ratePerAcre: cu.ratePerAcre ? Number(cu.ratePerAcre) : undefined,
         acresApplied: cu.acresApplied ? Number(cu.acresApplied) : undefined,
+        completedAt: cu.completedAt || undefined,
+        completedById: cu.completedById || undefined,
+        completedByName: (cu as any).completedBy ? `${(cu as any).completedBy.firstName} ${(cu as any).completedBy.lastName}` : undefined,
+        calendarEventId: cu.calendarEventId || undefined,
+        createdAt: cu.createdAt,
+        updatedAt: cu.updatedAt,
         chemical: cu.chemical ? {
           ...cu.chemical,
           pricePerUnit: Number(cu.chemical.pricePerUnit),
@@ -107,13 +132,21 @@ export class FarmService {
         } : undefined
       })),
       seedUsage: farm.seedUsage?.map(su => ({
-        ...su,
+        id: su.id,
+        farmId: su.farmId,
+        seedHybridId: su.seedHybridId,
         bagsUsed: Number(su.bagsUsed),
         ratePerAcre: su.ratePerAcre ? Number(su.ratePerAcre) : undefined,
         acresApplied: su.acresApplied ? Number(su.acresApplied) : undefined,
         isVRT: su.isVRT,
         vrtMinRate: su.vrtMinRate ? Number(su.vrtMinRate) : undefined,
         vrtMaxRate: su.vrtMaxRate ? Number(su.vrtMaxRate) : undefined,
+        completedAt: su.completedAt || undefined,
+        completedById: su.completedById || undefined,
+        completedByName: (su as any).completedBy ? `${(su as any).completedBy.firstName} ${(su as any).completedBy.lastName}` : undefined,
+        calendarEventId: su.calendarEventId || undefined,
+        createdAt: su.createdAt,
+        updatedAt: su.updatedAt,
         seedHybrid: su.seedHybrid ? {
           ...su.seedHybrid,
           pricePerBag: Number(su.seedHybrid.pricePerBag),
@@ -886,5 +919,364 @@ export class FarmService {
         activeTrials
       };
     });
+  }
+
+  // ===== Activity Completion Methods =====
+
+  async markSeedUsageComplete(id: string, userId: string, businessId: string, completedAt?: Date) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmSeedUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      },
+      include: {
+        seedHybrid: true,
+        farm: {
+          include: { grainEntity: true }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Seed usage not found');
+    if (usage.completedAt) throw new Error('Activity already completed');
+
+    const completionDate = completedAt || new Date();
+
+    // Create calendar event
+    const calendarEvent = await prisma.calendarEvent.create({
+      data: {
+        businessId,
+        userId,
+        title: `Planted ${usage.seedHybrid.name} on ${usage.farm.name}`,
+        description: `Population: ${usage.ratePerAcre || 'N/A'} seeds/acre, Acres: ${usage.acresApplied || usage.farm.acres}`,
+        startTime: completionDate,
+        endTime: completionDate,
+        allDay: true,
+        color: '#A855F7' // Purple for planting
+      }
+    });
+
+    // Update usage with completion info
+    const updated = await prisma.farmSeedUsage.update({
+      where: { id },
+      data: {
+        completedAt: completionDate,
+        completedById: userId,
+        calendarEventId: calendarEvent.id
+      },
+      include: {
+        seedHybrid: true,
+        completedBy: {
+          select: { firstName: true, lastName: true }
+        }
+      }
+    });
+
+    return {
+      ...updated,
+      bagsUsed: Number(updated.bagsUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
+      isVRT: updated.isVRT,
+      vrtMinRate: updated.vrtMinRate ? Number(updated.vrtMinRate) : undefined,
+      vrtMaxRate: updated.vrtMaxRate ? Number(updated.vrtMaxRate) : undefined,
+      completedByName: updated.completedBy ? `${updated.completedBy.firstName} ${updated.completedBy.lastName}` : undefined,
+      seedHybrid: {
+        ...updated.seedHybrid,
+        pricePerBag: Number(updated.seedHybrid.pricePerBag),
+        commodityType: updated.seedHybrid.commodityType as any
+      }
+    };
+  }
+
+  async undoSeedUsageComplete(id: string, businessId: string) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmSeedUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Seed usage not found');
+    if (!usage.completedAt) throw new Error('Activity is not completed');
+
+    // Delete calendar event if exists
+    if (usage.calendarEventId) {
+      await prisma.calendarEvent.delete({
+        where: { id: usage.calendarEventId }
+      }).catch(() => {}); // Ignore if already deleted
+    }
+
+    // Clear completion info
+    const updated = await prisma.farmSeedUsage.update({
+      where: { id },
+      data: {
+        completedAt: null,
+        completedById: null,
+        calendarEventId: null
+      },
+      include: {
+        seedHybrid: true
+      }
+    });
+
+    return {
+      ...updated,
+      bagsUsed: Number(updated.bagsUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
+      isVRT: updated.isVRT,
+      vrtMinRate: updated.vrtMinRate ? Number(updated.vrtMinRate) : undefined,
+      vrtMaxRate: updated.vrtMaxRate ? Number(updated.vrtMaxRate) : undefined,
+      seedHybrid: {
+        ...updated.seedHybrid,
+        pricePerBag: Number(updated.seedHybrid.pricePerBag),
+        commodityType: updated.seedHybrid.commodityType as any
+      }
+    };
+  }
+
+  async markFertilizerUsageComplete(id: string, userId: string, businessId: string, completedAt?: Date) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmFertilizerUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      },
+      include: {
+        fertilizer: true,
+        farm: {
+          include: { grainEntity: true }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Fertilizer usage not found');
+    if (usage.completedAt) throw new Error('Activity already completed');
+
+    const completionDate = completedAt || new Date();
+
+    // Create calendar event
+    const calendarEvent = await prisma.calendarEvent.create({
+      data: {
+        businessId,
+        userId,
+        title: `Applied ${usage.fertilizer.name} on ${usage.farm.name}`,
+        description: `Rate: ${usage.ratePerAcre || 'N/A'} ${usage.fertilizer.unit}/acre, Acres: ${usage.acresApplied || usage.farm.acres}`,
+        startTime: completionDate,
+        endTime: completionDate,
+        allDay: true,
+        color: '#3B82F6' // Blue for fertilizer
+      }
+    });
+
+    // Update usage with completion info
+    const updated = await prisma.farmFertilizerUsage.update({
+      where: { id },
+      data: {
+        completedAt: completionDate,
+        completedById: userId,
+        calendarEventId: calendarEvent.id
+      },
+      include: {
+        fertilizer: true,
+        completedBy: {
+          select: { firstName: true, lastName: true }
+        }
+      }
+    });
+
+    return {
+      ...updated,
+      amountUsed: Number(updated.amountUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
+      completedByName: updated.completedBy ? `${updated.completedBy.firstName} ${updated.completedBy.lastName}` : undefined,
+      fertilizer: {
+        ...updated.fertilizer,
+        pricePerUnit: Number(updated.fertilizer.pricePerUnit)
+      }
+    };
+  }
+
+  async undoFertilizerUsageComplete(id: string, businessId: string) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmFertilizerUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Fertilizer usage not found');
+    if (!usage.completedAt) throw new Error('Activity is not completed');
+
+    // Delete calendar event if exists
+    if (usage.calendarEventId) {
+      await prisma.calendarEvent.delete({
+        where: { id: usage.calendarEventId }
+      }).catch(() => {});
+    }
+
+    // Clear completion info
+    const updated = await prisma.farmFertilizerUsage.update({
+      where: { id },
+      data: {
+        completedAt: null,
+        completedById: null,
+        calendarEventId: null
+      },
+      include: {
+        fertilizer: true
+      }
+    });
+
+    return {
+      ...updated,
+      amountUsed: Number(updated.amountUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
+      fertilizer: {
+        ...updated.fertilizer,
+        pricePerUnit: Number(updated.fertilizer.pricePerUnit)
+      }
+    };
+  }
+
+  async markChemicalUsageComplete(id: string, userId: string, businessId: string, completedAt?: Date) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmChemicalUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      },
+      include: {
+        chemical: true,
+        farm: {
+          include: { grainEntity: true }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Chemical usage not found');
+    if (usage.completedAt) throw new Error('Activity already completed');
+
+    const completionDate = completedAt || new Date();
+
+    // Determine action word and color based on category
+    let actionWord = 'Applied';
+    let color = '#22C55E'; // Green for herbicide
+
+    if (usage.chemical.category === 'FUNGICIDE') {
+      actionWord = 'Sprayed';
+      color = '#6366F1'; // Indigo for fungicide
+    } else if (usage.chemical.category === 'IN_FURROW') {
+      actionWord = 'Applied';
+      color = '#14B8A6'; // Teal for in-furrow
+    } else {
+      actionWord = 'Sprayed';
+    }
+
+    // Create calendar event
+    const calendarEvent = await prisma.calendarEvent.create({
+      data: {
+        businessId,
+        userId,
+        title: `${actionWord} ${usage.chemical.name} on ${usage.farm.name}`,
+        description: `Rate: ${usage.ratePerAcre || 'N/A'} ${usage.chemical.unit}/acre, Acres: ${usage.acresApplied || usage.farm.acres}`,
+        startTime: completionDate,
+        endTime: completionDate,
+        allDay: true,
+        color
+      }
+    });
+
+    // Update usage with completion info
+    const updated = await prisma.farmChemicalUsage.update({
+      where: { id },
+      data: {
+        completedAt: completionDate,
+        completedById: userId,
+        calendarEventId: calendarEvent.id
+      },
+      include: {
+        chemical: true,
+        completedBy: {
+          select: { firstName: true, lastName: true }
+        }
+      }
+    });
+
+    return {
+      ...updated,
+      amountUsed: Number(updated.amountUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
+      completedByName: updated.completedBy ? `${updated.completedBy.firstName} ${updated.completedBy.lastName}` : undefined,
+      chemical: {
+        ...updated.chemical,
+        pricePerUnit: Number(updated.chemical.pricePerUnit),
+        category: updated.chemical.category as ChemicalCategory
+      }
+    };
+  }
+
+  async undoChemicalUsageComplete(id: string, businessId: string) {
+    // Verify usage belongs to farm owned by business
+    const usage = await prisma.farmChemicalUsage.findFirst({
+      where: {
+        id,
+        farm: {
+          grainEntity: { businessId }
+        }
+      }
+    });
+
+    if (!usage) throw new Error('Chemical usage not found');
+    if (!usage.completedAt) throw new Error('Activity is not completed');
+
+    // Delete calendar event if exists
+    if (usage.calendarEventId) {
+      await prisma.calendarEvent.delete({
+        where: { id: usage.calendarEventId }
+      }).catch(() => {});
+    }
+
+    // Clear completion info
+    const updated = await prisma.farmChemicalUsage.update({
+      where: { id },
+      data: {
+        completedAt: null,
+        completedById: null,
+        calendarEventId: null
+      },
+      include: {
+        chemical: true
+      }
+    });
+
+    return {
+      ...updated,
+      amountUsed: Number(updated.amountUsed),
+      ratePerAcre: updated.ratePerAcre ? Number(updated.ratePerAcre) : undefined,
+      acresApplied: updated.acresApplied ? Number(updated.acresApplied) : undefined,
+      chemical: {
+        ...updated.chemical,
+        pricePerUnit: Number(updated.chemical.pricePerUnit),
+        category: updated.chemical.category as ChemicalCategory
+      }
+    };
   }
 }

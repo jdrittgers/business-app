@@ -327,6 +327,92 @@ router.delete('/businesses/:businessId/farms/seed-usage/:id', async (req: AuthRe
   }
 });
 
+// ===== Activity Completion =====
+
+// Mark seed usage complete
+router.post('/businesses/:businessId/farms/seed-usage/:id/complete', async (req: AuthRequest, res: Response) => {
+  try {
+    const { completedAt } = req.body;
+    const usage = await farmService.markSeedUsageComplete(
+      req.params.id,
+      req.user!.userId,
+      req.params.businessId,
+      completedAt ? new Date(completedAt) : undefined
+    );
+    res.json(usage);
+  } catch (error: any) {
+    console.error('Error marking seed usage complete:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Undo seed usage completion
+router.delete('/businesses/:businessId/farms/seed-usage/:id/complete', async (req: AuthRequest, res: Response) => {
+  try {
+    const usage = await farmService.undoSeedUsageComplete(req.params.id, req.params.businessId);
+    res.json(usage);
+  } catch (error: any) {
+    console.error('Error undoing seed usage completion:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Mark fertilizer usage complete
+router.post('/businesses/:businessId/farms/fertilizer-usage/:id/complete', async (req: AuthRequest, res: Response) => {
+  try {
+    const { completedAt } = req.body;
+    const usage = await farmService.markFertilizerUsageComplete(
+      req.params.id,
+      req.user!.userId,
+      req.params.businessId,
+      completedAt ? new Date(completedAt) : undefined
+    );
+    res.json(usage);
+  } catch (error: any) {
+    console.error('Error marking fertilizer usage complete:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Undo fertilizer usage completion
+router.delete('/businesses/:businessId/farms/fertilizer-usage/:id/complete', async (req: AuthRequest, res: Response) => {
+  try {
+    const usage = await farmService.undoFertilizerUsageComplete(req.params.id, req.params.businessId);
+    res.json(usage);
+  } catch (error: any) {
+    console.error('Error undoing fertilizer usage completion:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Mark chemical usage complete
+router.post('/businesses/:businessId/farms/chemical-usage/:id/complete', async (req: AuthRequest, res: Response) => {
+  try {
+    const { completedAt } = req.body;
+    const usage = await farmService.markChemicalUsageComplete(
+      req.params.id,
+      req.user!.userId,
+      req.params.businessId,
+      completedAt ? new Date(completedAt) : undefined
+    );
+    res.json(usage);
+  } catch (error: any) {
+    console.error('Error marking chemical usage complete:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Undo chemical usage completion
+router.delete('/businesses/:businessId/farms/chemical-usage/:id/complete', async (req: AuthRequest, res: Response) => {
+  try {
+    const usage = await farmService.undoChemicalUsageComplete(req.params.id, req.params.businessId);
+    res.json(usage);
+  } catch (error: any) {
+    console.error('Error undoing chemical usage completion:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // ===== Other Costs =====
 router.post('/businesses/:businessId/farms/other-costs', async (req: AuthRequest, res: Response) => {
   try {

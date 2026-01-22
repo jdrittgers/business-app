@@ -170,6 +170,43 @@ export const breakevenApi = {
     await apiClient.delete(`/api/businesses/${businessId}/farms/seed-usage/${id}`);
   },
 
+  // Activity Completion
+  markSeedUsageComplete: async (businessId: string, id: string, completedAt?: Date) => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/farms/seed-usage/${id}/complete`, {
+      completedAt: completedAt?.toISOString()
+    });
+    return response.data;
+  },
+
+  undoSeedUsageComplete: async (businessId: string, id: string) => {
+    const response = await apiClient.delete(`/api/businesses/${businessId}/farms/seed-usage/${id}/complete`);
+    return response.data;
+  },
+
+  markFertilizerUsageComplete: async (businessId: string, id: string, completedAt?: Date) => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/farms/fertilizer-usage/${id}/complete`, {
+      completedAt: completedAt?.toISOString()
+    });
+    return response.data;
+  },
+
+  undoFertilizerUsageComplete: async (businessId: string, id: string) => {
+    const response = await apiClient.delete(`/api/businesses/${businessId}/farms/fertilizer-usage/${id}/complete`);
+    return response.data;
+  },
+
+  markChemicalUsageComplete: async (businessId: string, id: string, completedAt?: Date) => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/farms/chemical-usage/${id}/complete`, {
+      completedAt: completedAt?.toISOString()
+    });
+    return response.data;
+  },
+
+  undoChemicalUsageComplete: async (businessId: string, id: string) => {
+    const response = await apiClient.delete(`/api/businesses/${businessId}/farms/chemical-usage/${id}/complete`);
+    return response.data;
+  },
+
   // Other Costs
   addOtherCost: async (businessId: string, data: CreateFarmOtherCostRequest) => {
     const response = await apiClient.post(`/api/businesses/${businessId}/farms/other-costs`, data);
