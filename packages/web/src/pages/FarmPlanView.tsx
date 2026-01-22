@@ -4,8 +4,10 @@ import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
 import {
   FarmPlanView,
+  Farm,
   TrialStatus,
   CommodityType,
+  ChemicalCategory,
   UserRole
 } from '@business-app/shared';
 
@@ -20,6 +22,18 @@ export default function FarmPlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedFarm, setExpandedFarm] = useState<string | null>(null);
   const [approvingFarm, setApprovingFarm] = useState<string | null>(null);
+
+  // Farm details for completion tracking
+  const [farmDetails, setFarmDetails] = useState<Record<string, Farm>>({});
+  const [loadingFarmDetails, setLoadingFarmDetails] = useState<string | null>(null);
+  const [showCompletionModal, setShowCompletionModal] = useState<{
+    type: 'seed' | 'fertilizer' | 'chemical';
+    id: string;
+    productName: string;
+    farmId: string;
+  } | null>(null);
+  const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving] = useState(false);
 
   // Check if user is manager or owner
   const userRole = user?.businessMemberships.find(m => m.businessId === selectedBusinessId)?.role;
@@ -71,6 +85,88 @@ export default function FarmPlansPage() {
   const handleLogout = async () => {
     await logout();
     navigate('/');
+  };
+
+  // Load farm details when expanded (for completion tracking)
+  const loadFarmDetails = async (farmId: string) => {
+    if (!selectedBusinessId || farmDetails[farmId]) return;
+    setLoadingFarmDetails(farmId);
+    try {
+      const farm = await breakevenApi.getFarm(selectedBusinessId, farmId);
+      setFarmDetails(prev => ({ ...prev, [farmId]: farm }));
+    } catch (err) {
+      console.error('Failed to load farm details:', err);
+    } finally {
+      setLoadingFarmDetails(null);
+    }
+  };
+
+  const handleExpandFarm = (farmId: string) => {
+    if (expandedFarm === farmId) {
+      setExpandedFarm(null);
+    } else {
+      setExpandedFarm(farmId);
+      loadFarmDetails(farmId);
+    }
+  };
+
+  const handleMarkComplete = async () => {
+    if (!selectedBusinessId || !showCompletionModal) return;
+    setSaving(true);
+
+    try {
+      const date = new Date(completionDate);
+      const { type, id, farmId } = showCompletionModal;
+
+      if (type === 'seed') {
+        await breakevenApi.markSeedUsageComplete(selectedBusinessId, id, date);
+      } else if (type === 'fertilizer') {
+        await breakevenApi.markFertilizerUsageComplete(selectedBusinessId, id, date);
+      } else if (type === 'chemical') {
+        await breakevenApi.markChemicalUsageComplete(selectedBusinessId, id, date);
+      }
+
+      // Reload farm details
+      const farm = await breakevenApi.getFarm(selectedBusinessId, farmId);
+      setFarmDetails(prev => ({ ...prev, [farmId]: farm }));
+
+      setShowCompletionModal(null);
+      setCompletionDate(new Date().toISOString().split('T')[0]);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to mark complete');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUndoComplete = async (type: 'seed' | 'fertilizer' | 'chemical', id: string, farmId: string) => {
+    if (!selectedBusinessId) return;
+    setSaving(true);
+
+    try {
+      if (type === 'seed') {
+        await breakevenApi.undoSeedUsageComplete(selectedBusinessId, id);
+      } else if (type === 'fertilizer') {
+        await breakevenApi.undoFertilizerUsageComplete(selectedBusinessId, id);
+      } else if (type === 'chemical') {
+        await breakevenApi.undoChemicalUsageComplete(selectedBusinessId, id);
+      }
+
+      // Reload farm details
+      const farm = await breakevenApi.getFarm(selectedBusinessId, farmId);
+      setFarmDetails(prev => ({ ...prev, [farmId]: farm }));
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to undo completion');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatCompletionDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   const handleApprovePlan = async (farmId: string) => {
@@ -187,7 +283,7 @@ export default function FarmPlansPage() {
                   <div className="flex justify-between items-center">
                     <div
                       className="flex-1 cursor-pointer hover:bg-gray-50 -ml-2 pl-2 py-1 rounded"
-                      onClick={() => setExpandedFarm(expandedFarm === plan.farmId ? null : plan.farmId)}
+                      onClick={() => handleExpandFarm(plan.farmId)}
                     >
                       <div className="flex items-center gap-3">
                         <h2 className="text-xl font-bold text-gray-900">{plan.farmName}</h2>
@@ -285,7 +381,56 @@ export default function FarmPlansPage() {
                           <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
                           Seed Plan
                         </h3>
-                        {plan.seedPlan.length > 0 ? (
+                        {loadingFarmDetails === plan.farmId ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : farmDetails[plan.farmId]?.seedUsage && farmDetails[plan.farmId].seedUsage!.length > 0 ? (
+                          <div className="space-y-2">
+                            {farmDetails[plan.farmId].seedUsage!.map((usage) => (
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-purple-50' : ''}`}>
+                                <button
+                                  onClick={() => {
+                                    if (usage.completedAt) {
+                                      handleUndoComplete('seed', usage.id, plan.farmId);
+                                    } else {
+                                      setShowCompletionModal({ type: 'seed', id: usage.id, productName: usage.seedHybrid?.name || 'Seed', farmId: plan.farmId });
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                                    usage.completedAt
+                                      ? 'bg-purple-500 border-purple-500 text-white'
+                                      : 'border-gray-300 hover:border-purple-500'
+                                  }`}
+                                >
+                                  {usage.completedAt && (
+                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{usage.seedHybrid?.name}</p>
+                                  <div className="text-gray-600">
+                                    {usage.isVRT ? (
+                                      <span className="text-purple-600">
+                                        VRT: {usage.vrtMinRate?.toLocaleString()} - {usage.vrtMaxRate?.toLocaleString()} seeds/acre
+                                      </span>
+                                    ) : (
+                                      <span>{usage.ratePerAcre?.toLocaleString()} seeds/acre</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
+                                  {usage.completedAt && (
+                                    <p className="text-xs text-purple-600 mt-1">
+                                      Planted {formatCompletionDate(usage.completedAt)}
+                                      {usage.completedByName && ` by ${usage.completedByName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : plan.seedPlan.length > 0 ? (
                           <div className="space-y-2">
                             {plan.seedPlan.map((seed, idx) => (
                               <div key={idx} className="text-sm">
@@ -314,7 +459,50 @@ export default function FarmPlansPage() {
                           <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
                           Fertilizer Plan
                         </h3>
-                        {plan.fertilizerPlan.length > 0 ? (
+                        {loadingFarmDetails === plan.farmId ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : farmDetails[plan.farmId]?.fertilizerUsage && farmDetails[plan.farmId].fertilizerUsage!.length > 0 ? (
+                          <div className="space-y-2">
+                            {farmDetails[plan.farmId].fertilizerUsage!.map((usage) => (
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-blue-50' : ''}`}>
+                                <button
+                                  onClick={() => {
+                                    if (usage.completedAt) {
+                                      handleUndoComplete('fertilizer', usage.id, plan.farmId);
+                                    } else {
+                                      setShowCompletionModal({ type: 'fertilizer', id: usage.id, productName: usage.fertilizer?.name || 'Fertilizer', farmId: plan.farmId });
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                                    usage.completedAt
+                                      ? 'bg-blue-500 border-blue-500 text-white'
+                                      : 'border-gray-300 hover:border-blue-500'
+                                  }`}
+                                >
+                                  {usage.completedAt && (
+                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{usage.fertilizer?.name}</p>
+                                  <p className="text-gray-600">
+                                    {usage.ratePerAcre} {usage.fertilizer?.unit}/acre
+                                  </p>
+                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
+                                  {usage.completedAt && (
+                                    <p className="text-xs text-blue-600 mt-1">
+                                      Applied {formatCompletionDate(usage.completedAt)}
+                                      {usage.completedByName && ` by ${usage.completedByName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : plan.fertilizerPlan.length > 0 ? (
                           <div className="space-y-2">
                             {plan.fertilizerPlan.map((fert, idx) => (
                               <div key={idx} className="text-sm">
@@ -337,7 +525,50 @@ export default function FarmPlansPage() {
                           <span className="w-2 h-2 bg-teal-500 rounded-full mr-2"></span>
                           In-Furrow Plan
                         </h3>
-                        {plan.inFurrowPlan.length > 0 ? (
+                        {loadingFarmDetails === plan.farmId ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : farmDetails[plan.farmId]?.chemicalUsage && farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.IN_FURROW).length > 0 ? (
+                          <div className="space-y-2">
+                            {farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.IN_FURROW).map((usage) => (
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-teal-50' : ''}`}>
+                                <button
+                                  onClick={() => {
+                                    if (usage.completedAt) {
+                                      handleUndoComplete('chemical', usage.id, plan.farmId);
+                                    } else {
+                                      setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'In-Furrow', farmId: plan.farmId });
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                                    usage.completedAt
+                                      ? 'bg-teal-500 border-teal-500 text-white'
+                                      : 'border-gray-300 hover:border-teal-500'
+                                  }`}
+                                >
+                                  {usage.completedAt && (
+                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                                  <p className="text-gray-600">
+                                    {usage.ratePerAcre} {usage.chemical?.unit}/acre
+                                  </p>
+                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
+                                  {usage.completedAt && (
+                                    <p className="text-xs text-teal-600 mt-1">
+                                      Applied {formatCompletionDate(usage.completedAt)}
+                                      {usage.completedByName && ` by ${usage.completedByName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : plan.inFurrowPlan.length > 0 ? (
                           <div className="space-y-2">
                             {plan.inFurrowPlan.map((item, idx) => (
                               <div key={idx} className="text-sm">
@@ -360,7 +591,50 @@ export default function FarmPlansPage() {
                           <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                           Herbicide Plan
                         </h3>
-                        {plan.chemicalPlan.length > 0 ? (
+                        {loadingFarmDetails === plan.farmId ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : farmDetails[plan.farmId]?.chemicalUsage && farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.HERBICIDE).length > 0 ? (
+                          <div className="space-y-2">
+                            {farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.HERBICIDE).map((usage) => (
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-green-50' : ''}`}>
+                                <button
+                                  onClick={() => {
+                                    if (usage.completedAt) {
+                                      handleUndoComplete('chemical', usage.id, plan.farmId);
+                                    } else {
+                                      setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'Herbicide', farmId: plan.farmId });
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                                    usage.completedAt
+                                      ? 'bg-green-500 border-green-500 text-white'
+                                      : 'border-gray-300 hover:border-green-500'
+                                  }`}
+                                >
+                                  {usage.completedAt && (
+                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                                  <p className="text-gray-600">
+                                    {usage.ratePerAcre} {usage.chemical?.unit}/acre
+                                  </p>
+                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
+                                  {usage.completedAt && (
+                                    <p className="text-xs text-green-600 mt-1">
+                                      Sprayed {formatCompletionDate(usage.completedAt)}
+                                      {usage.completedByName && ` by ${usage.completedByName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : plan.chemicalPlan.length > 0 ? (
                           <div className="space-y-2">
                             {plan.chemicalPlan.map((chem, idx) => (
                               <div key={idx} className="text-sm">
@@ -383,7 +657,50 @@ export default function FarmPlansPage() {
                           <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span>
                           Fungicide Plan
                         </h3>
-                        {plan.fungicidePlan.length > 0 ? (
+                        {loadingFarmDetails === plan.farmId ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : farmDetails[plan.farmId]?.chemicalUsage && farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.FUNGICIDE).length > 0 ? (
+                          <div className="space-y-2">
+                            {farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.FUNGICIDE).map((usage) => (
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-indigo-50' : ''}`}>
+                                <button
+                                  onClick={() => {
+                                    if (usage.completedAt) {
+                                      handleUndoComplete('chemical', usage.id, plan.farmId);
+                                    } else {
+                                      setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'Fungicide', farmId: plan.farmId });
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                                    usage.completedAt
+                                      ? 'bg-indigo-500 border-indigo-500 text-white'
+                                      : 'border-gray-300 hover:border-indigo-500'
+                                  }`}
+                                >
+                                  {usage.completedAt && (
+                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                                  <p className="text-gray-600">
+                                    {usage.ratePerAcre} {usage.chemical?.unit}/acre
+                                  </p>
+                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
+                                  {usage.completedAt && (
+                                    <p className="text-xs text-indigo-600 mt-1">
+                                      Sprayed {formatCompletionDate(usage.completedAt)}
+                                      {usage.completedByName && ` by ${usage.completedByName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : plan.fungicidePlan.length > 0 ? (
                           <div className="space-y-2">
                             {plan.fungicidePlan.map((fung, idx) => (
                               <div key={idx} className="text-sm">
@@ -442,6 +759,46 @@ export default function FarmPlansPage() {
           </div>
         )}
       </main>
+
+      {/* Completion Date Modal */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Mark "{showCompletionModal.productName}" Complete
+            </h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Completion Date
+              </label>
+              <input
+                type="date"
+                value={completionDate}
+                onChange={(e) => setCompletionDate(e.target.value)}
+                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCompletionModal(null);
+                  setCompletionDate(new Date().toISOString().split('T')[0]);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkComplete}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Mark Complete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
