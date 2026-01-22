@@ -54,7 +54,9 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Analysis', path: '/breakeven' },
       { label: 'Farms', path: '/breakeven/farms' },
-      { label: 'Products', path: '/breakeven/products' }
+      { label: 'Products', path: '/breakeven/products' },
+      { label: 'Land Parcels', path: '/loans/land-parcels' },
+      { label: 'Operating Loans', path: '/loans/operating' }
     ]
   },
   {
