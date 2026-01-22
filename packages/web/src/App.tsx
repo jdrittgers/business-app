@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { useRetailerAuthStore } from './store/retailerAuthStore';
 import { useSocket } from './hooks/useSocket';
+import { useAnalytics } from './hooks/useAnalytics';
 import { registerServiceWorker } from './utils/push-notifications';
 import { UserRole } from '@business-app/shared';
 import AppLayout from './components/layout/AppLayout';
@@ -65,6 +66,9 @@ function App() {
 
   // Initialize socket connection
   useSocket();
+
+  // Track page views in Google Analytics
+  useAnalytics();
 
   useEffect(() => {
     loadUser();
