@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { invitationApi } from '../api/invitation.api';
 import { userApi } from '../api/user.api';
+import { grainContractsApi } from '../api/grain-contracts.api';
+import { GrainEntity } from '@business-app/shared';
 
 export default function UserSettings() {
   const { user, logout, loadUser } = useAuthStore();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'businesses' | 'account'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'businesses' | 'entities' | 'account'>('profile');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -26,6 +28,93 @@ export default function UserSettings() {
   // Business location state
   const [editingBusinessId, setEditingBusinessId] = useState<string | null>(null);
   const [businessZipCode, setBusinessZipCode] = useState('');
+
+  // Entities state
+  const [entities, setEntities] = useState<GrainEntity[]>([]);
+  const [showEntityModal, setShowEntityModal] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<GrainEntity | null>(null);
+  const [entityFormData, setEntityFormData] = useState({ name: '' });
+
+  const businessId = user?.businessMemberships?.[0]?.businessId;
+
+  // Load entities when tab changes to entities
+  useEffect(() => {
+    if (activeTab === 'entities' && businessId) {
+      loadEntities();
+    }
+  }, [activeTab, businessId]);
+
+  const loadEntities = async () => {
+    if (!businessId) return;
+    try {
+      const data = await grainContractsApi.getGrainEntities(businessId);
+      setEntities(data);
+    } catch (err) {
+      console.error('Failed to load entities:', err);
+    }
+  };
+
+  const handleCreateEntity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessId) return;
+    setIsLoading(true);
+    setError('');
+
+    try {
+      await grainContractsApi.createGrainEntity(businessId, entityFormData.name);
+      setSuccess('Entity created successfully!');
+      setShowEntityModal(false);
+      setEntityFormData({ name: '' });
+      await loadEntities();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to create entity');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateEntity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessId || !editingEntity) return;
+    setIsLoading(true);
+    setError('');
+
+    try {
+      await grainContractsApi.updateGrainEntity(businessId, editingEntity.id, { name: entityFormData.name });
+      setSuccess('Entity updated successfully!');
+      setShowEntityModal(false);
+      setEditingEntity(null);
+      setEntityFormData({ name: '' });
+      await loadEntities();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update entity');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteEntity = async (entityId: string, entityName: string) => {
+    if (!businessId) return;
+    if (!confirm(`Are you sure you want to delete "${entityName}"? This may affect farms and contracts associated with this entity.`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      await grainContractsApi.deleteGrainEntity(businessId, entityId);
+      setSuccess('Entity deleted successfully!');
+      await loadEntities();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to delete entity');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleJoinBusiness = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +286,16 @@ export default function UserSettings() {
                 }`}
               >
                 My Businesses
+              </button>
+              <button
+                onClick={() => setActiveTab('entities')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 ${
+                  activeTab === 'entities'
+                    ? 'border-green-600 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Entities
               </button>
               <button
                 onClick={() => setActiveTab('account')}
@@ -433,6 +532,126 @@ export default function UserSettings() {
                             className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                           >
                             {isLoading ? 'Joining...' : 'Join'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Entities Tab */}
+            {activeTab === 'entities' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Grain Entities</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Manage your farming entities (e.g., Rittgers Grains, JDR Ag, etc.)
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingEntity(null);
+                      setEntityFormData({ name: '' });
+                      setShowEntityModal(true);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+                  >
+                    + Add Entity
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {entities.length > 0 ? (
+                    entities.map((entity) => (
+                      <div
+                        key={entity.id}
+                        className="border border-gray-300 rounded-lg p-4 flex justify-between items-center"
+                      >
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">{entity.name}</h3>
+                          <p className="text-sm text-gray-500">
+                            Created {new Date(entity.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingEntity(entity);
+                              setEntityFormData({ name: entity.name });
+                              setShowEntityModal(true);
+                            }}
+                            className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEntity(entity.id, entity.name)}
+                            className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 border border-dashed border-gray-300 rounded-lg">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <p className="mt-2 text-gray-500">No entities yet</p>
+                      <p className="text-sm text-gray-400">Add your first entity to get started</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Entity Modal */}
+                {showEntityModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                        {editingEntity ? 'Edit Entity' : 'Add New Entity'}
+                      </h3>
+
+                      <form onSubmit={editingEntity ? handleUpdateEntity : handleCreateEntity}>
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Entity Name
+                          </label>
+                          <input
+                            type="text"
+                            value={entityFormData.name}
+                            onChange={(e) => setEntityFormData({ name: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="e.g., Rittgers Grains, JDR Ag"
+                            required
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            This is typically a farming operation, partnership, or LLC
+                          </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowEntityModal(false);
+                              setEditingEntity(null);
+                              setEntityFormData({ name: '' });
+                              setError('');
+                            }}
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isLoading || !entityFormData.name.trim()}
+                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {isLoading ? 'Saving...' : editingEntity ? 'Update' : 'Create'}
                           </button>
                         </div>
                       </form>

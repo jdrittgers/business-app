@@ -46,6 +46,8 @@ export default function FarmManagement() {
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
+  const [showQuickEntityForm, setShowQuickEntityForm] = useState(false);
+  const [newEntityName, setNewEntityName] = useState('');
   const [formData, setFormData] = useState({
     grainEntityId: '',
     landParcelId: '' as string | null,
@@ -307,6 +309,23 @@ export default function FarmManagement() {
       case 'SOYBEANS': return '🫘';
       case 'WHEAT': return '🌾';
       default: return '🌱';
+    }
+  };
+
+  const handleQuickEntityCreate = async () => {
+    if (!selectedBusinessId || !newEntityName.trim()) return;
+
+    try {
+      const newEntity = await grainContractsApi.createGrainEntity(selectedBusinessId, newEntityName.trim());
+      setEntities([...entities, newEntity]);
+      // Auto-select the new entity
+      if (!useEntitySplits) {
+        setFormData({ ...formData, grainEntityId: newEntity.id });
+      }
+      setNewEntityName('');
+      setShowQuickEntityForm(false);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to create entity');
     }
   };
 
@@ -684,17 +703,65 @@ export default function FarmManagement() {
                   </div>
 
                   {!useEntitySplits ? (
-                    <select
-                      value={formData.grainEntityId}
-                      onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
-                      required
-                    >
-                      <option value="">Select Entity</option>
-                      {entities.map(entity => (
-                        <option key={entity.id} value={entity.id}>{entity.name}</option>
-                      ))}
-                    </select>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <select
+                          value={formData.grainEntityId}
+                          onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
+                          className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                          required
+                        >
+                          <option value="">Select Entity</option>
+                          {entities.map(entity => (
+                            <option key={entity.id} value={entity.id}>{entity.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickEntityForm(!showQuickEntityForm)}
+                          className="px-3 py-2 text-teal-600 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100"
+                          title="Add new entity"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </button>
+                      </div>
+                      {showQuickEntityForm && (
+                        <div className="flex gap-2 p-2 bg-teal-50 rounded-lg border border-teal-200">
+                          <input
+                            type="text"
+                            value={newEntityName}
+                            onChange={(e) => setNewEntityName(e.target.value)}
+                            placeholder="New entity name"
+                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleQuickEntityCreate();
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleQuickEntityCreate}
+                            className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowQuickEntityForm(false);
+                              setNewEntityName('');
+                            }}
+                            className="px-2 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
                       {formData.entitySplits.map((split, index) => (

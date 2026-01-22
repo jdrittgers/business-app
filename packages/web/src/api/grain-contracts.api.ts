@@ -22,6 +22,17 @@ export const grainContractsApi = {
     return response.data;
   },
 
+  // Update grain entity
+  updateGrainEntity: async (businessId: string, entityId: string, data: { name: string }): Promise<GrainEntity> => {
+    const response = await apiClient.patch(`/api/businesses/${businessId}/grain-entities/${entityId}`, data);
+    return response.data;
+  },
+
+  // Delete grain entity
+  deleteGrainEntity: async (businessId: string, entityId: string): Promise<void> => {
+    await apiClient.delete(`/api/businesses/${businessId}/grain-entities/${entityId}`);
+  },
+
   // Get contracts
   getContracts: async (businessId: string, query?: GetGrainContractsQuery): Promise<GrainContract[]> => {
     const response = await apiClient.get(`/api/businesses/${businessId}/grain-contracts`, {

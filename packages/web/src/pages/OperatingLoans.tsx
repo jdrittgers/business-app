@@ -18,9 +18,11 @@ interface LoanModalProps {
   loan?: OperatingLoan | null;
   grainEntities: GrainEntity[];
   currentYear: number;
+  onEntityCreated: (entity: GrainEntity) => void;
+  businessId: string;
 }
 
-function LoanModal({ isOpen, onClose, onSave, loan, grainEntities, currentYear }: LoanModalProps) {
+function LoanModal({ isOpen, onClose, onSave, loan, grainEntities, currentYear, onEntityCreated, businessId }: LoanModalProps) {
   const [selectedEntityId, setSelectedEntityId] = useState('');
   const [formData, setFormData] = useState<CreateOperatingLoanRequest>({
     lender: '',
@@ -29,6 +31,22 @@ function LoanModal({ isOpen, onClose, onSave, loan, grainEntities, currentYear }
     year: currentYear
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showQuickEntityForm, setShowQuickEntityForm] = useState(false);
+  const [newEntityName, setNewEntityName] = useState('');
+
+  const handleQuickEntityCreate = async () => {
+    if (!businessId || !newEntityName.trim()) return;
+
+    try {
+      const newEntity = await grainContractsApi.createGrainEntity(businessId, newEntityName.trim());
+      onEntityCreated(newEntity);
+      setSelectedEntityId(newEntity.id);
+      setNewEntityName('');
+      setShowQuickEntityForm(false);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to create entity');
+    }
+  };
 
   useEffect(() => {
     if (loan) {
@@ -81,17 +99,67 @@ function LoanModal({ isOpen, onClose, onSave, loan, grainEntities, currentYear }
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Grain Entity *</label>
-              <select
-                value={selectedEntityId}
-                onChange={(e) => setSelectedEntityId(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                required
-                disabled={!!loan}
-              >
-                {grainEntities.map((entity) => (
-                  <option key={entity.id} value={entity.id}>{entity.name}</option>
-                ))}
-              </select>
+              <div className="mt-1 space-y-2">
+                <div className="flex gap-2">
+                  <select
+                    value={selectedEntityId}
+                    onChange={(e) => setSelectedEntityId(e.target.value)}
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required
+                    disabled={!!loan}
+                  >
+                    {grainEntities.map((entity) => (
+                      <option key={entity.id} value={entity.id}>{entity.name}</option>
+                    ))}
+                  </select>
+                  {!loan && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickEntityForm(!showQuickEntityForm)}
+                      className="px-3 py-2 text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+                      title="Add new entity"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {showQuickEntityForm && (
+                  <div className="flex gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                    <input
+                      type="text"
+                      value={newEntityName}
+                      onChange={(e) => setNewEntityName(e.target.value)}
+                      placeholder="New entity name"
+                      className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQuickEntityCreate();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleQuickEntityCreate}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowQuickEntityForm(false);
+                        setNewEntityName('');
+                      }}
+                      className="px-2 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Year *</label>
@@ -699,6 +767,8 @@ export default function OperatingLoans() {
         loan={selectedLoan}
         grainEntities={grainEntities}
         currentYear={selectedYear}
+        businessId={businessId || ''}
+        onEntityCreated={(entity) => setGrainEntities([...grainEntities, entity])}
       />
 
       <TransactionModal
