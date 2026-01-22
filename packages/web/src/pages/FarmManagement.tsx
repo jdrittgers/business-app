@@ -4,11 +4,13 @@ import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
 import { grainContractsApi } from '../api/grain-contracts.api';
 import { marketingAiApi } from '../api/marketing-ai.api';
+import { loansApi } from '../api/loans.api';
 import {
   Farm,
   GrainEntity,
   CommodityType,
-  FarmBreakEven
+  FarmBreakEven,
+  LandParcel
 } from '@business-app/shared';
 
 // Default harvest prices (will be updated from Yahoo Finance)
@@ -25,6 +27,7 @@ export default function FarmManagement() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [farmBreakEvens, setFarmBreakEvens] = useState<Map<string, FarmBreakEven>>(new Map());
   const [entities, setEntities] = useState<GrainEntity[]>([]);
+  const [landParcels, setLandParcels] = useState<LandParcel[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +47,7 @@ export default function FarmManagement() {
   const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
   const [formData, setFormData] = useState({
     grainEntityId: '',
+    landParcelId: '' as string | null,
     name: '',
     acres: '',
     commodityType: 'CORN' as CommodityType,
@@ -106,18 +110,20 @@ export default function FarmManagement() {
     setError(null);
 
     try {
-      // Load entities and farms in parallel
-      const [entitiesData, farmsData] = await Promise.all([
+      // Load entities, farms, and land parcels in parallel
+      const [entitiesData, farmsData, parcelsData] = await Promise.all([
         grainContractsApi.getGrainEntities(selectedBusinessId),
         breakevenApi.getFarms(selectedBusinessId, {
           grainEntityId: filterEntity === 'ALL' ? undefined : filterEntity,
           year: filterYear,
           commodityType: filterCommodity === 'ALL' ? undefined : filterCommodity as CommodityType
-        })
+        }),
+        loansApi.getLandParcels(selectedBusinessId, true)
       ]);
 
       setEntities(entitiesData);
       setFarms(farmsData);
+      setLandParcels(parcelsData);
 
       // Load break-even data for each farm
       const breakEvenMap = new Map<string, FarmBreakEven>();
@@ -203,6 +209,7 @@ export default function FarmManagement() {
     setEditingFarm(null);
     setFormData({
       grainEntityId: entities.length > 0 ? entities[0].id : '',
+      landParcelId: null,
       name: '',
       acres: '',
       commodityType: CommodityType.CORN,
@@ -218,6 +225,7 @@ export default function FarmManagement() {
     setEditingFarm(farm);
     setFormData({
       grainEntityId: farm.grainEntityId,
+      landParcelId: farm.landParcelId || null,
       name: farm.name,
       acres: farm.acres.toString(),
       commodityType: farm.commodityType,
@@ -248,6 +256,7 @@ export default function FarmManagement() {
     try {
       const data = {
         grainEntityId: formData.grainEntityId,
+        landParcelId: formData.landParcelId || undefined,
         name: formData.name,
         acres: parseFloat(formData.acres),
         commodityType: formData.commodityType,
@@ -617,6 +626,25 @@ export default function FarmManagement() {
                       <option key={entity.id} value={entity.id}>{entity.name}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Land Parcel</label>
+                  <select
+                    value={formData.landParcelId || ''}
+                    onChange={(e) => setFormData({ ...formData, landParcelId: e.target.value || null })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  >
+                    <option value="">No Land Parcel</option>
+                    {landParcels.map(parcel => (
+                      <option key={parcel.id} value={parcel.id}>
+                        {parcel.name} ({parcel.totalAcres.toLocaleString()} acres)
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Link to a land parcel to include land loan costs in break-even calculations.
+                  </p>
                 </div>
 
                 <div>

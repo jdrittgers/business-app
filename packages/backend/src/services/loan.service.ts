@@ -246,6 +246,7 @@ export class LandLoanService {
         monthlyPayment: data.monthlyPayment,
         remainingBalance: data.remainingBalance ?? data.principal,
         annualPayment: data.annualPayment,
+        nextPaymentDate: data.nextPaymentDate ? new Date(data.nextPaymentDate) : null,
         notes: data.notes
       },
       include: { payments: true }
@@ -255,6 +256,9 @@ export class LandLoanService {
   }
 
   async update(id: string, data: UpdateLandLoanRequest): Promise<LandLoan> {
+    // If nextPaymentDate is being changed, reset the reminder flag
+    const resetReminder = data.nextPaymentDate !== undefined;
+
     const loan = await prisma.landLoan.update({
       where: { id },
       data: {
@@ -269,6 +273,8 @@ export class LandLoanService {
         ...(data.monthlyPayment !== undefined && { monthlyPayment: data.monthlyPayment }),
         ...(data.remainingBalance !== undefined && { remainingBalance: data.remainingBalance }),
         ...(data.annualPayment !== undefined && { annualPayment: data.annualPayment }),
+        ...(data.nextPaymentDate !== undefined && { nextPaymentDate: data.nextPaymentDate ? new Date(data.nextPaymentDate) : null }),
+        ...(resetReminder && { paymentReminderSent: false }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.isActive !== undefined && { isActive: data.isActive })
       },
@@ -320,10 +326,30 @@ export class LandLoanService {
     };
   }
 
+  private calculateAnnualInterest(loan: any): number {
+    if (loan.useSimpleMode) {
+      // Simple mode: estimate 40% of annual payment is interest
+      return Number(loan.annualPayment || 0) * 0.4;
+    }
+    // Full amortization: remaining balance × interest rate
+    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+  }
+
+  private calculateAnnualPrincipal(loan: any): number {
+    if (loan.useSimpleMode) {
+      // Simple mode: estimate 60% of annual payment is principal
+      return Number(loan.annualPayment || 0) * 0.6;
+    }
+    // Full amortization: annual payment - annual interest
+    const monthlyPayment = Number(loan.monthlyPayment || 0);
+    const annualPayment = monthlyPayment * 12;
+    const annualInterest = this.calculateAnnualInterest(loan);
+    return Math.max(0, annualPayment - annualInterest);
+  }
+
   private mapLoan(loan: any): LandLoan {
-    const annualInterest = loan.useSimpleMode
-      ? Number(loan.annualPayment || 0) * 0.4
-      : Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const annualInterest = this.calculateAnnualInterest(loan);
+    const annualPrincipal = this.calculateAnnualPrincipal(loan);
 
     return {
       id: loan.id,
@@ -339,11 +365,15 @@ export class LandLoanService {
       monthlyPayment: loan.monthlyPayment ? Number(loan.monthlyPayment) : undefined,
       remainingBalance: loan.remainingBalance ? Number(loan.remainingBalance) : undefined,
       annualPayment: loan.annualPayment ? Number(loan.annualPayment) : undefined,
+      // New payment scheduling fields
+      nextPaymentDate: loan.nextPaymentDate || undefined,
+      paymentReminderSent: loan.paymentReminderSent,
       notes: loan.notes || undefined,
       isActive: loan.isActive,
       createdAt: loan.createdAt,
       updatedAt: loan.updatedAt,
       annualInterestExpense: annualInterest,
+      annualPrincipalExpense: annualPrincipal,
       landParcel: loan.landParcel ? {
         id: loan.landParcel.id,
         businessId: loan.landParcel.businessId,
@@ -596,6 +626,23 @@ export class LoanInterestService {
   private landParcelService = new LandParcelService();
   private operatingLoanService = new OperatingLoanService();
 
+  private calculateLandLoanAnnualInterest(loan: any): number {
+    if (loan.useSimpleMode) {
+      return Number(loan.annualPayment || 0) * 0.4;
+    }
+    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+  }
+
+  private calculateLandLoanAnnualPrincipal(loan: any): number {
+    if (loan.useSimpleMode) {
+      return Number(loan.annualPayment || 0) * 0.6;
+    }
+    const monthlyPayment = Number(loan.monthlyPayment || 0);
+    const annualPayment = monthlyPayment * 12;
+    const annualInterest = this.calculateLandLoanAnnualInterest(loan);
+    return Math.max(0, annualPayment - annualInterest);
+  }
+
   async getFarmInterestAllocation(farmId: string, year: number): Promise<FarmInterestAllocation> {
     const farm = await prisma.farm.findUnique({
       where: { id: farmId },
@@ -604,31 +651,42 @@ export class LoanInterestService {
           include: { landLoans: { where: { isActive: true, deletedAt: null } } }
         },
         grainEntity: {
-          include: { operatingLoans: { where: { year, isActive: true, deletedAt: null } } }
+          include: {
+            operatingLoans: { where: { year, isActive: true, deletedAt: null } },
+            business: { select: { id: true } }
+          }
         }
       }
     });
 
     if (!farm) {
-      return { farmId, landLoanInterest: 0, operatingLoanInterest: 0, equipmentLoanInterest: 0, totalInterest: 0 };
+      return {
+        farmId,
+        landLoanInterest: 0,
+        landLoanPrincipal: 0,
+        operatingLoanInterest: 0,
+        equipmentLoanInterest: 0,
+        equipmentLoanPrincipal: 0,
+        totalInterest: 0,
+        totalPrincipal: 0,
+        totalLoanCost: 0
+      };
     }
 
-    // Calculate land loan interest allocated to this farm
+    // Calculate land loan costs - farm absorbs 100% of associated parcel's loan costs
     let landLoanInterest = 0;
+    let landLoanPrincipal = 0;
     if (farm.landParcel && farm.landParcel.landLoans.length > 0) {
-      const totalParcelInterest = farm.landParcel.landLoans.reduce((sum, loan) => {
-        if (loan.useSimpleMode) {
-          return sum + Number(loan.annualPayment || 0) * 0.4;
-        }
-        return sum + Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+      // Full cost goes to this farm (1:1 relationship)
+      landLoanInterest = farm.landParcel.landLoans.reduce((sum, loan) => {
+        return sum + this.calculateLandLoanAnnualInterest(loan);
       }, 0);
-
-      const farmAcres = Number(farm.acres);
-      const parcelAcres = Number(farm.landParcel.totalAcres);
-      landLoanInterest = parcelAcres > 0 ? (totalParcelInterest * farmAcres / parcelAcres) : 0;
+      landLoanPrincipal = farm.landParcel.landLoans.reduce((sum, loan) => {
+        return sum + this.calculateLandLoanAnnualPrincipal(loan);
+      }, 0);
     }
 
-    // Calculate operating loan interest allocated to this farm
+    // Calculate operating loan interest allocated to this farm by acreage
     let operatingLoanInterest = 0;
     if (farm.grainEntity.operatingLoans.length > 0) {
       // Get total acres for this entity in this year
@@ -637,30 +695,60 @@ export class LoanInterestService {
       });
       const totalEntityAcres = entityFarms.reduce((sum, f) => sum + Number(f.acres), 0);
 
-      // Calculate total entity operating interest
+      // Calculate total entity operating interest (YTD)
       const totalEntityInterest = farm.grainEntity.operatingLoans.reduce((sum, loan) => {
         const rate = Number(loan.interestRate);
         const balance = Number(loan.currentBalance);
         const now = new Date();
-        const startOfYear = new Date(year, 0, 1);
-        const monthsElapsed = Math.max(1, (now.getMonth() - startOfYear.getMonth()) + 1);
-        return sum + balance * rate * (monthsElapsed / 12);
+        const currentYear = now.getFullYear();
+
+        // For past years, use full year (12 months)
+        // For current year, use months elapsed so far
+        // For future years, estimate full year
+        let monthsToUse: number;
+        if (year < currentYear) {
+          monthsToUse = 12; // Full year for past years
+        } else if (year > currentYear) {
+          monthsToUse = 12; // Project full year for future planning
+        } else {
+          // Current year - use months elapsed (1-indexed)
+          monthsToUse = now.getMonth() + 1;
+        }
+
+        return sum + balance * rate * (monthsToUse / 12);
       }, 0);
 
       const farmAcres = Number(farm.acres);
       operatingLoanInterest = totalEntityAcres > 0 ? (totalEntityInterest * farmAcres / totalEntityAcres) : 0;
     }
 
-    // TODO: Calculate equipment loan interest allocation in future
-    // For now, equipment loans are business-level and don't allocate to specific farms
-    const equipmentLoanInterest = 0;
+    // Calculate equipment loan costs distributed by acreage (for loans marked includeInBreakeven)
+    let equipmentLoanInterest = 0;
+    let equipmentLoanPrincipal = 0;
+
+    const businessId = farm.grainEntity.business?.id;
+    if (businessId) {
+      const equipmentLoanService = new EquipmentLoanService();
+      const costPerAcre = await equipmentLoanService.getEquipmentCostPerAcre(businessId, year);
+      const farmAcres = Number(farm.acres);
+
+      equipmentLoanInterest = costPerAcre.interestPerAcre * farmAcres;
+      equipmentLoanPrincipal = costPerAcre.principalPerAcre * farmAcres;
+    }
+
+    const totalInterest = landLoanInterest + operatingLoanInterest + equipmentLoanInterest;
+    const totalPrincipal = landLoanPrincipal + equipmentLoanPrincipal;
 
     return {
       farmId,
       landLoanInterest,
+      landLoanPrincipal,
       operatingLoanInterest,
       equipmentLoanInterest,
-      totalInterest: landLoanInterest + operatingLoanInterest + equipmentLoanInterest
+      equipmentLoanPrincipal,
+      totalInterest,
+      totalPrincipal,
+      totalLoanCost: totalInterest + totalPrincipal
     };
   }
 
@@ -703,13 +791,26 @@ export class LoanInterestService {
 
     // Group by entity
     const entityMap = new Map<string, { id: string; name: string; ytdInterest: number }>();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
     for (const loan of operatingLoans) {
       const rate = Number(loan.interestRate);
       const balance = Number(loan.currentBalance);
-      const now = new Date();
-      const startOfYear = new Date(year, 0, 1);
-      const monthsElapsed = Math.max(1, (now.getMonth() - startOfYear.getMonth()) + 1);
-      const ytdInterest = balance * rate * (monthsElapsed / 12);
+
+      // For past years, use full year (12 months)
+      // For current year, use months elapsed so far
+      // For future years, project full year
+      let monthsToUse: number;
+      if (year < currentYear) {
+        monthsToUse = 12;
+      } else if (year > currentYear) {
+        monthsToUse = 12;
+      } else {
+        monthsToUse = now.getMonth() + 1;
+      }
+
+      const ytdInterest = balance * rate * (monthsToUse / 12);
 
       const existing = entityMap.get(loan.grainEntityId);
       if (existing) {
@@ -841,6 +942,8 @@ export class EquipmentService {
       sum + Number(l.remainingBalance || 0), 0);
     const annualInterestExpense = loans.reduce((sum: number, l: any) =>
       sum + this.calculateLoanAnnualInterest(l), 0);
+    const annualPrincipalExpense = loans.reduce((sum: number, l: any) =>
+      sum + this.calculateLoanAnnualPrincipal(l), 0);
 
     return {
       id: equipment.id,
@@ -860,11 +963,16 @@ export class EquipmentService {
       updatedAt: equipment.updatedAt,
       totalLoanBalance,
       annualInterestExpense,
+      annualPrincipalExpense,
       equipmentLoans: loans.map((l: any) => this.mapEquipmentLoan(l))
     };
   }
 
   private calculateLoanAnnualInterest(loan: any): number {
+    // Use override if provided
+    if (loan.annualInterestOverride) {
+      return Number(loan.annualInterestOverride);
+    }
     if (loan.useSimpleMode || loan.financingType === 'LEASE') {
       // Simple mode or lease: estimate 40% of annual payment is interest
       return Number(loan.annualPayment || 0) * 0.4;
@@ -873,7 +981,26 @@ export class EquipmentService {
     return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
   }
 
+  private calculateLoanAnnualPrincipal(loan: any): number {
+    // Use override if provided
+    if (loan.annualPrincipalOverride) {
+      return Number(loan.annualPrincipalOverride);
+    }
+    if (loan.useSimpleMode || loan.financingType === 'LEASE') {
+      // Simple mode or lease: estimate 60% of annual payment is principal
+      return Number(loan.annualPayment || 0) * 0.6;
+    }
+    // Full amortization: annual payment - annual interest
+    const monthlyPayment = Number(loan.monthlyPayment || 0);
+    const annualPayment = monthlyPayment * 12;
+    const annualInterest = this.calculateLoanAnnualInterest(loan);
+    return Math.max(0, annualPayment - annualInterest);
+  }
+
   private mapEquipmentLoan(loan: any): EquipmentLoan {
+    const calculatedAnnualInterest = this.calculateLoanAnnualInterest(loan);
+    const calculatedAnnualPrincipal = this.calculateLoanAnnualPrincipal(loan);
+
     return {
       id: loan.id,
       equipmentId: loan.equipmentId,
@@ -891,11 +1018,22 @@ export class EquipmentService {
       annualPayment: loan.annualPayment ? Number(loan.annualPayment) : undefined,
       leaseEndDate: loan.leaseEndDate || undefined,
       residualValue: loan.residualValue ? Number(loan.residualValue) : undefined,
+      // New fields
+      downPayment: loan.downPayment ? Number(loan.downPayment) : undefined,
+      downPaymentDate: loan.downPaymentDate || undefined,
+      annualInterestOverride: loan.annualInterestOverride ? Number(loan.annualInterestOverride) : undefined,
+      annualPrincipalOverride: loan.annualPrincipalOverride ? Number(loan.annualPrincipalOverride) : undefined,
+      nextPaymentDate: loan.nextPaymentDate || undefined,
+      paymentReminderSent: loan.paymentReminderSent,
+      includeInBreakeven: loan.includeInBreakeven,
       notes: loan.notes || undefined,
       isActive: loan.isActive,
       createdAt: loan.createdAt,
       updatedAt: loan.updatedAt,
-      annualInterestExpense: this.calculateLoanAnnualInterest(loan),
+      // Computed fields
+      annualInterestExpense: calculatedAnnualInterest,
+      calculatedAnnualInterest,
+      calculatedAnnualPrincipal,
       payments: loan.payments?.map((p: any) => ({
         id: p.id,
         equipmentLoanId: p.equipmentLoanId,
@@ -939,6 +1077,24 @@ export class EquipmentLoanService {
   }
 
   async create(equipmentId: string, data: CreateEquipmentLoanRequest): Promise<EquipmentLoan> {
+    // Auto-populate startDate from equipment's purchaseDate if not provided
+    let startDate = data.startDate ? new Date(data.startDate) : null;
+    if (!startDate) {
+      const equipment = await prisma.equipment.findUnique({
+        where: { id: equipmentId },
+        select: { purchaseDate: true }
+      });
+      if (equipment?.purchaseDate) {
+        startDate = equipment.purchaseDate;
+      }
+    }
+
+    // Calculate next payment date based on start date and frequency
+    let nextPaymentDate = data.nextPaymentDate ? new Date(data.nextPaymentDate) : null;
+    if (!nextPaymentDate && startDate && data.paymentFrequency) {
+      nextPaymentDate = this.calculateNextPaymentDate(startDate, data.paymentFrequency);
+    }
+
     const loan = await prisma.equipmentLoan.create({
       data: {
         equipmentId,
@@ -949,13 +1105,17 @@ export class EquipmentLoanService {
         principal: data.principal,
         interestRate: data.interestRate,
         termMonths: data.termMonths,
-        startDate: data.startDate ? new Date(data.startDate) : null,
+        startDate,
         paymentFrequency: data.paymentFrequency,
         monthlyPayment: data.monthlyPayment,
         remainingBalance: data.remainingBalance ?? data.principal,
         annualPayment: data.annualPayment,
         leaseEndDate: data.leaseEndDate ? new Date(data.leaseEndDate) : null,
         residualValue: data.residualValue,
+        downPayment: data.downPayment,
+        downPaymentDate: data.downPaymentDate ? new Date(data.downPaymentDate) : null,
+        nextPaymentDate,
+        includeInBreakeven: data.includeInBreakeven ?? false,
         notes: data.notes
       },
       include: { payments: true }
@@ -964,7 +1124,30 @@ export class EquipmentLoanService {
     return this.mapLoan(loan);
   }
 
+  private calculateNextPaymentDate(startDate: Date, frequency: PaymentFrequency): Date {
+    const now = new Date();
+    let nextDate = new Date(startDate);
+
+    // Get the interval in months
+    const intervalMonths = {
+      [PaymentFrequency.MONTHLY]: 1,
+      [PaymentFrequency.QUARTERLY]: 3,
+      [PaymentFrequency.SEMI_ANNUAL]: 6,
+      [PaymentFrequency.ANNUAL]: 12
+    }[frequency] || 1;
+
+    // Keep adding intervals until we're past today
+    while (nextDate <= now) {
+      nextDate.setMonth(nextDate.getMonth() + intervalMonths);
+    }
+
+    return nextDate;
+  }
+
   async update(id: string, data: UpdateEquipmentLoanRequest): Promise<EquipmentLoan> {
+    // If nextPaymentDate is being changed, reset the reminder flag
+    const resetReminder = data.nextPaymentDate !== undefined;
+
     const loan = await prisma.equipmentLoan.update({
       where: { id },
       data: {
@@ -982,6 +1165,14 @@ export class EquipmentLoanService {
         ...(data.annualPayment !== undefined && { annualPayment: data.annualPayment }),
         ...(data.leaseEndDate !== undefined && { leaseEndDate: data.leaseEndDate ? new Date(data.leaseEndDate) : null }),
         ...(data.residualValue !== undefined && { residualValue: data.residualValue }),
+        // New fields
+        ...(data.downPayment !== undefined && { downPayment: data.downPayment }),
+        ...(data.downPaymentDate !== undefined && { downPaymentDate: data.downPaymentDate ? new Date(data.downPaymentDate) : null }),
+        ...(data.annualInterestOverride !== undefined && { annualInterestOverride: data.annualInterestOverride }),
+        ...(data.annualPrincipalOverride !== undefined && { annualPrincipalOverride: data.annualPrincipalOverride }),
+        ...(data.nextPaymentDate !== undefined && { nextPaymentDate: data.nextPaymentDate ? new Date(data.nextPaymentDate) : null }),
+        ...(data.includeInBreakeven !== undefined && { includeInBreakeven: data.includeInBreakeven }),
+        ...(resetReminder && { paymentReminderSent: false }),
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.isActive !== undefined && { isActive: data.isActive })
       },
@@ -1033,10 +1224,34 @@ export class EquipmentLoanService {
     };
   }
 
+  private calculateAnnualInterest(loan: any): number {
+    // Use override if provided
+    if (loan.annualInterestOverride) {
+      return Number(loan.annualInterestOverride);
+    }
+    if (loan.useSimpleMode || loan.financingType === 'LEASE') {
+      return Number(loan.annualPayment || 0) * 0.4;
+    }
+    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+  }
+
+  private calculateAnnualPrincipal(loan: any): number {
+    // Use override if provided
+    if (loan.annualPrincipalOverride) {
+      return Number(loan.annualPrincipalOverride);
+    }
+    if (loan.useSimpleMode || loan.financingType === 'LEASE') {
+      return Number(loan.annualPayment || 0) * 0.6;
+    }
+    const monthlyPayment = Number(loan.monthlyPayment || 0);
+    const annualPayment = monthlyPayment * 12;
+    const annualInterest = this.calculateAnnualInterest(loan);
+    return Math.max(0, annualPayment - annualInterest);
+  }
+
   private mapLoan(loan: any): EquipmentLoan {
-    const annualInterest = loan.useSimpleMode || loan.financingType === 'LEASE'
-      ? Number(loan.annualPayment || 0) * 0.4
-      : Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const calculatedAnnualInterest = this.calculateAnnualInterest(loan);
+    const calculatedAnnualPrincipal = this.calculateAnnualPrincipal(loan);
 
     return {
       id: loan.id,
@@ -1055,11 +1270,22 @@ export class EquipmentLoanService {
       annualPayment: loan.annualPayment ? Number(loan.annualPayment) : undefined,
       leaseEndDate: loan.leaseEndDate || undefined,
       residualValue: loan.residualValue ? Number(loan.residualValue) : undefined,
+      // New fields
+      downPayment: loan.downPayment ? Number(loan.downPayment) : undefined,
+      downPaymentDate: loan.downPaymentDate || undefined,
+      annualInterestOverride: loan.annualInterestOverride ? Number(loan.annualInterestOverride) : undefined,
+      annualPrincipalOverride: loan.annualPrincipalOverride ? Number(loan.annualPrincipalOverride) : undefined,
+      nextPaymentDate: loan.nextPaymentDate || undefined,
+      paymentReminderSent: loan.paymentReminderSent,
+      includeInBreakeven: loan.includeInBreakeven,
       notes: loan.notes || undefined,
       isActive: loan.isActive,
       createdAt: loan.createdAt,
       updatedAt: loan.updatedAt,
-      annualInterestExpense: annualInterest,
+      // Computed fields
+      annualInterestExpense: calculatedAnnualInterest,
+      calculatedAnnualInterest,
+      calculatedAnnualPrincipal,
       equipment: loan.equipment ? {
         id: loan.equipment.id,
         businessId: loan.equipment.businessId,
@@ -1079,6 +1305,47 @@ export class EquipmentLoanService {
         notes: p.notes || undefined,
         createdAt: p.createdAt
       }))
+    };
+  }
+
+  // Get total equipment loan cost per acre for break-even calculations
+  async getEquipmentCostPerAcre(businessId: string, year: number): Promise<{ interestPerAcre: number; principalPerAcre: number; totalPerAcre: number }> {
+    // Get all equipment with loans that are marked for break-even
+    const equipment = await prisma.equipment.findMany({
+      where: { businessId, deletedAt: null, isActive: true },
+      include: {
+        equipmentLoans: {
+          where: { deletedAt: null, isActive: true, includeInBreakeven: true }
+        }
+      }
+    });
+
+    let totalAnnualInterest = 0;
+    let totalAnnualPrincipal = 0;
+
+    for (const eq of equipment) {
+      for (const loan of eq.equipmentLoans) {
+        totalAnnualInterest += this.calculateAnnualInterest(loan);
+        totalAnnualPrincipal += this.calculateAnnualPrincipal(loan);
+      }
+    }
+
+    // Get total acres across all farms for this year
+    const farms = await prisma.farm.findMany({
+      where: {
+        grainEntity: { businessId },
+        year,
+        deletedAt: null
+      },
+      select: { acres: true }
+    });
+
+    const totalAcres = farms.reduce((sum, f) => sum + Number(f.acres || 0), 0);
+
+    return {
+      interestPerAcre: totalAcres > 0 ? totalAnnualInterest / totalAcres : 0,
+      principalPerAcre: totalAcres > 0 ? totalAnnualPrincipal / totalAcres : 0,
+      totalPerAcre: totalAcres > 0 ? (totalAnnualInterest + totalAnnualPrincipal) / totalAcres : 0
     };
   }
 }

@@ -40,7 +40,8 @@ export enum NotificationType {
   FARM_PLAN_CHANGE = 'FARM_PLAN_CHANGE',
   PRODUCT_NEEDS_PRICING = 'PRODUCT_NEEDS_PRICING',
   TRIAL_UPDATE = 'TRIAL_UPDATE',
-  GENERAL = 'GENERAL'
+  GENERAL = 'GENERAL',
+  LOAN_PAYMENT_DUE = 'LOAN_PAYMENT_DUE'
 }
 
 // ===== Product Catalog Types =====
@@ -329,12 +330,17 @@ export interface FarmBreakEven {
 
   // Interest expense (from loans)
   landLoanInterest: number;
+  landLoanPrincipal: number;
   operatingLoanInterest: number;
+  equipmentLoanInterest: number;
+  equipmentLoanPrincipal: number;
   totalInterestExpense: number;
+  totalPrincipalExpense: number;
+  totalLoanCost: number;
 
   // Totals
-  totalCost: number; // Includes interest
-  totalCostExcludingInterest: number;
+  totalCost: number; // Includes all loan costs
+  totalCostExcludingInterest: number; // Deprecated but kept for compatibility
   costPerAcre: number;
 
   // Break-even calculations
@@ -377,10 +383,15 @@ export interface EntityBreakEven {
   totalCost: number;
   costPerAcre: number;
 
-  // Interest expense
+  // Loan costs
   landLoanInterest: number;
+  landLoanPrincipal: number;
   operatingLoanInterest: number;
+  equipmentLoanInterest: number;
+  equipmentLoanPrincipal: number;
   totalInterestExpense: number;
+  totalPrincipalExpense: number;
+  totalLoanCost: number;
 
   expectedYield: number;
   expectedBushels: number;
@@ -396,11 +407,16 @@ export interface OperationBreakEven {
   totalAcres: number;
   totalCost: number;
 
-  // Interest expense breakdown
+  // Loan cost breakdown
   totalInterestExpense: number;
-  interestBreakdown: {
-    landLoans: number;
-    operatingLoans: number;
+  totalPrincipalExpense: number;
+  totalLoanCost: number;
+  loanCostBreakdown: {
+    landLoanInterest: number;
+    landLoanPrincipal: number;
+    operatingLoanInterest: number;
+    equipmentLoanInterest: number;
+    equipmentLoanPrincipal: number;
   };
 
   // By commodity
@@ -413,7 +429,10 @@ export interface OperationBreakEven {
     expectedBushels: number;
     breakEvenPrice: number;
     landLoanInterest: number;
+    landLoanPrincipal: number;
     operatingLoanInterest: number;
+    equipmentLoanInterest: number;
+    equipmentLoanPrincipal: number;
   }>;
 
   // By entity

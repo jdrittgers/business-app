@@ -6,6 +6,7 @@ import {
   GetBreakEvenQuery,
   CommodityType
 } from '@business-app/shared';
+import { loanInterestService } from './loan.service';
 
 export class BreakEvenAnalyticsService {
   async getOperationBreakEven(
@@ -56,11 +57,11 @@ export class BreakEvenAnalyticsService {
       productions.map(p => [`${p.grainEntityId}-${p.commodityType}`, p])
     );
 
-    // Calculate farm-level break-evens
+    // Calculate farm-level break-evens with loan costs
     const farmBreakEvens: FarmBreakEven[] = [];
 
     for (const farm of farms) {
-      const farmBE = this.calculateFarmBreakEven(farm, productionMap);
+      const farmBE = await this.calculateFarmBreakEven(farm, productionMap, year);
       farmBreakEvens.push(farmBE);
     }
 
@@ -81,8 +82,13 @@ export class BreakEvenAnalyticsService {
           totalCost: 0,
           costPerAcre: 0,
           landLoanInterest: 0,
+          landLoanPrincipal: 0,
           operatingLoanInterest: 0,
+          equipmentLoanInterest: 0,
+          equipmentLoanPrincipal: 0,
           totalInterestExpense: 0,
+          totalPrincipalExpense: 0,
+          totalLoanCost: 0,
           expectedYield: farmBE.expectedYield,
           expectedBushels: 0,
           breakEvenPrice: 0,
@@ -94,8 +100,13 @@ export class BreakEvenAnalyticsService {
       entityBE.totalAcres += farmBE.acres;
       entityBE.totalCost += farmBE.totalCost;
       entityBE.landLoanInterest += farmBE.landLoanInterest;
+      entityBE.landLoanPrincipal += farmBE.landLoanPrincipal;
       entityBE.operatingLoanInterest += farmBE.operatingLoanInterest;
+      entityBE.equipmentLoanInterest += farmBE.equipmentLoanInterest;
+      entityBE.equipmentLoanPrincipal += farmBE.equipmentLoanPrincipal;
       entityBE.totalInterestExpense += farmBE.totalInterestExpense;
+      entityBE.totalPrincipalExpense += farmBE.totalPrincipalExpense;
+      entityBE.totalLoanCost += farmBE.totalLoanCost;
       entityBE.expectedBushels += farmBE.expectedBushels;
       entityBE.farms.push(farmBE);
     }
@@ -119,7 +130,10 @@ export class BreakEvenAnalyticsService {
           totalCost: 0,
           costPerAcre: 0,
           landLoanInterest: 0,
+          landLoanPrincipal: 0,
           operatingLoanInterest: 0,
+          equipmentLoanInterest: 0,
+          equipmentLoanPrincipal: 0,
           expectedYield: entityBE.expectedYield,
           expectedBushels: 0,
           breakEvenPrice: 0
@@ -130,7 +144,10 @@ export class BreakEvenAnalyticsService {
       commodityBE.acres += entityBE.totalAcres;
       commodityBE.totalCost += entityBE.totalCost;
       commodityBE.landLoanInterest += entityBE.landLoanInterest;
+      commodityBE.landLoanPrincipal += entityBE.landLoanPrincipal;
       commodityBE.operatingLoanInterest += entityBE.operatingLoanInterest;
+      commodityBE.equipmentLoanInterest += entityBE.equipmentLoanInterest;
+      commodityBE.equipmentLoanPrincipal += entityBE.equipmentLoanPrincipal;
       commodityBE.expectedBushels += entityBE.expectedBushels;
     }
 
@@ -146,8 +163,13 @@ export class BreakEvenAnalyticsService {
     const totalAcres = byCommodity.reduce((sum, c) => sum + c.acres, 0);
     const totalCost = byCommodity.reduce((sum, c) => sum + c.totalCost, 0);
     const totalLandLoanInterest = byCommodity.reduce((sum, c) => sum + c.landLoanInterest, 0);
+    const totalLandLoanPrincipal = byCommodity.reduce((sum, c) => sum + c.landLoanPrincipal, 0);
     const totalOperatingLoanInterest = byCommodity.reduce((sum, c) => sum + c.operatingLoanInterest, 0);
-    const totalInterestExpense = totalLandLoanInterest + totalOperatingLoanInterest;
+    const totalEquipmentLoanInterest = byCommodity.reduce((sum, c) => sum + c.equipmentLoanInterest, 0);
+    const totalEquipmentLoanPrincipal = byCommodity.reduce((sum, c) => sum + c.equipmentLoanPrincipal, 0);
+    const totalInterestExpense = totalLandLoanInterest + totalOperatingLoanInterest + totalEquipmentLoanInterest;
+    const totalPrincipalExpense = totalLandLoanPrincipal + totalEquipmentLoanPrincipal;
+    const totalLoanCost = totalInterestExpense + totalPrincipalExpense;
 
     return {
       businessId,
@@ -155,19 +177,25 @@ export class BreakEvenAnalyticsService {
       totalAcres,
       totalCost,
       totalInterestExpense,
-      interestBreakdown: {
-        landLoans: totalLandLoanInterest,
-        operatingLoans: totalOperatingLoanInterest
+      totalPrincipalExpense,
+      totalLoanCost,
+      loanCostBreakdown: {
+        landLoanInterest: totalLandLoanInterest,
+        landLoanPrincipal: totalLandLoanPrincipal,
+        operatingLoanInterest: totalOperatingLoanInterest,
+        equipmentLoanInterest: totalEquipmentLoanInterest,
+        equipmentLoanPrincipal: totalEquipmentLoanPrincipal
       },
       byCommodity,
       byEntity
     };
   }
 
-  private calculateFarmBreakEven(
+  private async calculateFarmBreakEven(
     farm: any,
-    productionMap: Map<string, any>
-  ): FarmBreakEven {
+    productionMap: Map<string, any>,
+    year: number
+  ): Promise<FarmBreakEven> {
     const acres = Number(farm.acres);
 
     // Calculate fertilizer cost
@@ -246,14 +274,22 @@ export class BreakEvenAnalyticsService {
       }
     }
 
-    // Interest expense (placeholder - will be populated by LoanInterestService)
-    const landLoanInterest = 0;
-    const operatingLoanInterest = 0;
-    const totalInterestExpense = landLoanInterest + operatingLoanInterest;
+    // Get loan costs from loan interest service
+    const loanAllocation = await loanInterestService.getFarmInterestAllocation(farm.id, year);
 
-    // Total costs (excluding interest for separate tracking)
+    const landLoanInterest = loanAllocation.landLoanInterest;
+    const landLoanPrincipal = loanAllocation.landLoanPrincipal;
+    const operatingLoanInterest = loanAllocation.operatingLoanInterest;
+    const equipmentLoanInterest = loanAllocation.equipmentLoanInterest;
+    const equipmentLoanPrincipal = loanAllocation.equipmentLoanPrincipal;
+
+    const totalInterestExpense = landLoanInterest + operatingLoanInterest + equipmentLoanInterest;
+    const totalPrincipalExpense = landLoanPrincipal + equipmentLoanPrincipal;
+    const totalLoanCost = totalInterestExpense + totalPrincipalExpense;
+
+    // Total costs
     const totalCostExcludingInterest = fertilizerCost + chemicalCost + seedCost + landRent + insurance + otherCosts;
-    const totalCost = totalCostExcludingInterest + totalInterestExpense;
+    const totalCost = totalCostExcludingInterest + totalLoanCost;
     const costPerAcre = acres > 0 ? totalCost / acres : 0;
 
     // Get expected yield from production data
@@ -277,8 +313,13 @@ export class BreakEvenAnalyticsService {
       insurance,
       otherCosts,
       landLoanInterest,
+      landLoanPrincipal,
       operatingLoanInterest,
+      equipmentLoanInterest,
+      equipmentLoanPrincipal,
       totalInterestExpense,
+      totalPrincipalExpense,
+      totalLoanCost,
       totalCost,
       totalCostExcludingInterest,
       costPerAcre,

@@ -94,12 +94,16 @@ export interface LandLoan {
   remainingBalance?: number;
   // Simple mode field
   annualPayment?: number;
+  // Payment scheduling
+  nextPaymentDate?: Date;
+  paymentReminderSent?: boolean;
   notes?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   // Computed
   annualInterestExpense?: number;
+  annualPrincipalExpense?: number;
   landParcel?: LandParcel;
   payments?: LandLoanPayment[];
 }
@@ -118,6 +122,8 @@ export interface CreateLandLoanRequest {
   remainingBalance?: number;
   // Simple mode (required if useSimpleMode = true)
   annualPayment?: number;
+  // Payment scheduling
+  nextPaymentDate?: string;
   notes?: string;
 }
 
@@ -133,6 +139,7 @@ export interface UpdateLandLoanRequest {
   monthlyPayment?: number;
   remainingBalance?: number;
   annualPayment?: number;
+  nextPaymentDate?: string;
   notes?: string;
   isActive?: boolean;
 }
@@ -255,13 +262,21 @@ export interface LoanInterestSummary {
   totalInterestExpense: number;
 }
 
-// Farm Interest Allocation (for break-even)
+// Farm Loan Cost Allocation (for break-even)
 export interface FarmInterestAllocation {
   farmId: string;
+  // Land loan costs (full cost goes to associated farm)
   landLoanInterest: number;
+  landLoanPrincipal: number;
+  // Operating loan interest (allocated by farm acres)
   operatingLoanInterest: number;
+  // Equipment loan costs (distributed across all acres if enabled)
   equipmentLoanInterest: number;
+  equipmentLoanPrincipal: number;
+  // Totals
   totalInterest: number;
+  totalPrincipal: number;
+  totalLoanCost: number;
 }
 
 // ===== Equipment Types =====
@@ -285,6 +300,7 @@ export interface Equipment {
   // Computed/included fields
   totalLoanBalance?: number;
   annualInterestExpense?: number;
+  annualPrincipalExpense?: number;
   equipmentLoans?: EquipmentLoan[];
 }
 
@@ -336,12 +352,25 @@ export interface EquipmentLoan {
   // Lease-specific fields
   leaseEndDate?: Date;
   residualValue?: number;
+  // Down payment tracking
+  downPayment?: number;
+  downPaymentDate?: Date;
+  // Annual expense tracking (can be manually overridden)
+  annualInterestOverride?: number;
+  annualPrincipalOverride?: number;
+  // Payment scheduling
+  nextPaymentDate?: Date;
+  paymentReminderSent?: boolean;
+  // Break-even distribution
+  includeInBreakeven?: boolean;
   notes?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   // Computed
   annualInterestExpense?: number;
+  calculatedAnnualInterest?: number;
+  calculatedAnnualPrincipal?: number;
   equipment?: Equipment;
   payments?: EquipmentLoanPayment[];
 }
@@ -364,6 +393,13 @@ export interface CreateEquipmentLoanRequest {
   // Lease-specific
   leaseEndDate?: string;
   residualValue?: number;
+  // Down payment
+  downPayment?: number;
+  downPaymentDate?: string;
+  // Payment scheduling
+  nextPaymentDate?: string;
+  // Break-even
+  includeInBreakeven?: boolean;
   notes?: string;
 }
 
@@ -382,6 +418,16 @@ export interface UpdateEquipmentLoanRequest {
   annualPayment?: number;
   leaseEndDate?: string;
   residualValue?: number;
+  // Down payment
+  downPayment?: number;
+  downPaymentDate?: string;
+  // Annual expense overrides
+  annualInterestOverride?: number;
+  annualPrincipalOverride?: number;
+  // Payment scheduling
+  nextPaymentDate?: string;
+  // Break-even
+  includeInBreakeven?: boolean;
   notes?: string;
   isActive?: boolean;
 }

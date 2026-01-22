@@ -27,7 +27,10 @@ const COST_COLORS = {
   seed: '#f59e0b',       // amber
   landRent: '#8b5cf6',   // purple
   insurance: '#ec4899',  // pink
-  other: '#6b7280'       // gray
+  other: '#6b7280',      // gray
+  landLoan: '#dc2626',   // red
+  operatingLoan: '#f97316', // orange
+  equipmentLoan: '#0891b2'  // cyan
 };
 
 // Simple Pie Chart component
@@ -305,6 +308,7 @@ export default function BreakEven() {
     if (!summary || summary.byEntity.length === 0) return [];
 
     let fertilizer = 0, chemical = 0, seed = 0, landRent = 0, insurance = 0, other = 0;
+    let landLoan = 0, operatingLoan = 0, equipmentLoan = 0;
 
     summary.byEntity.forEach(entity => {
       entity.farms.forEach(farm => {
@@ -314,6 +318,10 @@ export default function BreakEven() {
         landRent += farm.landRent || 0;
         insurance += farm.insurance || 0;
         other += farm.otherCosts || 0;
+        // Loan costs (interest + principal)
+        landLoan += (farm.landLoanInterest || 0) + (farm.landLoanPrincipal || 0);
+        operatingLoan += farm.operatingLoanInterest || 0;
+        equipmentLoan += (farm.equipmentLoanInterest || 0) + (farm.equipmentLoanPrincipal || 0);
       });
     });
 
@@ -323,7 +331,10 @@ export default function BreakEven() {
       { label: 'Seed', value: seed, color: COST_COLORS.seed },
       { label: 'Land Rent', value: landRent, color: COST_COLORS.landRent },
       { label: 'Insurance', value: insurance, color: COST_COLORS.insurance },
-      { label: 'Other', value: other, color: COST_COLORS.other }
+      { label: 'Other', value: other, color: COST_COLORS.other },
+      { label: 'Land Loans', value: landLoan, color: COST_COLORS.landLoan },
+      { label: 'Operating Loans', value: operatingLoan, color: COST_COLORS.operatingLoan },
+      { label: 'Equipment Loans', value: equipmentLoan, color: COST_COLORS.equipmentLoan }
     ].filter(item => item.value > 0);
   }, [summary]);
 
@@ -563,6 +574,72 @@ export default function BreakEven() {
               </div>
             </div>
           </div>
+
+          {/* Loan Costs Summary */}
+          {summary.totalLoanCost > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Loan Costs Included</h3>
+                  <p className="text-sm text-gray-500">
+                    Total: ${summary.totalLoanCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    ({((summary.totalLoanCost / summary.totalCost) * 100).toFixed(1)}% of total costs)
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-red-50 rounded-lg p-3 border border-red-100">
+                  <div className="text-xs text-gray-500 mb-1">Land Loan Interest</div>
+                  <div className="font-semibold text-red-700">
+                    ${(summary.loanCostBreakdown?.landLoanInterest || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-3 border border-red-100">
+                  <div className="text-xs text-gray-500 mb-1">Land Loan Principal</div>
+                  <div className="font-semibold text-red-700">
+                    ${(summary.loanCostBreakdown?.landLoanPrincipal || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
+                  <div className="text-xs text-gray-500 mb-1">Operating Loan Interest</div>
+                  <div className="font-semibold text-orange-700">
+                    ${(summary.loanCostBreakdown?.operatingLoanInterest || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div className="bg-cyan-50 rounded-lg p-3 border border-cyan-100">
+                  <div className="text-xs text-gray-500 mb-1">Equipment Loan Interest</div>
+                  <div className="font-semibold text-cyan-700">
+                    ${(summary.loanCostBreakdown?.equipmentLoanInterest || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div className="bg-cyan-50 rounded-lg p-3 border border-cyan-100">
+                  <div className="text-xs text-gray-500 mb-1">Equipment Loan Principal</div>
+                  <div className="font-semibold text-cyan-700">
+                    ${(summary.loanCostBreakdown?.equipmentLoanPrincipal || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-2 gap-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Interest Expense:</span>
+                  <span className="font-semibold text-gray-900">
+                    ${summary.totalInterestExpense.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Principal Expense:</span>
+                  <span className="font-semibold text-gray-900">
+                    ${summary.totalPrincipalExpense.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Scenario Analysis Toggle */}
           <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl shadow-sm border border-purple-200 p-6">
@@ -935,6 +1012,34 @@ export default function BreakEven() {
                           <p className="font-semibold">{entity.farms.length}</p>
                         </div>
                       </div>
+                      {entity.totalLoanCost > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-500 text-xs">Land Loans:</span>
+                            <p className="font-medium text-red-600">
+                              ${((entity.landLoanInterest || 0) + (entity.landLoanPrincipal || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 text-xs">Operating Loan:</span>
+                            <p className="font-medium text-orange-600">
+                              ${(entity.operatingLoanInterest || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 text-xs">Equipment Loans:</span>
+                            <p className="font-medium text-cyan-600">
+                              ${((entity.equipmentLoanInterest || 0) + (entity.equipmentLoanPrincipal || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 text-xs">Total Loan Cost:</span>
+                            <p className="font-medium text-gray-900">
+                              ${entity.totalLoanCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

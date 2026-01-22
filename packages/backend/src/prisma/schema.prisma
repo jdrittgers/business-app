@@ -2043,6 +2043,7 @@ enum NotificationType {
   PRODUCT_NEEDS_PRICING // New product added without pricing
   TRIAL_UPDATE        // Trial status changed
   GENERAL             // General notification
+  LOAN_PAYMENT_DUE    // Loan payment due within 7 days
 }
 
 // In-app notifications for bell icon
@@ -2149,6 +2150,10 @@ model LandLoan {
   // Simple mode field - just annual payment amount
   annualPayment     Decimal?          @map("annual_payment") @db.Decimal(12, 2)
 
+  // Payment scheduling and notifications
+  nextPaymentDate     DateTime?       @map("next_payment_date")
+  paymentReminderSent Boolean         @default(false) @map("payment_reminder_sent")
+
   notes             String?
   isActive          Boolean           @default(true) @map("is_active")
   deletedAt         DateTime?         @map("deleted_at")
@@ -2161,6 +2166,7 @@ model LandLoan {
 
   @@index([landParcelId])
   @@index([deletedAt])
+  @@index([nextPaymentDate])
   @@map("land_loans")
 }
 
@@ -2280,6 +2286,21 @@ model EquipmentLoan {
   leaseEndDate      DateTime?               @map("lease_end_date")
   residualValue     Decimal?                @map("residual_value") @db.Decimal(12, 2)
 
+  // Down payment tracking
+  downPayment       Decimal?                @map("down_payment") @db.Decimal(12, 2)
+  downPaymentDate   DateTime?               @map("down_payment_date")
+
+  // Annual expense tracking (can be manually overridden)
+  annualInterestOverride  Decimal?          @map("annual_interest_override") @db.Decimal(12, 2)
+  annualPrincipalOverride Decimal?          @map("annual_principal_override") @db.Decimal(12, 2)
+
+  // Payment scheduling and notifications
+  nextPaymentDate     DateTime?             @map("next_payment_date")
+  paymentReminderSent Boolean               @default(false) @map("payment_reminder_sent")
+
+  // Break-even distribution - if true, cost is spread across all acres
+  includeInBreakeven  Boolean               @default(false) @map("include_in_breakeven")
+
   notes             String?
   isActive          Boolean                 @default(true) @map("is_active")
   deletedAt         DateTime?               @map("deleted_at")
@@ -2292,6 +2313,7 @@ model EquipmentLoan {
 
   @@index([equipmentId])
   @@index([deletedAt])
+  @@index([nextPaymentDate])
   @@map("equipment_loans")
 }
 

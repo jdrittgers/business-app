@@ -227,15 +227,17 @@ interface LoanModalProps {
   onSave: (data: CreateEquipmentLoanRequest | UpdateEquipmentLoanRequest) => Promise<void>;
   loan?: EquipmentLoan | null;
   equipmentName: string;
+  equipmentPurchaseDate?: string;
 }
 
-function LoanModal({ isOpen, onClose, onSave, loan, equipmentName }: LoanModalProps) {
-  const [formData, setFormData] = useState<CreateEquipmentLoanRequest>({
+function LoanModal({ isOpen, onClose, onSave, loan, equipmentName, equipmentPurchaseDate }: LoanModalProps) {
+  const [formData, setFormData] = useState<CreateEquipmentLoanRequest & Partial<Pick<UpdateEquipmentLoanRequest, 'annualInterestOverride' | 'annualPrincipalOverride'>>>({
     lender: '',
     financingType: EquipmentFinancingType.LOAN,
     useSimpleMode: true
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showOverrides, setShowOverrides] = useState(false);
 
   useEffect(() => {
     if (loan) {
@@ -254,16 +256,26 @@ function LoanModal({ isOpen, onClose, onSave, loan, equipmentName }: LoanModalPr
         annualPayment: loan.annualPayment,
         leaseEndDate: loan.leaseEndDate ? new Date(loan.leaseEndDate).toISOString().split('T')[0] : undefined,
         residualValue: loan.residualValue,
+        downPayment: loan.downPayment,
+        downPaymentDate: loan.downPaymentDate ? new Date(loan.downPaymentDate).toISOString().split('T')[0] : undefined,
+        nextPaymentDate: loan.nextPaymentDate ? new Date(loan.nextPaymentDate).toISOString().split('T')[0] : undefined,
+        includeInBreakeven: loan.includeInBreakeven,
         notes: loan.notes
       });
+      // Show overrides section if any override is set
+      setShowOverrides(!!loan.annualInterestOverride || !!loan.annualPrincipalOverride);
     } else {
+      // Auto-populate start date from equipment purchase date
       setFormData({
         lender: '',
         financingType: EquipmentFinancingType.LOAN,
-        useSimpleMode: true
+        useSimpleMode: true,
+        startDate: equipmentPurchaseDate || undefined,
+        includeInBreakeven: false
       });
+      setShowOverrides(false);
     }
-  }, [loan, isOpen]);
+  }, [loan, isOpen, equipmentPurchaseDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -475,6 +487,120 @@ function LoanModal({ isOpen, onClose, onSave, loan, equipmentName }: LoanModalPr
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Down Payment Section */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Down Payment</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.downPayment || ''}
+                  onChange={(e) => setFormData({ ...formData, downPayment: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Down Payment Date</label>
+                <input
+                  type="date"
+                  value={formData.downPaymentDate || ''}
+                  onChange={(e) => setFormData({ ...formData, downPaymentDate: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Next Payment Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Next Payment Date</label>
+              <input
+                type="date"
+                value={formData.nextPaymentDate || ''}
+                onChange={(e) => setFormData({ ...formData, nextPaymentDate: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                You will receive a notification 7 days before this date.
+              </p>
+            </div>
+
+            {/* Include in Break-Even */}
+            <div className="flex items-start">
+              <div className="flex items-center h-5">
+                <input
+                  id="includeInBreakeven"
+                  type="checkbox"
+                  checked={formData.includeInBreakeven || false}
+                  onChange={(e) => setFormData({ ...formData, includeInBreakeven: e.target.checked })}
+                  className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+              </div>
+              <div className="ml-3 text-sm">
+                <label htmlFor="includeInBreakeven" className="font-medium text-gray-700">
+                  Include in Break-Even Calculations
+                </label>
+                <p className="text-gray-500">
+                  Annual cost will be distributed evenly across all farm acres.
+                </p>
+              </div>
+            </div>
+
+            {/* Calculated Annual Interest/Principal - Show when editing */}
+            {loan && (
+              <div className="bg-gray-50 p-3 rounded-md">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Annual Cost Summary</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowOverrides(!showOverrides)}
+                    className="text-xs text-blue-600 hover:text-blue-800"
+                  >
+                    {showOverrides ? 'Hide Overrides' : 'Override Values'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Annual Interest:</span>
+                    <span className="ml-2 font-medium text-red-600">
+                      ${(loan.calculatedAnnualInterest || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Annual Principal:</span>
+                    <span className="ml-2 font-medium text-blue-600">
+                      ${(loan.calculatedAnnualPrincipal || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                {showOverrides && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">Interest Override</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.annualInterestOverride || ''}
+                        onChange={(e) => setFormData({ ...formData, annualInterestOverride: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        placeholder="Leave blank to use calculated"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700">Principal Override</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.annualPrincipalOverride || ''}
+                        onChange={(e) => setFormData({ ...formData, annualPrincipalOverride: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        placeholder="Leave blank to use calculated"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -752,6 +878,7 @@ export default function EquipmentLoans() {
   const totalCurrentValue = equipment.reduce((sum, e) => sum + (e.currentValue || 0), 0);
   const totalLoanBalance = equipment.reduce((sum, e) => sum + (e.totalLoanBalance || 0), 0);
   const totalAnnualInterest = equipment.reduce((sum, e) => sum + (e.annualInterestExpense || 0), 0);
+  const totalAnnualPrincipal = equipment.reduce((sum, e) => sum + (e.annualPrincipalExpense || 0), 0);
 
   if (loading) {
     return (
@@ -784,7 +911,7 @@ export default function EquipmentLoans() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-5">
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
@@ -795,7 +922,7 @@ export default function EquipmentLoans() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Equipment Count</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Equipment</dt>
                   <dd className="text-lg font-medium text-gray-900">{equipment.length}</dd>
                 </dl>
               </div>
@@ -812,7 +939,7 @@ export default function EquipmentLoans() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Current Value</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Value</dt>
                   <dd className="text-lg font-medium text-blue-600">${totalCurrentValue.toLocaleString()}</dd>
                 </dl>
               </div>
@@ -829,7 +956,7 @@ export default function EquipmentLoans() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Loan Balance</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Balance</dt>
                   <dd className="text-lg font-medium text-orange-600">${totalLoanBalance.toLocaleString()}</dd>
                 </dl>
               </div>
@@ -846,8 +973,25 @@ export default function EquipmentLoans() {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Annual Interest</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Interest/yr</dt>
                   <dd className="text-lg font-medium text-red-600">${totalAnnualInterest.toLocaleString()}</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">Principal/yr</dt>
+                  <dd className="text-lg font-medium text-green-600">${totalAnnualPrincipal.toLocaleString()}</dd>
                 </dl>
               </div>
             </div>
@@ -958,14 +1102,21 @@ export default function EquipmentLoans() {
 
                       {hasLoans ? (
                         <div className="space-y-3">
-                          {item.equipmentLoans?.map((loan) => (
+                          {item.equipmentLoans?.map((loan) => {
+                            // Check if next payment date is within 7 days
+                            const nextPaymentDate = loan.nextPaymentDate ? new Date(loan.nextPaymentDate) : null;
+                            const sevenDaysFromNow = new Date();
+                            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+                            const paymentSoon = nextPaymentDate && nextPaymentDate <= sevenDaysFromNow && nextPaymentDate >= new Date();
+
+                            return (
                             <div
                               key={loan.id}
-                              className="bg-white rounded-lg border border-gray-200 p-4"
+                              className={`bg-white rounded-lg border p-4 ${paymentSoon ? 'border-orange-300 bg-orange-50' : 'border-gray-200'}`}
                             >
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <div className="flex items-center space-x-2">
+                                  <div className="flex items-center space-x-2 flex-wrap gap-1">
                                     <p className="text-sm font-medium text-gray-900">{loan.lender}</p>
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                       loan.financingType === EquipmentFinancingType.LEASE
@@ -981,6 +1132,11 @@ export default function EquipmentLoans() {
                                     }`}>
                                       {loan.useSimpleMode ? 'Simple' : 'Amortized'}
                                     </span>
+                                    {loan.includeInBreakeven && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                                        In Break-Even
+                                      </span>
+                                    )}
                                   </div>
                                   {loan.loanNumber && (
                                     <p className="text-xs text-gray-500">#{loan.loanNumber}</p>
@@ -1005,8 +1161,12 @@ export default function EquipmentLoans() {
                                     </>
                                   )}
                                   <div className="text-right">
-                                    <p className="text-sm text-red-600">${(loan.annualInterestExpense || 0).toLocaleString()}</p>
+                                    <p className="text-sm text-red-600">${(loan.calculatedAnnualInterest || loan.annualInterestExpense || 0).toLocaleString()}</p>
                                     <p className="text-xs text-gray-500">Interest/yr</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm text-blue-600">${(loan.calculatedAnnualPrincipal || 0).toLocaleString()}</p>
+                                    <p className="text-xs text-gray-500">Principal/yr</p>
                                   </div>
                                   <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                                     <button
@@ -1037,14 +1197,28 @@ export default function EquipmentLoans() {
                                   </div>
                                 </div>
                               </div>
-                              {loan.financingType === EquipmentFinancingType.LEASE && loan.leaseEndDate && (
-                                <p className="mt-2 text-xs text-gray-500">
-                                  Lease ends: {new Date(loan.leaseEndDate).toLocaleDateString()}
-                                  {loan.residualValue !== undefined && loan.residualValue !== null && ` | Residual: $${loan.residualValue.toLocaleString()}`}
-                                </p>
-                              )}
+                              {/* Additional info row */}
+                              <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                                <div className="flex space-x-4">
+                                  {loan.financingType === EquipmentFinancingType.LEASE && loan.leaseEndDate && (
+                                    <span>
+                                      Lease ends: {new Date(loan.leaseEndDate).toLocaleDateString()}
+                                      {loan.residualValue !== undefined && loan.residualValue !== null && ` | Residual: $${loan.residualValue.toLocaleString()}`}
+                                    </span>
+                                  )}
+                                  {loan.downPayment && (
+                                    <span>Down payment: ${loan.downPayment.toLocaleString()}</span>
+                                  )}
+                                </div>
+                                {nextPaymentDate && (
+                                  <span className={paymentSoon ? 'text-orange-600 font-medium' : ''}>
+                                    Next payment: {nextPaymentDate.toLocaleDateString()}
+                                    {paymentSoon && ' (Due Soon)'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          ))}
+                          )})}
                         </div>
                       ) : (
                         <p className="text-sm text-gray-500 text-center py-4">No loans or leases for this equipment</p>
@@ -1078,6 +1252,7 @@ export default function EquipmentLoans() {
         onSave={selectedLoan ? handleUpdateLoan : handleCreateLoan}
         loan={selectedLoan}
         equipmentName={selectedEquipment?.name || ''}
+        equipmentPurchaseDate={selectedEquipment?.purchaseDate ? new Date(selectedEquipment.purchaseDate).toISOString().split('T')[0] : undefined}
       />
 
       <PaymentModal

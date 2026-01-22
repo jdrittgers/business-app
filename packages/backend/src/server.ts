@@ -33,6 +33,7 @@ import loanRoutes from './controllers/loan.controller';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 import { startMarketingAIJobs } from './services/marketing-ai-job.service';
+import { loanReminderService } from './services/loan-reminder.service';
 import { securityHeaders } from './middleware/security';
 import { apiLimiter } from './middleware/rate-limit';
 
@@ -123,5 +124,8 @@ httpServer.listen(PORT, () => {
 
   // Start Marketing AI background jobs
   startMarketingAIJobs();
-  console.log('🤖 Marketing AI jobs started');
+  console.log('Marketing AI jobs started');
+
+  // Start loan payment reminder job
+  loanReminderService.start();
 });
