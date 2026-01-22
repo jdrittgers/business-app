@@ -87,6 +87,26 @@ enum AccessRequestStatus {
   DENIED     // Farmer denied access
 }
 
+enum ChemicalCategory {
+  HERBICIDE   // General chemicals/herbicides
+  IN_FURROW   // In-furrow treatments
+  FUNGICIDE   // Fungicide applications
+}
+
+enum TrialType {
+  SEED
+  FERTILIZER
+  CHEMICAL
+  FUNGICIDE
+}
+
+enum TrialStatus {
+  PLANNED     // Trial is scheduled
+  ACTIVE      // Currently running
+  COMPLETED   // Trial finished, results recorded
+  CANCELLED   // Trial was cancelled
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -531,27 +551,31 @@ model Fertilizer {
   // Relations
   business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   usage       FarmFertilizerUsage[]
+  trials      FarmTrial[]
 
   @@map("fertilizers")
   @@index([businessId])
 }
 
 model Chemical {
-  id          String   @id @default(uuid())
-  businessId  String   @map("business_id")
+  id          String           @id @default(uuid())
+  businessId  String           @map("business_id")
   name        String
-  pricePerUnit Decimal @map("price_per_unit") @db.Decimal(10, 2) // Price per gallon or lb
-  unit        String   // "LB" or "GAL"
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  pricePerUnit Decimal         @map("price_per_unit") @db.Decimal(10, 2) // Price per gallon or lb
+  unit        String           // "LB" or "GAL"
+  category    ChemicalCategory @default(HERBICIDE)  // HERBICIDE, IN_FURROW, FUNGICIDE
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
 
   // Relations
   business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   usage       FarmChemicalUsage[]
+  trials      FarmTrial[]
 
   @@map("chemicals")
   @@index([businessId])
+  @@index([category])
 }
 
 model SeedHybrid {
@@ -568,6 +592,7 @@ model SeedHybrid {
   // Relations
   business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   usage       FarmSeedUsage[]
+  trials      FarmTrial[]
 
   @@map("seed_hybrids")
   @@index([businessId])
@@ -596,6 +621,7 @@ model Farm {
   chemicalUsage   FarmChemicalUsage[]
   seedUsage       FarmSeedUsage[]
   otherCosts      FarmOtherCost[]
+  trials          FarmTrial[]
 
   @@map("farms")
   @@index([grainEntityId])
@@ -649,6 +675,9 @@ model FarmSeedUsage {
   bagsUsed       Decimal  @map("bags_used") @db.Decimal(10, 2) // Total bags used (calculated from population * acresApplied / seedsPerBag)
   ratePerAcre    Decimal? @map("rate_per_acre") @db.Decimal(10, 2) // Seeding rate (population - seeds per acre, e.g., 32000)
   acresApplied   Decimal? @map("acres_applied") @db.Decimal(10, 2) // Acres this seed was applied to
+  isVRT          Boolean  @default(false) @map("is_vrt")  // Is this variable rate technology?
+  vrtMinRate     Decimal? @map("vrt_min_rate") @db.Decimal(10, 2)  // VRT minimum population
+  vrtMaxRate     Decimal? @map("vrt_max_rate") @db.Decimal(10, 2)  // VRT maximum population
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -677,6 +706,76 @@ model FarmOtherCost {
   @@map("farm_other_costs")
   @@index([farmId])
   @@index([costType])
+}
+
+// ===== Farm Trial Tracking =====
+
+model FarmTrial {
+  id              String      @id @default(uuid())
+  farmId          String      @map("farm_id")
+  name            String
+  trialType       TrialType   @map("trial_type")
+  status          TrialStatus @default(PLANNED)
+
+  // Product reference (one set based on trialType)
+  seedHybridId    String?     @map("seed_hybrid_id")
+  fertilizerId    String?     @map("fertilizer_id")
+  chemicalId      String?     @map("chemical_id")
+
+  // Control/Test configuration
+  controlProduct  String?     @map("control_product")
+  controlRate     Decimal?    @map("control_rate") @db.Decimal(10, 4)
+  testRate        Decimal?    @map("test_rate") @db.Decimal(10, 4)
+
+  // Plot information
+  plotLocation    String?     @map("plot_location")
+  plotAcres       Decimal?    @map("plot_acres") @db.Decimal(10, 2)
+
+  // Target metrics
+  targetMetric    String?     @map("target_metric")
+  targetValue     Decimal?    @map("target_value") @db.Decimal(10, 2)
+  targetUnit      String?     @map("target_unit")
+
+  // Results
+  controlResult   Decimal?    @map("control_result") @db.Decimal(10, 2)
+  testResult      Decimal?    @map("test_result") @db.Decimal(10, 2)
+  yieldDifference Decimal?    @map("yield_difference") @db.Decimal(10, 2)
+  resultNotes     String?     @map("result_notes")
+
+  // Dates
+  startDate       DateTime?   @map("start_date")
+  endDate         DateTime?   @map("end_date")
+  notes           String?
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  farm            Farm        @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  seedHybrid      SeedHybrid? @relation(fields: [seedHybridId], references: [id])
+  fertilizer      Fertilizer? @relation(fields: [fertilizerId], references: [id])
+  chemical        Chemical?   @relation(fields: [chemicalId], references: [id])
+  photos          FarmTrialPhoto[]
+
+  @@map("farm_trials")
+  @@index([farmId])
+  @@index([status])
+  @@index([trialType])
+}
+
+model FarmTrialPhoto {
+  id          String    @id @default(uuid())
+  trialId     String    @map("trial_id")
+  url         String
+  caption     String?
+  takenAt     DateTime? @map("taken_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  trial       FarmTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
+
+  @@map("farm_trial_photos")
+  @@index([trialId])
 }
 
 // ===== Input Bidding System Models =====

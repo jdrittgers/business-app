@@ -16,6 +16,26 @@ export enum UnitType {
   BAG = 'BAG'
 }
 
+export enum ChemicalCategory {
+  HERBICIDE = 'HERBICIDE',
+  IN_FURROW = 'IN_FURROW',
+  FUNGICIDE = 'FUNGICIDE'
+}
+
+export enum TrialType {
+  SEED = 'SEED',
+  FERTILIZER = 'FERTILIZER',
+  CHEMICAL = 'CHEMICAL',
+  FUNGICIDE = 'FUNGICIDE'
+}
+
+export enum TrialStatus {
+  PLANNED = 'PLANNED',
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED'
+}
+
 // ===== Product Catalog Types =====
 
 export interface Fertilizer {
@@ -48,6 +68,7 @@ export interface Chemical {
   name: string;
   pricePerUnit: number;
   unit: UnitType;
+  category: ChemicalCategory;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -57,12 +78,14 @@ export interface CreateChemicalRequest {
   name: string;
   pricePerUnit: number;
   unit: UnitType;
+  category?: ChemicalCategory;
 }
 
 export interface UpdateChemicalRequest {
   name?: string;
   pricePerUnit?: number;
   unit?: UnitType;
+  category?: ChemicalCategory;
   isActive?: boolean;
 }
 
@@ -200,6 +223,9 @@ export interface FarmSeedUsage {
   bagsUsed: number;
   ratePerAcre?: number;
   acresApplied?: number;
+  isVRT: boolean;
+  vrtMinRate?: number;
+  vrtMaxRate?: number;
   createdAt: Date;
   updatedAt: Date;
   seedHybrid?: SeedHybrid;
@@ -211,12 +237,18 @@ export interface CreateFarmSeedUsageRequest {
   bagsUsed?: number;
   ratePerAcre?: number;
   acresApplied?: number;
+  isVRT?: boolean;
+  vrtMinRate?: number;
+  vrtMaxRate?: number;
 }
 
 export interface UpdateFarmSeedUsageRequest {
   bagsUsed?: number;
   ratePerAcre?: number;
   acresApplied?: number;
+  isVRT?: boolean;
+  vrtMinRate?: number;
+  vrtMaxRate?: number;
 }
 
 export interface FarmOtherCost {
@@ -339,4 +371,130 @@ export interface GetBreakEvenQuery {
   year?: number;
   grainEntityId?: string;
   commodityType?: CommodityType;
+}
+
+// ===== Farm Trial Types =====
+
+export interface FarmTrialPhoto {
+  id: string;
+  trialId: string;
+  url: string;
+  caption?: string;
+  takenAt?: Date;
+  createdAt: Date;
+}
+
+export interface FarmTrial {
+  id: string;
+  farmId: string;
+  name: string;
+  trialType: TrialType;
+  status: TrialStatus;
+  seedHybridId?: string;
+  fertilizerId?: string;
+  chemicalId?: string;
+  controlProduct?: string;
+  controlRate?: number;
+  testRate?: number;
+  plotLocation?: string;
+  plotAcres?: number;
+  targetMetric?: string;
+  targetValue?: number;
+  targetUnit?: string;
+  controlResult?: number;
+  testResult?: number;
+  yieldDifference?: number;
+  resultNotes?: string;
+  startDate?: Date;
+  endDate?: Date;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  seedHybrid?: SeedHybrid;
+  fertilizer?: Fertilizer;
+  chemical?: Chemical;
+  photos?: FarmTrialPhoto[];
+}
+
+export interface CreateFarmTrialRequest {
+  farmId: string;
+  name: string;
+  trialType: TrialType;
+  seedHybridId?: string;
+  fertilizerId?: string;
+  chemicalId?: string;
+  controlProduct?: string;
+  controlRate?: number;
+  testRate?: number;
+  plotLocation?: string;
+  plotAcres?: number;
+  targetMetric?: string;
+  targetValue?: number;
+  targetUnit?: string;
+  startDate?: Date;
+  notes?: string;
+}
+
+export interface UpdateFarmTrialRequest {
+  name?: string;
+  status?: TrialStatus;
+  controlProduct?: string;
+  controlRate?: number;
+  testRate?: number;
+  plotLocation?: string;
+  plotAcres?: number;
+  targetMetric?: string;
+  targetValue?: number;
+  targetUnit?: string;
+  controlResult?: number;
+  testResult?: number;
+  yieldDifference?: number;
+  resultNotes?: string;
+  startDate?: Date;
+  endDate?: Date;
+  notes?: string;
+}
+
+// ===== Farm Plan View (Worker-friendly, no costs) =====
+
+export interface FarmPlanSeedEntry {
+  hybridName: string;
+  population: number;
+  isVRT: boolean;
+  vrtMinRate?: number;
+  vrtMaxRate?: number;
+  acresApplied: number;
+}
+
+export interface FarmPlanProductEntry {
+  productName: string;
+  ratePerAcre: number;
+  unit: string;
+  acresApplied: number;
+}
+
+export interface FarmPlanTrialEntry {
+  id: string;
+  name: string;
+  trialType: TrialType;
+  status: TrialStatus;
+  plotLocation?: string;
+  targetMetric?: string;
+}
+
+export interface FarmPlanView {
+  farmId: string;
+  farmName: string;
+  acres: number;
+  commodityType: CommodityType;
+  year: number;
+  grainEntityName?: string;
+  projectedYield: number;
+
+  seedPlan: FarmPlanSeedEntry[];
+  inFurrowPlan: FarmPlanProductEntry[];
+  fertilizerPlan: FarmPlanProductEntry[];
+  chemicalPlan: FarmPlanProductEntry[];
+  fungicidePlan: FarmPlanProductEntry[];
+  activeTrials: FarmPlanTrialEntry[];
 }

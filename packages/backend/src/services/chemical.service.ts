@@ -1,17 +1,21 @@
 import { prisma } from '../prisma/client';
-import { Chemical, CreateChemicalRequest, UpdateChemicalRequest, UnitType } from '@business-app/shared';
+import { Chemical, CreateChemicalRequest, UpdateChemicalRequest, UnitType, ChemicalCategory } from '@business-app/shared';
 
 export class ChemicalService {
-  async getAll(businessId: string): Promise<Chemical[]> {
+  async getAll(businessId: string, category?: ChemicalCategory): Promise<Chemical[]> {
     const chemicals = await prisma.chemical.findMany({
-      where: { businessId },
+      where: {
+        businessId,
+        ...(category && { category })
+      },
       orderBy: { name: 'asc' }
     });
 
     return chemicals.map(c => ({
       ...c,
       pricePerUnit: Number(c.pricePerUnit),
-      unit: c.unit as UnitType
+      unit: c.unit as UnitType,
+      category: c.category as ChemicalCategory
     }));
   }
 
@@ -25,7 +29,8 @@ export class ChemicalService {
     return {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
-      unit: chemical.unit as UnitType
+      unit: chemical.unit as UnitType,
+      category: chemical.category as ChemicalCategory
     };
   }
 
@@ -35,14 +40,16 @@ export class ChemicalService {
         businessId,
         name: data.name,
         pricePerUnit: data.pricePerUnit,
-        unit: data.unit
+        unit: data.unit,
+        category: data.category || ChemicalCategory.HERBICIDE
       }
     });
 
     return {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
-      unit: chemical.unit as UnitType
+      unit: chemical.unit as UnitType,
+      category: chemical.category as ChemicalCategory
     };
   }
 
@@ -61,7 +68,8 @@ export class ChemicalService {
     return {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
-      unit: chemical.unit as UnitType
+      unit: chemical.unit as UnitType,
+      category: chemical.category as ChemicalCategory
     };
   }
 

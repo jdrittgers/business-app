@@ -6,6 +6,7 @@ import {
   Chemical,
   CreateChemicalRequest,
   UpdateChemicalRequest,
+  ChemicalCategory,
   SeedHybrid,
   CreateSeedHybridRequest,
   UpdateSeedHybridRequest,
@@ -19,7 +20,12 @@ import {
   UpdateFarmOtherCostRequest,
   OperationBreakEven,
   GetBreakEvenQuery,
-  GetFarmsQuery
+  GetFarmsQuery,
+  FarmTrial,
+  FarmTrialPhoto,
+  CreateFarmTrialRequest,
+  UpdateFarmTrialRequest,
+  FarmPlanView
 } from '@business-app/shared';
 
 export const breakevenApi = {
@@ -44,8 +50,9 @@ export const breakevenApi = {
   },
 
   // Chemicals
-  getChemicals: async (businessId: string): Promise<Chemical[]> => {
-    const response = await apiClient.get(`/api/businesses/${businessId}/chemicals`);
+  getChemicals: async (businessId: string, category?: ChemicalCategory): Promise<Chemical[]> => {
+    const params = category ? { category } : {};
+    const response = await apiClient.get(`/api/businesses/${businessId}/chemicals`, { params });
     return response.data;
   },
 
@@ -188,6 +195,52 @@ export const breakevenApi = {
     seedHybrids: Array<{ name: string; commodityType: string; avgPrice: number; minPrice: number; maxPrice: number; farmerCount: number }>;
   }> => {
     const response = await apiClient.get(`/api/businesses/${businessId}/products/area-averages`);
+    return response.data;
+  },
+
+  // Trials
+  getTrials: async (businessId: string, farmId: string): Promise<FarmTrial[]> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/farms/${farmId}/trials`);
+    return response.data;
+  },
+
+  getTrial: async (businessId: string, trialId: string): Promise<FarmTrial> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/farms/trials/${trialId}`);
+    return response.data;
+  },
+
+  createTrial: async (businessId: string, farmId: string, data: CreateFarmTrialRequest): Promise<FarmTrial> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/farms/${farmId}/trials`, data);
+    return response.data;
+  },
+
+  updateTrial: async (businessId: string, trialId: string, data: UpdateFarmTrialRequest): Promise<FarmTrial> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/farms/trials/${trialId}`, data);
+    return response.data;
+  },
+
+  deleteTrial: async (businessId: string, trialId: string): Promise<void> => {
+    await apiClient.delete(`/api/businesses/${businessId}/farms/trials/${trialId}`);
+  },
+
+  addTrialPhoto: async (businessId: string, trialId: string, url: string, caption?: string): Promise<FarmTrialPhoto> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/farms/trials/${trialId}/photos`, { url, caption });
+    return response.data;
+  },
+
+  deleteTrialPhoto: async (businessId: string, photoId: string): Promise<void> => {
+    await apiClient.delete(`/api/businesses/${businessId}/farms/trials/photos/${photoId}`);
+  },
+
+  // Farm Plan View (Worker-friendly, no costs)
+  getFarmPlan: async (businessId: string, farmId: string): Promise<FarmPlanView> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/farms/${farmId}/plan`);
+    return response.data;
+  },
+
+  getAllFarmPlans: async (businessId: string, year?: number): Promise<FarmPlanView[]> => {
+    const params = year ? { year } : {};
+    const response = await apiClient.get(`/api/businesses/${businessId}/farm-plans`, { params });
     return response.data;
   }
 };

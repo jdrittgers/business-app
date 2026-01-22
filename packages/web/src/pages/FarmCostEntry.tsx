@@ -7,7 +7,11 @@ import {
   Fertilizer,
   Chemical,
   SeedHybrid,
-  CostType
+  CostType,
+  ChemicalCategory,
+  FarmTrial,
+  TrialType,
+  TrialStatus
 } from '@business-app/shared';
 import { usePermissions } from '../hooks/usePermissions';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
@@ -24,8 +28,12 @@ export default function FarmCostEntry() {
   const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [seedHybrids, setSeedHybrids] = useState<SeedHybrid[]>([]);
   const [breakEven, setBreakEven] = useState<any | null>(null);
+  const [trials, setTrials] = useState<FarmTrial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Chemical category tab
+  const [chemicalTab, setChemicalTab] = useState<ChemicalCategory>(ChemicalCategory.HERBICIDE);
 
   // Form states
   const [fertilizerForm, setFertilizerForm] = useState({
@@ -48,7 +56,10 @@ export default function FarmCostEntry() {
     ratePerAcre: '',
     useAllAcres: true,
     acresApplied: '',
-    bagsUsed: ''
+    bagsUsed: '',
+    isVRT: false,
+    vrtMinRate: '',
+    vrtMaxRate: ''
   });
   const [otherCostForm, setOtherCostForm] = useState({
     costType: 'LAND_RENT' as CostType,
@@ -56,12 +67,27 @@ export default function FarmCostEntry() {
     isPerAcre: true,
     description: ''
   });
+  const [trialForm, setTrialForm] = useState({
+    name: '',
+    trialType: 'SEED' as TrialType,
+    seedHybridId: '',
+    fertilizerId: '',
+    chemicalId: '',
+    controlProduct: '',
+    controlRate: '',
+    testRate: '',
+    plotLocation: '',
+    plotAcres: '',
+    targetMetric: '',
+    notes: ''
+  });
 
   // Edit states
   const [editingFertilizer, setEditingFertilizer] = useState<any | null>(null);
   const [editingChemical, setEditingChemical] = useState<any | null>(null);
   const [editingSeed, setEditingSeed] = useState<any | null>(null);
   const [editingOtherCost, setEditingOtherCost] = useState<any | null>(null);
+  const [showTrialForm, setShowTrialForm] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -101,18 +127,20 @@ export default function FarmCostEntry() {
       const farmData = await breakevenApi.getFarm(selectedBusinessId, farmId);
       setFarm(farmData);
 
-      // Load product catalogs and break-even data
-      const [fertilizersData, chemicalsData, seedHybridsData, breakEvenData] = await Promise.all([
+      // Load product catalogs, break-even data, and trials
+      const [fertilizersData, chemicalsData, seedHybridsData, breakEvenData, trialsData] = await Promise.all([
         breakevenApi.getFertilizers(selectedBusinessId),
         breakevenApi.getChemicals(selectedBusinessId),
         breakevenApi.getSeedHybrids(selectedBusinessId, farmData.commodityType),
-        breakevenApi.getFarmBreakEven(selectedBusinessId, farmId)
+        breakevenApi.getFarmBreakEven(selectedBusinessId, farmId),
+        breakevenApi.getTrials(selectedBusinessId, farmId)
       ]);
 
       setFertilizers(fertilizersData);
       setChemicals(chemicalsData);
       setSeedHybrids(seedHybridsData);
       setBreakEven(breakEvenData);
+      setTrials(trialsData);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load farm data');
     } finally {
@@ -188,9 +216,12 @@ export default function FarmCostEntry() {
         farmId,
         seedHybridId: seedForm.seedHybridId,
         ratePerAcre,
-        acresApplied
+        acresApplied,
+        isVRT: seedForm.isVRT,
+        vrtMinRate: seedForm.isVRT && seedForm.vrtMinRate ? parseFloat(seedForm.vrtMinRate) : undefined,
+        vrtMaxRate: seedForm.isVRT && seedForm.vrtMaxRate ? parseFloat(seedForm.vrtMaxRate) : undefined
       });
-      setSeedForm({ seedHybridId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', bagsUsed: '' });
+      setSeedForm({ seedHybridId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', bagsUsed: '', isVRT: false, vrtMinRate: '', vrtMaxRate: '' });
       await loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to add seed usage');
@@ -336,6 +367,76 @@ export default function FarmCostEntry() {
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete other cost');
     }
+  };
+
+  // Trial handlers
+  const handleAddTrial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBusinessId || !farmId) return;
+
+    try {
+      await breakevenApi.createTrial(selectedBusinessId, farmId, {
+        farmId,
+        name: trialForm.name,
+        trialType: trialForm.trialType,
+        seedHybridId: trialForm.trialType === TrialType.SEED && trialForm.seedHybridId ? trialForm.seedHybridId : undefined,
+        fertilizerId: trialForm.trialType === TrialType.FERTILIZER && trialForm.fertilizerId ? trialForm.fertilizerId : undefined,
+        chemicalId: (trialForm.trialType === TrialType.CHEMICAL || trialForm.trialType === TrialType.FUNGICIDE) && trialForm.chemicalId ? trialForm.chemicalId : undefined,
+        controlProduct: trialForm.controlProduct || undefined,
+        controlRate: trialForm.controlRate ? parseFloat(trialForm.controlRate) : undefined,
+        testRate: trialForm.testRate ? parseFloat(trialForm.testRate) : undefined,
+        plotLocation: trialForm.plotLocation || undefined,
+        plotAcres: trialForm.plotAcres ? parseFloat(trialForm.plotAcres) : undefined,
+        targetMetric: trialForm.targetMetric || undefined,
+        notes: trialForm.notes || undefined
+      });
+      setTrialForm({
+        name: '',
+        trialType: 'SEED' as TrialType,
+        seedHybridId: '',
+        fertilizerId: '',
+        chemicalId: '',
+        controlProduct: '',
+        controlRate: '',
+        testRate: '',
+        plotLocation: '',
+        plotAcres: '',
+        targetMetric: '',
+        notes: ''
+      });
+      setShowTrialForm(false);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to add trial');
+    }
+  };
+
+  const handleUpdateTrialStatus = async (trialId: string, status: TrialStatus) => {
+    if (!selectedBusinessId) return;
+
+    try {
+      await breakevenApi.updateTrial(selectedBusinessId, trialId, { status });
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to update trial status');
+    }
+  };
+
+  const handleDeleteTrial = async (id: string) => {
+    if (!selectedBusinessId) return;
+    if (!confirm('Are you sure you want to delete this trial?')) return;
+
+    try {
+      await breakevenApi.deleteTrial(selectedBusinessId, id);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete trial');
+    }
+  };
+
+  // Helper to filter chemicals by category
+  const getChemicalsByCategory = (category: ChemicalCategory) => {
+    return chemicals.filter(c => c.category === category);
   };
 
   if (!user) return null;
@@ -568,12 +669,50 @@ export default function FarmCostEntry() {
 
           {/* Chemical Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Chemical Usage</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Chemical Usage</h2>
+
+            {/* Category Tabs */}
+            <div className="border-b border-gray-200 mb-4">
+              <nav className="-mb-px flex space-x-4">
+                <button
+                  onClick={() => setChemicalTab(ChemicalCategory.HERBICIDE)}
+                  className={`py-2 px-3 border-b-2 text-sm font-medium ${
+                    chemicalTab === ChemicalCategory.HERBICIDE
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Herbicides
+                </button>
+                <button
+                  onClick={() => setChemicalTab(ChemicalCategory.IN_FURROW)}
+                  className={`py-2 px-3 border-b-2 text-sm font-medium ${
+                    chemicalTab === ChemicalCategory.IN_FURROW
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  In-Furrow
+                </button>
+                <button
+                  onClick={() => setChemicalTab(ChemicalCategory.FUNGICIDE)}
+                  className={`py-2 px-3 border-b-2 text-sm font-medium ${
+                    chemicalTab === ChemicalCategory.FUNGICIDE
+                      ? 'border-purple-500 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Fungicides
+                </button>
+              </nav>
+            </div>
+
             {canEdit() && (
               <form onSubmit={handleAddChemical} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Chemical
+                  {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
+                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow Product' : 'Fungicide'}
                 </label>
                 <select
                   value={chemicalForm.chemicalId}
@@ -581,13 +720,19 @@ export default function FarmCostEntry() {
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 >
-                  <option value="">Select Chemical</option>
-                  {chemicals.map(c => (
+                  <option value="">Select {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
+                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow Product' : 'Fungicide'}</option>
+                  {getChemicalsByCategory(chemicalTab).map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} (${c.pricePerUnit.toFixed(2)}/{c.unit})
                     </option>
                   ))}
                 </select>
+                {getChemicalsByCategory(chemicalTab).length === 0 && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    No {chemicalTab.toLowerCase().replace('_', '-')} products found. Add them in Product Setup.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -693,11 +838,14 @@ export default function FarmCostEntry() {
             </form>
             )}
 
-            {farm.chemicalUsage && farm.chemicalUsage.length > 0 && (
+            {farm.chemicalUsage && farm.chemicalUsage.filter((u: any) => u.chemical?.category === chemicalTab).length > 0 && (
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Current Usage:</h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">
+                  Current {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
+                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow' : 'Fungicide'} Usage:
+                </h3>
                 <div className="space-y-2">
-                  {farm.chemicalUsage.map((usage: any) => (
+                  {farm.chemicalUsage.filter((u: any) => u.chemical?.category === chemicalTab).map((usage: any) => (
                     <div key={usage.id} className="text-sm p-2 bg-gray-50 rounded">
                       {editingChemical?.id === usage.id ? (
                         <form onSubmit={handleUpdateChemical} className="space-y-2">
@@ -796,12 +944,58 @@ export default function FarmCostEntry() {
                   value={seedForm.ratePerAcre}
                   onChange={(e) => setSeedForm({ ...seedForm, ratePerAcre: e.target.value })}
                   className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="e.g., 32000"
+                  placeholder={seedForm.isVRT ? "Average rate (e.g., 32000)" : "e.g., 32000"}
                   required
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Enter the seeding rate (seeds per acre)
+                  {seedForm.isVRT ? 'Enter the average seeding rate' : 'Enter the seeding rate (seeds per acre)'}
                 </p>
+              </div>
+
+              {/* VRT Toggle */}
+              <div className="bg-purple-50 border border-purple-200 rounded-md p-3">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="isVRT"
+                    checked={seedForm.isVRT}
+                    onChange={(e) => setSeedForm({ ...seedForm, isVRT: e.target.checked })}
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+                  />
+                  <label htmlFor="isVRT" className="ml-2 text-sm font-medium text-gray-700">
+                    Variable Rate Technology (VRT)
+                  </label>
+                </div>
+                {seedForm.isVRT && (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Min Rate (seeds/acre)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={seedForm.vrtMinRate}
+                        onChange={(e) => setSeedForm({ ...seedForm, vrtMinRate: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm"
+                        placeholder="e.g., 28000"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Max Rate (seeds/acre)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={seedForm.vrtMaxRate}
+                        onChange={(e) => setSeedForm({ ...seedForm, vrtMaxRate: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm"
+                        placeholder="e.g., 36000"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -897,30 +1091,42 @@ export default function FarmCostEntry() {
                           </div>
                         </form>
                       ) : (
-                        <div className="flex justify-between items-center">
-                          <span>{usage.seedHybrid.name}: {usage.bagsUsed} bags</span>
-                          <div className="flex items-center space-x-3">
-                            <span className="font-semibold">
-                              ${(usage.bagsUsed * usage.seedHybrid.pricePerBag).toFixed(2)}
-                            </span>
-                            {canEdit() && (
-                              <div className="flex space-x-1">
-                                <button
-                                  onClick={() => setEditingSeed(usage)}
-                                  className="text-blue-600 hover:text-blue-800 text-xs"
-                                >
-                                  Edit
-                                </button>
-                                <span className="text-gray-300">|</span>
-                                <button
-                                  onClick={() => handleDeleteSeed(usage.id)}
-                                  className="text-red-600 hover:text-red-800 text-xs"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            )}
+                        <div>
+                          <div className="flex justify-between items-center">
+                            <span>{usage.seedHybrid.name}: {usage.bagsUsed} bags</span>
+                            <div className="flex items-center space-x-3">
+                              <span className="font-semibold">
+                                ${(usage.bagsUsed * usage.seedHybrid.pricePerBag).toFixed(2)}
+                              </span>
+                              {canEdit() && (
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() => setEditingSeed(usage)}
+                                    className="text-blue-600 hover:text-blue-800 text-xs"
+                                  >
+                                    Edit
+                                  </button>
+                                  <span className="text-gray-300">|</span>
+                                  <button
+                                    onClick={() => handleDeleteSeed(usage.id)}
+                                    className="text-red-600 hover:text-red-800 text-xs"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
+                          {usage.isVRT && (
+                            <div className="mt-1 text-xs text-purple-600">
+                              VRT: {usage.vrtMinRate?.toLocaleString()} - {usage.vrtMaxRate?.toLocaleString()} seeds/acre
+                            </div>
+                          )}
+                          {usage.ratePerAcre && (
+                            <div className="mt-1 text-xs text-gray-500">
+                              Population: {usage.ratePerAcre.toLocaleString()} seeds/acre
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1119,6 +1325,325 @@ export default function FarmCostEntry() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Trials Section - Full Width */}
+        <div className="mt-6 bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Field Trials</h2>
+              <p className="text-xs text-gray-600">Track experiments comparing products or methods</p>
+            </div>
+            {canEdit() && (
+              <button
+                onClick={() => setShowTrialForm(!showTrialForm)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+              >
+                {showTrialForm ? 'Cancel' : '+ Add Trial'}
+              </button>
+            )}
+          </div>
+
+          {/* Trial Form */}
+          {showTrialForm && canEdit() && (
+            <form onSubmit={handleAddTrial} className="mb-6 bg-indigo-50 border border-indigo-200 rounded-md p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Trial Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={trialForm.name}
+                    onChange={(e) => setTrialForm({ ...trialForm, name: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g., Seed Population Test - North 40"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Trial Type *
+                  </label>
+                  <select
+                    value={trialForm.trialType}
+                    onChange={(e) => setTrialForm({ ...trialForm, trialType: e.target.value as TrialType })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value={TrialType.SEED}>Seed/Hybrid</option>
+                    <option value={TrialType.FERTILIZER}>Fertilizer</option>
+                    <option value={TrialType.CHEMICAL}>Chemical/Herbicide</option>
+                    <option value={TrialType.FUNGICIDE}>Fungicide</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Product Selection based on trial type */}
+              {trialForm.trialType === TrialType.SEED && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Hybrid (optional)
+                  </label>
+                  <select
+                    value={trialForm.seedHybridId}
+                    onChange={(e) => setTrialForm({ ...trialForm, seedHybridId: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  >
+                    <option value="">Select Hybrid</option>
+                    {seedHybrids.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {trialForm.trialType === TrialType.FERTILIZER && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Fertilizer (optional)
+                  </label>
+                  <select
+                    value={trialForm.fertilizerId}
+                    onChange={(e) => setTrialForm({ ...trialForm, fertilizerId: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  >
+                    <option value="">Select Fertilizer</option>
+                    {fertilizers.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(trialForm.trialType === TrialType.CHEMICAL || trialForm.trialType === TrialType.FUNGICIDE) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test {trialForm.trialType === TrialType.FUNGICIDE ? 'Fungicide' : 'Chemical'} (optional)
+                  </label>
+                  <select
+                    value={trialForm.chemicalId}
+                    onChange={(e) => setTrialForm({ ...trialForm, chemicalId: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  >
+                    <option value="">Select {trialForm.trialType === TrialType.FUNGICIDE ? 'Fungicide' : 'Chemical'}</option>
+                    {chemicals.filter(c =>
+                      trialForm.trialType === TrialType.FUNGICIDE
+                        ? c.category === ChemicalCategory.FUNGICIDE
+                        : c.category === ChemicalCategory.HERBICIDE
+                    ).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Control Product
+                  </label>
+                  <input
+                    type="text"
+                    value={trialForm.controlProduct}
+                    onChange={(e) => setTrialForm({ ...trialForm, controlProduct: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="Standard product/rate"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Control Rate
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={trialForm.controlRate}
+                    onChange={(e) => setTrialForm({ ...trialForm, controlRate: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g., 32000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Rate
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={trialForm.testRate}
+                    onChange={(e) => setTrialForm({ ...trialForm, testRate: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g., 36000"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Plot Location
+                  </label>
+                  <input
+                    type="text"
+                    value={trialForm.plotLocation}
+                    onChange={(e) => setTrialForm({ ...trialForm, plotLocation: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g., North 40, rows 10-20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Plot Acres
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={trialForm.plotAcres}
+                    onChange={(e) => setTrialForm({ ...trialForm, plotAcres: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g., 5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Metric
+                  </label>
+                  <input
+                    type="text"
+                    value={trialForm.targetMetric}
+                    onChange={(e) => setTrialForm({ ...trialForm, targetMetric: e.target.value })}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="e.g., Yield bu/acre"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={trialForm.notes}
+                  onChange={(e) => setTrialForm({ ...trialForm, notes: e.target.value })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  rows={2}
+                  placeholder="Additional notes about the trial..."
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium"
+              >
+                Create Trial
+              </button>
+            </form>
+          )}
+
+          {/* Trials List */}
+          {trials.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {trials.map(trial => (
+                <div key={trial.id} className={`border rounded-lg p-4 ${
+                  trial.status === TrialStatus.COMPLETED ? 'bg-green-50 border-green-200' :
+                  trial.status === TrialStatus.ACTIVE ? 'bg-blue-50 border-blue-200' :
+                  trial.status === TrialStatus.CANCELLED ? 'bg-gray-100 border-gray-300' :
+                  'bg-amber-50 border-amber-200'
+                }`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold text-gray-900">{trial.name}</h4>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      trial.status === TrialStatus.COMPLETED ? 'bg-green-200 text-green-800' :
+                      trial.status === TrialStatus.ACTIVE ? 'bg-blue-200 text-blue-800' :
+                      trial.status === TrialStatus.CANCELLED ? 'bg-gray-300 text-gray-700' :
+                      'bg-amber-200 text-amber-800'
+                    }`}>
+                      {trial.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-2">
+                    Type: {trial.trialType}
+                    {trial.plotLocation && ` | Location: ${trial.plotLocation}`}
+                    {trial.plotAcres && ` | ${trial.plotAcres} acres`}
+                  </p>
+                  {trial.controlProduct && (
+                    <p className="text-xs text-gray-600">
+                      Control: {trial.controlProduct} @ {trial.controlRate}
+                    </p>
+                  )}
+                  {trial.testRate && (
+                    <p className="text-xs text-gray-600">
+                      Test Rate: {trial.testRate}
+                    </p>
+                  )}
+                  {trial.targetMetric && (
+                    <p className="text-xs text-gray-600">
+                      Target: {trial.targetMetric}
+                    </p>
+                  )}
+                  {trial.notes && (
+                    <p className="text-xs text-gray-500 mt-2 italic">{trial.notes}</p>
+                  )}
+
+                  {/* Results */}
+                  {trial.status === TrialStatus.COMPLETED && (trial.controlResult || trial.testResult) && (
+                    <div className="mt-3 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium text-gray-700">Results:</p>
+                      {trial.controlResult && <p className="text-xs text-gray-600">Control: {trial.controlResult}</p>}
+                      {trial.testResult && <p className="text-xs text-gray-600">Test: {trial.testResult}</p>}
+                      {trial.yieldDifference && (
+                        <p className={`text-xs font-semibold ${trial.yieldDifference > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          Difference: {trial.yieldDifference > 0 ? '+' : ''}{trial.yieldDifference}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  {canEdit() && (
+                    <div className="mt-3 pt-2 border-t border-gray-200 flex flex-wrap gap-2">
+                      {trial.status === TrialStatus.PLANNED && (
+                        <button
+                          onClick={() => handleUpdateTrialStatus(trial.id, TrialStatus.ACTIVE)}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Start Trial
+                        </button>
+                      )}
+                      {trial.status === TrialStatus.ACTIVE && (
+                        <button
+                          onClick={() => handleUpdateTrialStatus(trial.id, TrialStatus.COMPLETED)}
+                          className="text-xs text-green-600 hover:text-green-800"
+                        >
+                          Mark Complete
+                        </button>
+                      )}
+                      {trial.status !== TrialStatus.CANCELLED && trial.status !== TrialStatus.COMPLETED && (
+                        <button
+                          onClick={() => handleUpdateTrialStatus(trial.id, TrialStatus.CANCELLED)}
+                          className="text-xs text-amber-600 hover:text-amber-800"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteTrial(trial.id)}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>No trials set up for this farm yet.</p>
+              {canEdit() && <p className="text-sm mt-1">Click "Add Trial" to track an experiment.</p>}
+            </div>
+          )}
         </div>
 
         {/* Summary Card */}

@@ -6,6 +6,7 @@ import { ChemicalService } from '../services/chemical.service';
 import { SeedHybridService } from '../services/seed-hybrid.service';
 import { FarmService } from '../services/farm.service';
 import { BreakEvenAnalyticsService } from '../services/breakeven-analytics.service';
+import { TrialService } from '../services/trial.service';
 
 const router = Router();
 const fertilizerService = new FertilizerService();
@@ -13,6 +14,7 @@ const chemicalService = new ChemicalService();
 const seedHybridService = new SeedHybridService();
 const farmService = new FarmService();
 const analyticsService = new BreakEvenAnalyticsService();
+const trialService = new TrialService();
 
 // Apply auth and grain access middleware to all routes
 router.use(authenticate);
@@ -62,7 +64,8 @@ router.delete('/businesses/:businessId/fertilizers/:id', async (req: AuthRequest
 // ===== Chemicals =====
 router.get('/businesses/:businessId/chemicals', async (req: AuthRequest, res: Response) => {
   try {
-    const chemicals = await chemicalService.getAll(req.params.businessId);
+    const category = req.query.category as string | undefined;
+    const chemicals = await chemicalService.getAll(req.params.businessId, category as any);
     res.json(chemicals);
   } catch (error: any) {
     console.error('Error getting chemicals:', error);
@@ -385,6 +388,116 @@ router.get('/businesses/:businessId/products/area-averages', async (req: AuthReq
     });
   } catch (error: any) {
     console.error('Error getting area averages:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Farm Trials =====
+
+router.get('/businesses/:businessId/farms/:farmId/trials', async (req: AuthRequest, res: Response) => {
+  try {
+    const trials = await trialService.getAll(req.params.farmId, req.params.businessId);
+    res.json(trials);
+  } catch (error: any) {
+    console.error('Error getting trials:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/businesses/:businessId/farms/:farmId/trials', async (req: AuthRequest, res: Response) => {
+  try {
+    const trial = await trialService.create(req.params.businessId, {
+      ...req.body,
+      farmId: req.params.farmId
+    });
+    res.status(201).json(trial);
+  } catch (error: any) {
+    console.error('Error creating trial:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/businesses/:businessId/farms/trials/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const trial = await trialService.getById(req.params.id, req.params.businessId);
+    if (!trial) {
+      return res.status(404).json({ error: 'Trial not found' });
+    }
+    res.json(trial);
+  } catch (error: any) {
+    console.error('Error getting trial:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/businesses/:businessId/farms/trials/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const trial = await trialService.update(req.params.id, req.params.businessId, req.body);
+    res.json(trial);
+  } catch (error: any) {
+    console.error('Error updating trial:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/businesses/:businessId/farms/trials/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    await trialService.delete(req.params.id, req.params.businessId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Error deleting trial:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Trial photos
+router.post('/businesses/:businessId/farms/trials/:id/photos', async (req: AuthRequest, res: Response) => {
+  try {
+    const { url, caption } = req.body;
+    const photo = await trialService.addPhoto(req.params.id, req.params.businessId, url, caption);
+    res.status(201).json(photo);
+  } catch (error: any) {
+    console.error('Error adding trial photo:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.delete('/businesses/:businessId/farms/trials/photos/:photoId', async (req: AuthRequest, res: Response) => {
+  try {
+    await trialService.deletePhoto(req.params.photoId, req.params.businessId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Error deleting trial photo:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Farm Plan View (Worker-friendly, no costs) =====
+
+router.get('/businesses/:businessId/farms/:farmId/plan', async (req: AuthRequest, res: Response) => {
+  try {
+    const plan = await farmService.getFarmPlanView(req.params.farmId, req.params.businessId);
+    if (!plan) {
+      return res.status(404).json({ error: 'Farm not found' });
+    }
+    res.json(plan);
+  } catch (error: any) {
+    console.error('Error getting farm plan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/businesses/:businessId/farm-plans', async (req: AuthRequest, res: Response) => {
+  try {
+    const query = {
+      year: req.query.year ? parseInt(req.query.year as string) : undefined,
+      grainEntityId: req.query.grainEntityId as string | undefined,
+      commodityType: req.query.commodityType as any
+    };
+    const plans = await farmService.getAllFarmPlanViews(req.params.businessId, query);
+    res.json(plans);
+  } catch (error: any) {
+    console.error('Error getting farm plans:', error);
     res.status(500).json({ error: error.message });
   }
 });

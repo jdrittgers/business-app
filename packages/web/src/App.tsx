@@ -20,6 +20,7 @@ import BreakEven from './pages/BreakEven';
 import ProductCatalog from './pages/ProductCatalog';
 import FarmManagement from './pages/FarmManagement';
 import FarmCostEntry from './pages/FarmCostEntry';
+import FarmPlanView from './pages/FarmPlanView';
 import InputBids from './pages/InputBids';
 import RetailerLogin from './pages/RetailerLogin';
 import RetailerRegister from './pages/RetailerRegister';
@@ -87,6 +88,7 @@ function App() {
       <Route path="/breakeven/products" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/farms" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmManagement /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/farms/:farmId/costs" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole></AuthRoute>} />
+      <Route path="/farm-plans" element={<AuthRoute><FarmPlanView /></AuthRoute>} />
       <Route path="/invoice-parsing" element={<AuthRoute><InvoiceParsing /></AuthRoute>} />
       <Route path="/grain-contracts/bins" element={<AuthRoute><GrainBins /></AuthRoute>} />
 

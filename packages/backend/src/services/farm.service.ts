@@ -7,7 +7,11 @@ import {
   CreateFarmChemicalUsageRequest,
   CreateFarmSeedUsageRequest,
   CreateFarmOtherCostRequest,
-  GetFarmsQuery
+  GetFarmsQuery,
+  FarmPlanView,
+  ChemicalCategory,
+  TrialType,
+  TrialStatus
 } from '@business-app/shared';
 
 export class FarmService {
@@ -90,7 +94,8 @@ export class FarmService {
         chemical: cu.chemical ? {
           ...cu.chemical,
           pricePerUnit: Number(cu.chemical.pricePerUnit),
-          unit: cu.chemical.unit as any
+          unit: cu.chemical.unit as any,
+          category: cu.chemical.category as ChemicalCategory
         } : undefined
       })),
       seedUsage: farm.seedUsage?.map(su => ({
@@ -98,6 +103,9 @@ export class FarmService {
         bagsUsed: Number(su.bagsUsed),
         ratePerAcre: su.ratePerAcre ? Number(su.ratePerAcre) : undefined,
         acresApplied: su.acresApplied ? Number(su.acresApplied) : undefined,
+        isVRT: su.isVRT,
+        vrtMinRate: su.vrtMinRate ? Number(su.vrtMinRate) : undefined,
+        vrtMaxRate: su.vrtMaxRate ? Number(su.vrtMaxRate) : undefined,
         seedHybrid: su.seedHybrid ? {
           ...su.seedHybrid,
           pricePerBag: Number(su.seedHybrid.pricePerBag),
@@ -655,5 +663,209 @@ export class FarmService {
       costPerAcre,
       breakEvenPrice
     };
+  }
+
+  /**
+   * Get farm plan view (worker-friendly, excludes costs)
+   */
+  async getFarmPlanView(id: string, businessId: string): Promise<FarmPlanView | null> {
+    const farm = await prisma.farm.findFirst({
+      where: { id },
+      include: {
+        grainEntity: true,
+        seedUsage: {
+          include: { seedHybrid: true }
+        },
+        fertilizerUsage: {
+          include: { fertilizer: true }
+        },
+        chemicalUsage: {
+          include: { chemical: true }
+        },
+        trials: {
+          where: {
+            status: { in: ['PLANNED', 'ACTIVE'] }
+          }
+        }
+      }
+    });
+
+    if (!farm || farm.grainEntity.businessId !== businessId) {
+      return null;
+    }
+
+    // Build seed plan
+    const seedPlan = (farm.seedUsage as any[]).map(usage => ({
+      hybridName: usage.seedHybrid.name,
+      population: Number(usage.ratePerAcre) || 0,
+      isVRT: usage.isVRT || false,
+      vrtMinRate: usage.vrtMinRate ? Number(usage.vrtMinRate) : undefined,
+      vrtMaxRate: usage.vrtMaxRate ? Number(usage.vrtMaxRate) : undefined,
+      acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+    }));
+
+    // Build fertilizer plan (no costs)
+    const fertilizerPlan = (farm.fertilizerUsage as any[]).map(usage => ({
+      productName: usage.fertilizer.name,
+      ratePerAcre: Number(usage.ratePerAcre) || 0,
+      unit: usage.fertilizer.unit,
+      acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+    }));
+
+    // Split chemicals by category
+    const inFurrowPlan = (farm.chemicalUsage as any[])
+      .filter(usage => usage.chemical.category === 'IN_FURROW')
+      .map(usage => ({
+        productName: usage.chemical.name,
+        ratePerAcre: Number(usage.ratePerAcre) || 0,
+        unit: usage.chemical.unit,
+        acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+      }));
+
+    const chemicalPlan = (farm.chemicalUsage as any[])
+      .filter(usage => usage.chemical.category === 'HERBICIDE' || !usage.chemical.category)
+      .map(usage => ({
+        productName: usage.chemical.name,
+        ratePerAcre: Number(usage.ratePerAcre) || 0,
+        unit: usage.chemical.unit,
+        acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+      }));
+
+    const fungicidePlan = (farm.chemicalUsage as any[])
+      .filter(usage => usage.chemical.category === 'FUNGICIDE')
+      .map(usage => ({
+        productName: usage.chemical.name,
+        ratePerAcre: Number(usage.ratePerAcre) || 0,
+        unit: usage.chemical.unit,
+        acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+      }));
+
+    // Build active trials list
+    const activeTrials = (farm.trials as any[]).map(trial => ({
+      id: trial.id,
+      name: trial.name,
+      trialType: trial.trialType as TrialType,
+      status: trial.status as TrialStatus,
+      plotLocation: trial.plotLocation || undefined,
+      targetMetric: trial.targetMetric || undefined
+    }));
+
+    return {
+      farmId: farm.id,
+      farmName: farm.name,
+      acres: Number(farm.acres),
+      commodityType: farm.commodityType as any,
+      year: farm.year,
+      grainEntityName: farm.grainEntity.name,
+      projectedYield: Number(farm.projectedYield),
+      seedPlan,
+      inFurrowPlan,
+      fertilizerPlan,
+      chemicalPlan,
+      fungicidePlan,
+      activeTrials
+    };
+  }
+
+  /**
+   * Get all farm plan views for a business
+   */
+  async getAllFarmPlanViews(businessId: string, query?: GetFarmsQuery): Promise<FarmPlanView[]> {
+    const farms = await prisma.farm.findMany({
+      where: {
+        grainEntity: { businessId },
+        ...(query?.grainEntityId && { grainEntityId: query.grainEntityId }),
+        ...(query?.year && { year: query.year }),
+        ...(query?.commodityType && { commodityType: query.commodityType })
+      },
+      include: {
+        grainEntity: true,
+        seedUsage: {
+          include: { seedHybrid: true }
+        },
+        fertilizerUsage: {
+          include: { fertilizer: true }
+        },
+        chemicalUsage: {
+          include: { chemical: true }
+        },
+        trials: {
+          where: {
+            status: { in: ['PLANNED', 'ACTIVE'] }
+          }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    return farms.map(farm => {
+      const seedPlan = (farm.seedUsage as any[]).map(usage => ({
+        hybridName: usage.seedHybrid.name,
+        population: Number(usage.ratePerAcre) || 0,
+        isVRT: usage.isVRT || false,
+        vrtMinRate: usage.vrtMinRate ? Number(usage.vrtMinRate) : undefined,
+        vrtMaxRate: usage.vrtMaxRate ? Number(usage.vrtMaxRate) : undefined,
+        acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+      }));
+
+      const fertilizerPlan = (farm.fertilizerUsage as any[]).map(usage => ({
+        productName: usage.fertilizer.name,
+        ratePerAcre: Number(usage.ratePerAcre) || 0,
+        unit: usage.fertilizer.unit,
+        acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+      }));
+
+      const inFurrowPlan = (farm.chemicalUsage as any[])
+        .filter(usage => usage.chemical.category === 'IN_FURROW')
+        .map(usage => ({
+          productName: usage.chemical.name,
+          ratePerAcre: Number(usage.ratePerAcre) || 0,
+          unit: usage.chemical.unit,
+          acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+        }));
+
+      const chemicalPlan = (farm.chemicalUsage as any[])
+        .filter(usage => usage.chemical.category === 'HERBICIDE' || !usage.chemical.category)
+        .map(usage => ({
+          productName: usage.chemical.name,
+          ratePerAcre: Number(usage.ratePerAcre) || 0,
+          unit: usage.chemical.unit,
+          acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+        }));
+
+      const fungicidePlan = (farm.chemicalUsage as any[])
+        .filter(usage => usage.chemical.category === 'FUNGICIDE')
+        .map(usage => ({
+          productName: usage.chemical.name,
+          ratePerAcre: Number(usage.ratePerAcre) || 0,
+          unit: usage.chemical.unit,
+          acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+        }));
+
+      const activeTrials = (farm.trials as any[]).map(trial => ({
+        id: trial.id,
+        name: trial.name,
+        trialType: trial.trialType as TrialType,
+        status: trial.status as TrialStatus,
+        plotLocation: trial.plotLocation || undefined,
+        targetMetric: trial.targetMetric || undefined
+      }));
+
+      return {
+        farmId: farm.id,
+        farmName: farm.name,
+        acres: Number(farm.acres),
+        commodityType: farm.commodityType as any,
+        year: farm.year,
+        grainEntityName: farm.grainEntity.name,
+        projectedYield: Number(farm.projectedYield),
+        seedPlan,
+        inFurrowPlan,
+        fertilizerPlan,
+        chemicalPlan,
+        fungicidePlan,
+        activeTrials
+      };
+    });
   }
 }
