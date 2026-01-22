@@ -643,6 +643,88 @@ export class LoanInterestService {
     return Math.max(0, annualPayment - annualInterest);
   }
 
+  // Calculate operating loan YTD interest using average daily balance from transactions
+  async calculateOperatingLoanYTDInterest(loanId: string, year: number): Promise<number> {
+    const loan = await prisma.operatingLoan.findUnique({
+      where: { id: loanId },
+      include: {
+        transactions: {
+          where: {
+            transactionDate: {
+              gte: new Date(year, 0, 1),
+              lte: new Date(year, 11, 31, 23, 59, 59)
+            }
+          },
+          orderBy: { transactionDate: 'asc' }
+        }
+      }
+    });
+
+    if (!loan) return 0;
+
+    const rate = Number(loan.interestRate);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
+    const msPerDay = 1000 * 60 * 60 * 24;
+
+    // Determine the end date for calculation
+    let endDate: Date;
+    if (year < currentYear) {
+      endDate = new Date(year, 11, 31);
+    } else if (year > currentYear) {
+      // Future year - project using current balance for full year
+      return Number(loan.currentBalance) * rate;
+    } else {
+      endDate = now;
+    }
+
+    // If no transactions this year, use current balance for the entire period
+    if (loan.transactions.length === 0) {
+      const daysElapsed = Math.floor((endDate.getTime() - startOfYear.getTime()) / msPerDay) + 1;
+      return Number(loan.currentBalance) * rate * (daysElapsed / 365);
+    }
+
+    // Calculate interest using average daily balance
+    let totalBalanceDays = 0;
+    let previousDate = startOfYear;
+    let previousBalance = 0;
+
+    // Find the balance at start of year (last transaction before year start)
+    const priorTransaction = await prisma.operatingLoanTransaction.findFirst({
+      where: {
+        operatingLoanId: loanId,
+        transactionDate: { lt: startOfYear }
+      },
+      orderBy: { transactionDate: 'desc' }
+    });
+
+    if (priorTransaction) {
+      previousBalance = Number(priorTransaction.balanceAfter);
+    }
+
+    // Process each transaction
+    for (const txn of loan.transactions) {
+      const txnDate = new Date(txn.transactionDate);
+      const days = Math.max(0, Math.floor((txnDate.getTime() - previousDate.getTime()) / msPerDay));
+      totalBalanceDays += previousBalance * days;
+
+      previousDate = txnDate;
+      previousBalance = Number(txn.balanceAfter);
+    }
+
+    // Add days from last transaction to end date
+    const remainingDays = Math.max(0, Math.floor((endDate.getTime() - previousDate.getTime()) / msPerDay) + 1);
+    totalBalanceDays += previousBalance * remainingDays;
+
+    // Calculate total days in the period
+    const totalDays = Math.floor((endDate.getTime() - startOfYear.getTime()) / msPerDay) + 1;
+
+    // Average daily balance × rate × (days / 365)
+    const avgDailyBalance = totalDays > 0 ? totalBalanceDays / totalDays : 0;
+    return avgDailyBalance * rate * (totalDays / 365);
+  }
+
   async getFarmInterestAllocation(farmId: string, year: number): Promise<FarmInterestAllocation> {
     const farm = await prisma.farm.findUnique({
       where: { id: farmId },
@@ -695,32 +777,12 @@ export class LoanInterestService {
       });
       const totalEntityAcres = entityFarms.reduce((sum, f) => sum + Number(f.acres), 0);
 
-      // Calculate total entity operating interest (YTD) - daily accrual
-      const totalEntityInterest = farm.grainEntity.operatingLoans.reduce((sum, loan) => {
-        const rate = Number(loan.interestRate);
-        const balance = Number(loan.currentBalance);
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const startOfYear = new Date(year, 0, 1);
-        const endOfYear = new Date(year, 11, 31);
-
-        // Calculate days for interest accrual
-        let daysToUse: number;
-        if (year < currentYear) {
-          // Past year: full 365 days
-          daysToUse = 365;
-        } else if (year > currentYear) {
-          // Future year: project full 365 days for planning
-          daysToUse = 365;
-        } else {
-          // Current year: days elapsed from Jan 1 to today
-          const msPerDay = 1000 * 60 * 60 * 24;
-          daysToUse = Math.floor((now.getTime() - startOfYear.getTime()) / msPerDay) + 1;
-        }
-
-        // Daily interest = balance * (annual rate / 365) * days
-        return sum + balance * rate * (daysToUse / 365);
-      }, 0);
+      // Calculate total entity operating interest (YTD) using average daily balance
+      let totalEntityInterest = 0;
+      for (const loan of farm.grainEntity.operatingLoans) {
+        const loanInterest = await this.calculateOperatingLoanYTDInterest(loan.id, year);
+        totalEntityInterest += loanInterest;
+      }
 
       const farmAcres = Number(farm.acres);
       operatingLoanInterest = totalEntityAcres > 0 ? (totalEntityInterest * farmAcres / totalEntityAcres) : 0;
@@ -793,32 +855,12 @@ export class LoanInterestService {
       include: { grainEntity: { select: { id: true, name: true } } }
     });
 
-    // Group by entity - calculate daily interest accrual
+    // Group by entity - calculate interest using average daily balance
     const entityMap = new Map<string, { id: string; name: string; ytdInterest: number }>();
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const startOfYear = new Date(year, 0, 1);
 
     for (const loan of operatingLoans) {
-      const rate = Number(loan.interestRate);
-      const balance = Number(loan.currentBalance);
-
-      // Calculate days for interest accrual
-      let daysToUse: number;
-      if (year < currentYear) {
-        // Past year: full 365 days
-        daysToUse = 365;
-      } else if (year > currentYear) {
-        // Future year: project full 365 days for planning
-        daysToUse = 365;
-      } else {
-        // Current year: days elapsed from Jan 1 to today
-        const msPerDay = 1000 * 60 * 60 * 24;
-        daysToUse = Math.floor((now.getTime() - startOfYear.getTime()) / msPerDay) + 1;
-      }
-
-      // Daily interest = balance * (annual rate / 365) * days
-      const ytdInterest = balance * rate * (daysToUse / 365);
+      // Use average daily balance calculation from transactions
+      const ytdInterest = await this.calculateOperatingLoanYTDInterest(loan.id, year);
 
       const existing = entityMap.get(loan.grainEntityId);
       if (existing) {
