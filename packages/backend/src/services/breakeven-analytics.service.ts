@@ -16,12 +16,19 @@ export class BreakEvenAnalyticsService {
     const year = query.year || new Date().getFullYear();
 
     // Get all farms for this business/year
+    // When filtering by entity, also include farms that have that entity as a split owner
     const farms = await prisma.farm.findMany({
       where: {
         grainEntity: { businessId },
         year,
-        ...(query.grainEntityId && { grainEntityId: query.grainEntityId }),
-        ...(query.commodityType && { commodityType: query.commodityType })
+        ...(query.commodityType && { commodityType: query.commodityType }),
+        // If filtering by entity, include farms with that entity as primary OR as a split owner
+        ...(query.grainEntityId && {
+          OR: [
+            { grainEntityId: query.grainEntityId },
+            { entitySplits: { some: { grainEntityId: query.grainEntityId } } }
+          ]
+        })
       },
       include: {
         grainEntity: true,
@@ -34,7 +41,10 @@ export class BreakEvenAnalyticsService {
         seedUsage: {
           include: { seedHybrid: true }
         },
-        otherCosts: true
+        otherCosts: true,
+        entitySplits: {
+          include: { grainEntity: true }
+        }
       }
     });
 
@@ -65,19 +75,30 @@ export class BreakEvenAnalyticsService {
       farmBreakEvens.push(farmBE);
     }
 
-    // Aggregate by entity
+    // Aggregate by entity - respect entity splits
     const entityMap = new Map<string, EntityBreakEven>();
 
-    for (const farmBE of farmBreakEvens) {
-      const key = `${farmBE.grainEntityId}-${farmBE.commodityType}`;
+    // Build a map of farm to entity splits for quick lookup
+    const farmSplitsMap = new Map<string, Array<{ grainEntityId: string; grainEntityName: string; percentage: number }>>();
+    for (const farm of farms) {
+      if (farm.entitySplits && farm.entitySplits.length > 0) {
+        farmSplitsMap.set(farm.id, farm.entitySplits.map((s: any) => ({
+          grainEntityId: s.grainEntityId,
+          grainEntityName: s.grainEntity?.name || '',
+          percentage: Number(s.percentage) / 100 // Convert from percent to decimal
+        })));
+      }
+    }
 
+    // Helper function to ensure entity exists in map
+    const ensureEntity = (entityId: string, entityName: string, commodityType: CommodityType, expectedYield: number) => {
+      const key = `${entityId}-${commodityType}`;
       if (!entityMap.has(key)) {
-        const entity = farms.find(f => f.grainEntityId === farmBE.grainEntityId && f.commodityType === farmBE.commodityType)?.grainEntity;
         entityMap.set(key, {
-          grainEntityId: farmBE.grainEntityId,
-          grainEntityName: entity?.name || '',
+          grainEntityId: entityId,
+          grainEntityName: entityName,
           year,
-          commodityType: farmBE.commodityType,
+          commodityType,
           totalAcres: 0,
           totalCost: 0,
           costPerAcre: 0,
@@ -89,26 +110,57 @@ export class BreakEvenAnalyticsService {
           totalInterestExpense: 0,
           totalPrincipalExpense: 0,
           totalLoanCost: 0,
-          expectedYield: farmBE.expectedYield,
+          expectedYield,
           expectedBushels: 0,
           breakEvenPrice: 0,
           farms: []
         });
       }
+      return entityMap.get(key)!;
+    };
 
-      const entityBE = entityMap.get(key)!;
-      entityBE.totalAcres += farmBE.acres;
-      entityBE.totalCost += farmBE.totalCost;
-      entityBE.landLoanInterest += farmBE.landLoanInterest;
-      entityBE.landLoanPrincipal += farmBE.landLoanPrincipal;
-      entityBE.operatingLoanInterest += farmBE.operatingLoanInterest;
-      entityBE.equipmentLoanInterest += farmBE.equipmentLoanInterest;
-      entityBE.equipmentLoanPrincipal += farmBE.equipmentLoanPrincipal;
-      entityBE.totalInterestExpense += farmBE.totalInterestExpense;
-      entityBE.totalPrincipalExpense += farmBE.totalPrincipalExpense;
-      entityBE.totalLoanCost += farmBE.totalLoanCost;
-      entityBE.expectedBushels += farmBE.expectedBushels;
-      entityBE.farms.push(farmBE);
+    // Helper function to add proportional costs to entity
+    const addToEntity = (entityBE: EntityBreakEven, farmBE: FarmBreakEven, proportion: number) => {
+      entityBE.totalAcres += farmBE.acres * proportion;
+      entityBE.totalCost += farmBE.totalCost * proportion;
+      entityBE.landLoanInterest += farmBE.landLoanInterest * proportion;
+      entityBE.landLoanPrincipal += farmBE.landLoanPrincipal * proportion;
+      entityBE.operatingLoanInterest += farmBE.operatingLoanInterest * proportion;
+      entityBE.equipmentLoanInterest += farmBE.equipmentLoanInterest * proportion;
+      entityBE.equipmentLoanPrincipal += farmBE.equipmentLoanPrincipal * proportion;
+      entityBE.totalInterestExpense += farmBE.totalInterestExpense * proportion;
+      entityBE.totalPrincipalExpense += farmBE.totalPrincipalExpense * proportion;
+      entityBE.totalLoanCost += farmBE.totalLoanCost * proportion;
+      entityBE.expectedBushels += farmBE.expectedBushels * proportion;
+    };
+
+    for (const farmBE of farmBreakEvens) {
+      const splits = farmSplitsMap.get(farmBE.farmId);
+
+      if (splits && splits.length > 0) {
+        // Farm has entity splits - distribute costs proportionally
+        for (const split of splits) {
+          const entityBE = ensureEntity(split.grainEntityId, split.grainEntityName, farmBE.commodityType, farmBE.expectedYield);
+          addToEntity(entityBE, farmBE, split.percentage);
+
+          // Add the farm to the entity's farms list (with a note about the split)
+          // Only add once per entity to avoid duplicates
+          if (!entityBE.farms.some(f => f.farmId === farmBE.farmId)) {
+            entityBE.farms.push({
+              ...farmBE,
+              // Optionally mark that this is a split farm
+              farmName: `${farmBE.farmName} (${Math.round(split.percentage * 100)}%)`
+            });
+          }
+        }
+      } else {
+        // No entity splits - attribute 100% to the primary grainEntityId (current behavior)
+        const farm = farms.find(f => f.id === farmBE.farmId);
+        const entityName = farm?.grainEntity?.name || '';
+        const entityBE = ensureEntity(farmBE.grainEntityId, entityName, farmBE.commodityType, farmBE.expectedYield);
+        addToEntity(entityBE, farmBE, 1.0);
+        entityBE.farms.push(farmBE);
+      }
     }
 
     // Calculate entity-level averages
