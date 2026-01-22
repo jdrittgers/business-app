@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
-import { Fertilizer, Chemical, SeedHybrid, UnitType, CommodityType } from '@business-app/shared';
+import { Fertilizer, Chemical, SeedHybrid, UnitType, CommodityType, ChemicalCategory } from '@business-app/shared';
 
 type TabType = 'fertilizers' | 'chemicals' | 'seedHybrids';
 type FilterType = 'all' | 'needsPricing';
@@ -183,8 +183,10 @@ export default function ProductCatalog() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    if (activeTab === 'fertilizers' || activeTab === 'chemicals') {
+    if (activeTab === 'fertilizers') {
       setFormData({ name: '', pricePerUnit: '', unit: 'LB' });
+    } else if (activeTab === 'chemicals') {
+      setFormData({ name: '', pricePerUnit: '', unit: 'GAL', category: 'HERBICIDE' });
     } else {
       setFormData({ name: '', commodityType: 'CORN', pricePerBag: '', seedsPerBag: '' });
     }
@@ -235,7 +237,8 @@ export default function ProductCatalog() {
         const data = {
           name: formData.name,
           pricePerUnit: parseFloat(formData.pricePerUnit),
-          unit: formData.unit as UnitType
+          unit: formData.unit as UnitType,
+          category: formData.category as ChemicalCategory
         };
         if (editingItem) {
           await breakevenApi.updateChemical(selectedBusinessId, editingItem.id, data);
@@ -485,6 +488,11 @@ export default function ProductCatalog() {
                           Commodity
                         </th>
                       )}
+                      {activeTab === 'chemicals' && (
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Category
+                        </th>
+                      )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         {activeTab === 'seedHybrids' ? 'Price/Bag' : 'Price/Unit'}
                       </th>
@@ -556,6 +564,11 @@ export default function ProductCatalog() {
                       .filter(item => filter === 'all' || item.needsPricing)
                       .map((item) => {
                       const priceInfo = getPriceComparison(item.name, item.pricePerUnit, 'chemical', item.unit);
+                      const categoryLabels: Record<string, string> = {
+                        HERBICIDE: 'Herbicide',
+                        IN_FURROW: 'In-Furrow',
+                        FUNGICIDE: 'Fungicide'
+                      };
                       return (
                         <tr key={item.id} className={item.needsPricing ? 'bg-amber-50' : ''}>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -575,6 +588,16 @@ export default function ProductCatalog() {
                                 </span>
                               )}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              item.category === 'HERBICIDE' ? 'bg-green-100 text-green-800' :
+                              item.category === 'IN_FURROW' ? 'bg-purple-100 text-purple-800' :
+                              item.category === 'FUNGICIDE' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {categoryLabels[item.category] || item.category || 'Herbicide'}
+                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             {item.needsPricing ? (
@@ -722,6 +745,22 @@ export default function ProductCatalog() {
                       <option value="TON">TON (Tons)</option>
                       <option value="LB">LB (Pounds)</option>
                       <option value="GAL">GAL (Gallons)</option>
+                    </select>
+                  </div>
+                )}
+
+                {activeTab === 'chemicals' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={formData.category || 'HERBICIDE'}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      required
+                    >
+                      <option value="HERBICIDE">Herbicide</option>
+                      <option value="IN_FURROW">In-Furrow</option>
+                      <option value="FUNGICIDE">Fungicide</option>
                     </select>
                   </div>
                 )}
