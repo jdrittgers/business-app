@@ -10,4 +10,5 @@ export * from './types/grain-bins';
 export * from './types/grain-marketplace';
 export * from './types/subscription';
 export * from './types/marketing-ai';
+export * from './types/loans';
 export * from './utils/distance';

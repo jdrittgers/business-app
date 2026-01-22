@@ -41,6 +41,7 @@ export class FarmService {
       commodityType: f.commodityType as any,
       grainEntity: f.grainEntity,
       notes: f.notes || undefined,
+      landParcelId: f.landParcelId || undefined,
       planApproved: f.planApproved,
       planApprovedAt: f.planApprovedAt || undefined,
       planApprovedBy: f.planApprovedBy || undefined
@@ -87,6 +88,7 @@ export class FarmService {
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
       notes: farm.notes || undefined,
+      landParcelId: farm.landParcelId || undefined,
       planApproved: farm.planApproved,
       planApprovedAt: farm.planApprovedAt || undefined,
       planApprovedBy: farm.planApprovedBy || undefined,
@@ -197,6 +199,7 @@ export class FarmService {
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
       notes: farm.notes || undefined,
+      landParcelId: farm.landParcelId || undefined,
       planApproved: farm.planApproved,
       planApprovedAt: farm.planApprovedAt || undefined,
       planApprovedBy: farm.planApprovedBy || undefined
@@ -226,6 +229,7 @@ export class FarmService {
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
       notes: farm.notes || undefined,
+      landParcelId: farm.landParcelId || undefined,
       planApproved: farm.planApproved,
       planApprovedAt: farm.planApprovedAt || undefined,
       planApprovedBy: farm.planApprovedBy || undefined

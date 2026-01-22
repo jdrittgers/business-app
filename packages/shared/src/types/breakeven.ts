@@ -130,6 +130,7 @@ export interface UpdateSeedHybridRequest {
 export interface Farm {
   id: string;
   grainEntityId: string;
+  landParcelId?: string;
   name: string;
   acres: number;
   commodityType: CommodityType;
@@ -143,6 +144,11 @@ export interface Farm {
   createdAt: Date;
   updatedAt: Date;
   grainEntity?: GrainEntity;
+  landParcel?: {
+    id: string;
+    name: string;
+    totalAcres: number;
+  };
   fertilizerUsage?: FarmFertilizerUsage[];
   chemicalUsage?: FarmChemicalUsage[];
   seedUsage?: FarmSeedUsage[];
@@ -151,6 +157,7 @@ export interface Farm {
 
 export interface CreateFarmRequest {
   grainEntityId: string;
+  landParcelId?: string;
   name: string;
   acres: number;
   commodityType: CommodityType;
@@ -162,6 +169,7 @@ export interface CreateFarmRequest {
 
 export interface UpdateFarmRequest {
   name?: string;
+  landParcelId?: string | null;
   acres?: number;
   commodityType?: CommodityType;
   projectedYield?: number;
@@ -319,8 +327,14 @@ export interface FarmBreakEven {
   insurance: number;
   otherCosts: number;
 
+  // Interest expense (from loans)
+  landLoanInterest: number;
+  operatingLoanInterest: number;
+  totalInterestExpense: number;
+
   // Totals
-  totalCost: number;
+  totalCost: number; // Includes interest
+  totalCostExcludingInterest: number;
   costPerAcre: number;
 
   // Break-even calculations
@@ -363,6 +377,11 @@ export interface EntityBreakEven {
   totalCost: number;
   costPerAcre: number;
 
+  // Interest expense
+  landLoanInterest: number;
+  operatingLoanInterest: number;
+  totalInterestExpense: number;
+
   expectedYield: number;
   expectedBushels: number;
   breakEvenPrice: number;
@@ -377,6 +396,13 @@ export interface OperationBreakEven {
   totalAcres: number;
   totalCost: number;
 
+  // Interest expense breakdown
+  totalInterestExpense: number;
+  interestBreakdown: {
+    landLoans: number;
+    operatingLoans: number;
+  };
+
   // By commodity
   byCommodity: Array<{
     commodityType: CommodityType;
@@ -386,6 +412,8 @@ export interface OperationBreakEven {
     expectedYield: number;
     expectedBushels: number;
     breakEvenPrice: number;
+    landLoanInterest: number;
+    operatingLoanInterest: number;
   }>;
 
   // By entity

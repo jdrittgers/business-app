@@ -29,6 +29,7 @@ import oldCropInventoryRoutes from './controllers/old-crop-inventory.controller'
 import localBasisRoutes from './controllers/local-basis.controller';
 import retailerAccessRoutes from './controllers/retailer-access.controller';
 import notificationRoutes from './controllers/notification.controller';
+import loanRoutes from './controllers/loan.controller';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 import { startMarketingAIJobs } from './services/marketing-ai-job.service';
@@ -94,6 +95,7 @@ app.use('/api', retailerAccessRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/grain-marketplace', grainMarketplaceRoutes);
 app.use('/api', marketingAiRoutes);
+app.use('/api', loanRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

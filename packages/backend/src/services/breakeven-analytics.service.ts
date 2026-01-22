@@ -80,6 +80,9 @@ export class BreakEvenAnalyticsService {
           totalAcres: 0,
           totalCost: 0,
           costPerAcre: 0,
+          landLoanInterest: 0,
+          operatingLoanInterest: 0,
+          totalInterestExpense: 0,
           expectedYield: farmBE.expectedYield,
           expectedBushels: 0,
           breakEvenPrice: 0,
@@ -90,6 +93,9 @@ export class BreakEvenAnalyticsService {
       const entityBE = entityMap.get(key)!;
       entityBE.totalAcres += farmBE.acres;
       entityBE.totalCost += farmBE.totalCost;
+      entityBE.landLoanInterest += farmBE.landLoanInterest;
+      entityBE.operatingLoanInterest += farmBE.operatingLoanInterest;
+      entityBE.totalInterestExpense += farmBE.totalInterestExpense;
       entityBE.expectedBushels += farmBE.expectedBushels;
       entityBE.farms.push(farmBE);
     }
@@ -112,6 +118,8 @@ export class BreakEvenAnalyticsService {
           acres: 0,
           totalCost: 0,
           costPerAcre: 0,
+          landLoanInterest: 0,
+          operatingLoanInterest: 0,
           expectedYield: entityBE.expectedYield,
           expectedBushels: 0,
           breakEvenPrice: 0
@@ -121,6 +129,8 @@ export class BreakEvenAnalyticsService {
       const commodityBE = commodityMap.get(entityBE.commodityType);
       commodityBE.acres += entityBE.totalAcres;
       commodityBE.totalCost += entityBE.totalCost;
+      commodityBE.landLoanInterest += entityBE.landLoanInterest;
+      commodityBE.operatingLoanInterest += entityBE.operatingLoanInterest;
       commodityBE.expectedBushels += entityBE.expectedBushels;
     }
 
@@ -135,12 +145,20 @@ export class BreakEvenAnalyticsService {
     // Calculate operation totals
     const totalAcres = byCommodity.reduce((sum, c) => sum + c.acres, 0);
     const totalCost = byCommodity.reduce((sum, c) => sum + c.totalCost, 0);
+    const totalLandLoanInterest = byCommodity.reduce((sum, c) => sum + c.landLoanInterest, 0);
+    const totalOperatingLoanInterest = byCommodity.reduce((sum, c) => sum + c.operatingLoanInterest, 0);
+    const totalInterestExpense = totalLandLoanInterest + totalOperatingLoanInterest;
 
     return {
       businessId,
       year,
       totalAcres,
       totalCost,
+      totalInterestExpense,
+      interestBreakdown: {
+        landLoans: totalLandLoanInterest,
+        operatingLoans: totalOperatingLoanInterest
+      },
       byCommodity,
       byEntity
     };
@@ -228,8 +246,14 @@ export class BreakEvenAnalyticsService {
       }
     }
 
-    // Total costs
-    const totalCost = fertilizerCost + chemicalCost + seedCost + landRent + insurance + otherCosts;
+    // Interest expense (placeholder - will be populated by LoanInterestService)
+    const landLoanInterest = 0;
+    const operatingLoanInterest = 0;
+    const totalInterestExpense = landLoanInterest + operatingLoanInterest;
+
+    // Total costs (excluding interest for separate tracking)
+    const totalCostExcludingInterest = fertilizerCost + chemicalCost + seedCost + landRent + insurance + otherCosts;
+    const totalCost = totalCostExcludingInterest + totalInterestExpense;
     const costPerAcre = acres > 0 ? totalCost / acres : 0;
 
     // Get expected yield from production data
@@ -252,7 +276,11 @@ export class BreakEvenAnalyticsService {
       landRent,
       insurance,
       otherCosts,
+      landLoanInterest,
+      operatingLoanInterest,
+      totalInterestExpense,
       totalCost,
+      totalCostExcludingInterest,
       costPerAcre,
       expectedYield,
       expectedBushels,
