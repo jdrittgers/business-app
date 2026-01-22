@@ -695,27 +695,31 @@ export class LoanInterestService {
       });
       const totalEntityAcres = entityFarms.reduce((sum, f) => sum + Number(f.acres), 0);
 
-      // Calculate total entity operating interest (YTD)
+      // Calculate total entity operating interest (YTD) - daily accrual
       const totalEntityInterest = farm.grainEntity.operatingLoans.reduce((sum, loan) => {
         const rate = Number(loan.interestRate);
         const balance = Number(loan.currentBalance);
         const now = new Date();
         const currentYear = now.getFullYear();
+        const startOfYear = new Date(year, 0, 1);
+        const endOfYear = new Date(year, 11, 31);
 
-        // For past years, use full year (12 months)
-        // For current year, use months elapsed so far
-        // For future years, estimate full year
-        let monthsToUse: number;
+        // Calculate days for interest accrual
+        let daysToUse: number;
         if (year < currentYear) {
-          monthsToUse = 12; // Full year for past years
+          // Past year: full 365 days
+          daysToUse = 365;
         } else if (year > currentYear) {
-          monthsToUse = 12; // Project full year for future planning
+          // Future year: project full 365 days for planning
+          daysToUse = 365;
         } else {
-          // Current year - use months elapsed (1-indexed)
-          monthsToUse = now.getMonth() + 1;
+          // Current year: days elapsed from Jan 1 to today
+          const msPerDay = 1000 * 60 * 60 * 24;
+          daysToUse = Math.floor((now.getTime() - startOfYear.getTime()) / msPerDay) + 1;
         }
 
-        return sum + balance * rate * (monthsToUse / 12);
+        // Daily interest = balance * (annual rate / 365) * days
+        return sum + balance * rate * (daysToUse / 365);
       }, 0);
 
       const farmAcres = Number(farm.acres);
@@ -789,28 +793,32 @@ export class LoanInterestService {
       include: { grainEntity: { select: { id: true, name: true } } }
     });
 
-    // Group by entity
+    // Group by entity - calculate daily interest accrual
     const entityMap = new Map<string, { id: string; name: string; ytdInterest: number }>();
     const now = new Date();
     const currentYear = now.getFullYear();
+    const startOfYear = new Date(year, 0, 1);
 
     for (const loan of operatingLoans) {
       const rate = Number(loan.interestRate);
       const balance = Number(loan.currentBalance);
 
-      // For past years, use full year (12 months)
-      // For current year, use months elapsed so far
-      // For future years, project full year
-      let monthsToUse: number;
+      // Calculate days for interest accrual
+      let daysToUse: number;
       if (year < currentYear) {
-        monthsToUse = 12;
+        // Past year: full 365 days
+        daysToUse = 365;
       } else if (year > currentYear) {
-        monthsToUse = 12;
+        // Future year: project full 365 days for planning
+        daysToUse = 365;
       } else {
-        monthsToUse = now.getMonth() + 1;
+        // Current year: days elapsed from Jan 1 to today
+        const msPerDay = 1000 * 60 * 60 * 24;
+        daysToUse = Math.floor((now.getTime() - startOfYear.getTime()) / msPerDay) + 1;
       }
 
-      const ytdInterest = balance * rate * (monthsToUse / 12);
+      // Daily interest = balance * (annual rate / 365) * days
+      const ytdInterest = balance * rate * (daysToUse / 365);
 
       const existing = entityMap.get(loan.grainEntityId);
       if (existing) {
