@@ -378,6 +378,11 @@ model GrainEntity {
   grainBins      GrainBin[]
   operatingLoans OperatingLoan[]
 
+  // Entity splits (farms/equipment/land split across entities)
+  farmEntitySplits      FarmEntitySplit[]
+  equipmentEntitySplits EquipmentEntitySplit[]
+  landParcelEntitySplits LandParcelEntitySplit[]
+
   @@unique([businessId, name])
   @@index([businessId])
   @@index([deletedAt])
@@ -653,6 +658,27 @@ model Farm {
   @@index([year])
   @@index([deletedAt])
   @@unique([grainEntityId, name, year])
+
+  // Entity splits (when farm is owned by multiple entities)
+  entitySplits  FarmEntitySplit[]
+}
+
+// Entity ownership splits for farms (e.g., 50% JDR Ag, 50% JVR Ag)
+model FarmEntitySplit {
+  id            String      @id @default(uuid())
+  farmId        String      @map("farm_id")
+  grainEntityId String      @map("grain_entity_id")
+  percentage    Decimal     @db.Decimal(5, 2) // 0.00 to 100.00
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  farm          Farm        @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  grainEntity   GrainEntity @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([farmId, grainEntityId])
+  @@index([farmId])
+  @@index([grainEntityId])
+  @@map("farm_entity_splits")
 }
 
 model FarmFertilizerUsage {
@@ -2123,10 +2149,31 @@ model LandParcel {
   farms           Farm[]
   landLoans       LandLoan[]
 
+  // Entity splits (when land is owned by multiple entities)
+  entitySplits    LandParcelEntitySplit[]
+
   @@unique([businessId, name])
   @@index([businessId])
   @@index([deletedAt])
   @@map("land_parcels")
+}
+
+// Entity ownership splits for land parcels (e.g., 50% JDR Ag, 50% JVR Ag)
+model LandParcelEntitySplit {
+  id            String      @id @default(uuid())
+  landParcelId  String      @map("land_parcel_id")
+  grainEntityId String      @map("grain_entity_id")
+  percentage    Decimal     @db.Decimal(5, 2) // 0.00 to 100.00
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  landParcel    LandParcel  @relation(fields: [landParcelId], references: [id], onDelete: Cascade)
+  grainEntity   GrainEntity @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([landParcelId, grainEntityId])
+  @@index([landParcelId])
+  @@index([grainEntityId])
+  @@map("land_parcel_entity_splits")
 }
 
 model LandLoan {
@@ -2254,10 +2301,31 @@ model Equipment {
   business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   equipmentLoans  EquipmentLoan[]
 
+  // Entity splits (when equipment is owned by multiple entities)
+  entitySplits    EquipmentEntitySplit[]
+
   @@index([businessId])
   @@index([equipmentType])
   @@index([deletedAt])
   @@map("equipment")
+}
+
+// Entity ownership splits for equipment (e.g., 50% JDR Ag, 50% JVR Ag)
+model EquipmentEntitySplit {
+  id            String      @id @default(uuid())
+  equipmentId   String      @map("equipment_id")
+  grainEntityId String      @map("grain_entity_id")
+  percentage    Decimal     @db.Decimal(5, 2) // 0.00 to 100.00
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  equipment     Equipment   @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  grainEntity   GrainEntity @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([equipmentId, grainEntityId])
+  @@index([equipmentId])
+  @@index([grainEntityId])
+  @@map("equipment_entity_splits")
 }
 
 model EquipmentLoan {

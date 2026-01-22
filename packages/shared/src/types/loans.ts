@@ -32,6 +32,19 @@ export enum EquipmentFinancingType {
   LEASE = 'LEASE'
 }
 
+// Entity Split Types (for shared ownership across entities)
+export interface EntitySplit {
+  id: string;
+  grainEntityId: string;
+  grainEntityName?: string;
+  percentage: number; // 0-100
+}
+
+export interface CreateEntitySplitRequest {
+  grainEntityId: string;
+  percentage: number;
+}
+
 // Land Parcel Types
 export interface LandParcel {
   id: string;
@@ -52,6 +65,7 @@ export interface LandParcel {
   annualInterestExpense?: number;
   farms?: Array<{ id: string; name: string; year: number; acres: number; commodityType: string }>;
   landLoans?: LandLoan[];
+  entitySplits?: EntitySplit[];
 }
 
 export interface CreateLandParcelRequest {
@@ -63,6 +77,7 @@ export interface CreateLandParcelRequest {
   purchaseDate?: string;
   purchasePrice?: number;
   notes?: string;
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 export interface UpdateLandParcelRequest {
@@ -75,6 +90,7 @@ export interface UpdateLandParcelRequest {
   purchasePrice?: number;
   notes?: string;
   isActive?: boolean;
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 // Land Loan Types
@@ -302,6 +318,7 @@ export interface Equipment {
   annualInterestExpense?: number;
   annualPrincipalExpense?: number;
   equipmentLoans?: EquipmentLoan[];
+  entitySplits?: EntitySplit[];
 }
 
 export interface CreateEquipmentRequest {
@@ -315,6 +332,7 @@ export interface CreateEquipmentRequest {
   purchasePrice?: number;
   currentValue?: number;
   notes?: string;
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 export interface UpdateEquipmentRequest {
@@ -329,6 +347,7 @@ export interface UpdateEquipmentRequest {
   currentValue?: number;
   notes?: string;
   isActive?: boolean;
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 // Equipment Loan Types

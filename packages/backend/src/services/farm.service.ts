@@ -175,34 +175,64 @@ export class FarmService {
       throw new Error('Grain entity not found');
     }
 
+    // Extract entitySplits from data
+    const { entitySplits, ...farmData } = data;
+
     const farm = await prisma.farm.create({
       data: {
-        grainEntityId: data.grainEntityId,
-        name: data.name,
-        acres: data.acres,
-        commodityType: data.commodityType,
-        year: data.year,
-        projectedYield: data.projectedYield,
-        aph: data.aph,
-        notes: data.notes
+        grainEntityId: farmData.grainEntityId,
+        landParcelId: farmData.landParcelId,
+        name: farmData.name,
+        acres: farmData.acres,
+        commodityType: farmData.commodityType,
+        year: farmData.year,
+        projectedYield: farmData.projectedYield,
+        aph: farmData.aph,
+        notes: farmData.notes
       },
       include: {
         grainEntity: true
       }
     });
 
+    // Create entity splits if provided
+    if (entitySplits && entitySplits.length > 0) {
+      await prisma.farmEntitySplit.createMany({
+        data: entitySplits.map(split => ({
+          farmId: farm.id,
+          grainEntityId: split.grainEntityId,
+          percentage: split.percentage
+        }))
+      });
+    }
+
+    // Fetch with splits
+    const farmWithSplits = await prisma.farm.findUnique({
+      where: { id: farm.id },
+      include: {
+        grainEntity: true,
+        entitySplits: { include: { grainEntity: true } }
+      }
+    });
+
     return {
-      ...farm,
-      acres: Number(farm.acres),
-      projectedYield: Number(farm.projectedYield),
-      aph: Number(farm.aph),
-      commodityType: farm.commodityType as any,
-      grainEntity: farm.grainEntity,
-      notes: farm.notes || undefined,
-      landParcelId: farm.landParcelId || undefined,
-      planApproved: farm.planApproved,
-      planApprovedAt: farm.planApprovedAt || undefined,
-      planApprovedBy: farm.planApprovedBy || undefined
+      ...farmWithSplits!,
+      acres: Number(farmWithSplits!.acres),
+      projectedYield: Number(farmWithSplits!.projectedYield),
+      aph: Number(farmWithSplits!.aph),
+      commodityType: farmWithSplits!.commodityType as any,
+      grainEntity: farmWithSplits!.grainEntity,
+      notes: farmWithSplits!.notes || undefined,
+      landParcelId: farmWithSplits!.landParcelId || undefined,
+      planApproved: farmWithSplits!.planApproved,
+      planApprovedAt: farmWithSplits!.planApprovedAt || undefined,
+      planApprovedBy: farmWithSplits!.planApprovedBy || undefined,
+      entitySplits: farmWithSplits!.entitySplits.map(s => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity.name,
+        percentage: Number(s.percentage)
+      }))
     };
   }
 
@@ -213,26 +243,62 @@ export class FarmService {
       throw new Error('Farm not found');
     }
 
+    // Extract entitySplits from data to handle separately
+    const { entitySplits, ...farmData } = data;
+
     const farm = await prisma.farm.update({
       where: { id },
-      data,
+      data: farmData,
       include: {
-        grainEntity: true
+        grainEntity: true,
+        entitySplits: { include: { grainEntity: true } }
+      }
+    });
+
+    // Handle entity splits if provided
+    if (entitySplits) {
+      // Delete existing splits
+      await prisma.farmEntitySplit.deleteMany({ where: { farmId: id } });
+
+      // Create new splits
+      if (entitySplits.length > 0) {
+        await prisma.farmEntitySplit.createMany({
+          data: entitySplits.map(split => ({
+            farmId: id,
+            grainEntityId: split.grainEntityId,
+            percentage: split.percentage
+          }))
+        });
+      }
+    }
+
+    // Re-fetch with updated splits
+    const updatedFarm = await prisma.farm.findUnique({
+      where: { id },
+      include: {
+        grainEntity: true,
+        entitySplits: { include: { grainEntity: true } }
       }
     });
 
     return {
-      ...farm,
-      acres: Number(farm.acres),
-      projectedYield: Number(farm.projectedYield),
-      aph: Number(farm.aph),
-      commodityType: farm.commodityType as any,
-      grainEntity: farm.grainEntity,
-      notes: farm.notes || undefined,
-      landParcelId: farm.landParcelId || undefined,
-      planApproved: farm.planApproved,
-      planApprovedAt: farm.planApprovedAt || undefined,
-      planApprovedBy: farm.planApprovedBy || undefined
+      ...updatedFarm!,
+      acres: Number(updatedFarm!.acres),
+      projectedYield: Number(updatedFarm!.projectedYield),
+      aph: Number(updatedFarm!.aph),
+      commodityType: updatedFarm!.commodityType as any,
+      grainEntity: updatedFarm!.grainEntity,
+      notes: updatedFarm!.notes || undefined,
+      landParcelId: updatedFarm!.landParcelId || undefined,
+      planApproved: updatedFarm!.planApproved,
+      planApprovedAt: updatedFarm!.planApprovedAt || undefined,
+      planApprovedBy: updatedFarm!.planApprovedBy || undefined,
+      entitySplits: updatedFarm!.entitySplits.map(s => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity.name,
+        percentage: Number(s.percentage)
+      }))
     };
   }
 

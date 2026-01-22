@@ -1,4 +1,5 @@
 import { CommodityType, GrainEntity } from './grain';
+import { EntitySplit, CreateEntitySplitRequest } from './loans';
 
 // Enums
 export enum CostType {
@@ -154,6 +155,7 @@ export interface Farm {
   chemicalUsage?: FarmChemicalUsage[];
   seedUsage?: FarmSeedUsage[];
   otherCosts?: FarmOtherCost[];
+  entitySplits?: EntitySplit[];
 }
 
 export interface CreateFarmRequest {
@@ -166,6 +168,7 @@ export interface CreateFarmRequest {
   projectedYield: number;
   aph: number;
   notes?: string;
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 export interface UpdateFarmRequest {
@@ -176,6 +179,7 @@ export interface UpdateFarmRequest {
   projectedYield?: number;
   aph?: number;
   notes?: string;
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 export interface GetFarmsQuery {
