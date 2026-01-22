@@ -13,7 +13,15 @@ import {
   UpdateOperatingLoanRequest,
   OperatingLoanTransaction,
   LoanInterestSummary,
-  FarmInterestAllocation
+  FarmInterestAllocation,
+  Equipment,
+  CreateEquipmentRequest,
+  UpdateEquipmentRequest,
+  EquipmentLoan,
+  CreateEquipmentLoanRequest,
+  UpdateEquipmentLoanRequest,
+  EquipmentLoanPayment,
+  CreateEquipmentLoanPaymentRequest
 } from '@business-app/shared';
 
 export const loansApi = {
@@ -158,6 +166,75 @@ export const loansApi = {
   getFarmInterestAllocation: async (businessId: string, farmId: string, year?: number): Promise<FarmInterestAllocation> => {
     const params = year ? { year } : {};
     const response = await apiClient.get(`/api/businesses/${businessId}/farms/${farmId}/interest`, { params });
+    return response.data;
+  },
+
+  // ===== Equipment =====
+
+  // Get all equipment for a business
+  getEquipment: async (businessId: string, isActive?: boolean): Promise<Equipment[]> => {
+    const params = isActive !== undefined ? { isActive } : {};
+    const response = await apiClient.get(`/api/businesses/${businessId}/equipment`, { params });
+    return response.data;
+  },
+
+  // Get a single equipment item
+  getEquipmentById: async (businessId: string, equipmentId: string): Promise<Equipment> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/equipment/${equipmentId}`);
+    return response.data;
+  },
+
+  // Create new equipment
+  createEquipment: async (businessId: string, data: CreateEquipmentRequest): Promise<Equipment> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/equipment`, data);
+    return response.data;
+  },
+
+  // Update equipment
+  updateEquipment: async (businessId: string, equipmentId: string, data: UpdateEquipmentRequest): Promise<Equipment> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/equipment/${equipmentId}`, data);
+    return response.data;
+  },
+
+  // Delete equipment (soft delete)
+  deleteEquipment: async (businessId: string, equipmentId: string): Promise<void> => {
+    await apiClient.delete(`/api/businesses/${businessId}/equipment/${equipmentId}`);
+  },
+
+  // ===== Equipment Loans =====
+
+  // Get loans for an equipment item
+  getEquipmentLoans: async (equipmentId: string): Promise<EquipmentLoan[]> => {
+    const response = await apiClient.get(`/api/equipment/${equipmentId}/loans`);
+    return response.data;
+  },
+
+  // Get a single equipment loan
+  getEquipmentLoan: async (loanId: string): Promise<EquipmentLoan> => {
+    const response = await apiClient.get(`/api/equipment-loans/${loanId}`);
+    return response.data;
+  },
+
+  // Create a new equipment loan
+  createEquipmentLoan: async (equipmentId: string, data: CreateEquipmentLoanRequest): Promise<EquipmentLoan> => {
+    const response = await apiClient.post(`/api/equipment/${equipmentId}/loans`, data);
+    return response.data;
+  },
+
+  // Update an equipment loan
+  updateEquipmentLoan: async (loanId: string, data: UpdateEquipmentLoanRequest): Promise<EquipmentLoan> => {
+    const response = await apiClient.put(`/api/equipment-loans/${loanId}`, data);
+    return response.data;
+  },
+
+  // Delete an equipment loan (soft delete)
+  deleteEquipmentLoan: async (loanId: string): Promise<void> => {
+    await apiClient.delete(`/api/equipment-loans/${loanId}`);
+  },
+
+  // Record a payment on an equipment loan
+  recordEquipmentLoanPayment: async (loanId: string, data: CreateEquipmentLoanPaymentRequest): Promise<EquipmentLoanPayment> => {
+    const response = await apiClient.post(`/api/equipment-loans/${loanId}/payments`, data);
     return response.data;
   }
 };

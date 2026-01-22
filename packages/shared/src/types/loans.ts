@@ -15,6 +15,23 @@ export enum LoanTransactionType {
   ADJUSTMENT = 'ADJUSTMENT'
 }
 
+export enum EquipmentType {
+  TRACTOR = 'TRACTOR',
+  COMBINE = 'COMBINE',
+  PLANTER = 'PLANTER',
+  SPRAYER = 'SPRAYER',
+  GRAIN_CART = 'GRAIN_CART',
+  SEMI_TRUCK = 'SEMI_TRUCK',
+  TRAILER = 'TRAILER',
+  TILLAGE = 'TILLAGE',
+  OTHER = 'OTHER'
+}
+
+export enum EquipmentFinancingType {
+  LOAN = 'LOAN',
+  LEASE = 'LEASE'
+}
+
 // Land Parcel Types
 export interface LandParcel {
   id: string;
@@ -243,5 +260,148 @@ export interface FarmInterestAllocation {
   farmId: string;
   landLoanInterest: number;
   operatingLoanInterest: number;
+  equipmentLoanInterest: number;
   totalInterest: number;
+}
+
+// ===== Equipment Types =====
+
+export interface Equipment {
+  id: string;
+  businessId: string;
+  name: string;
+  equipmentType: EquipmentType;
+  year?: number;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: Date;
+  purchasePrice?: number;
+  currentValue?: number;
+  notes?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  // Computed/included fields
+  totalLoanBalance?: number;
+  annualInterestExpense?: number;
+  equipmentLoans?: EquipmentLoan[];
+}
+
+export interface CreateEquipmentRequest {
+  name: string;
+  equipmentType: EquipmentType;
+  year?: number;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  currentValue?: number;
+  notes?: string;
+}
+
+export interface UpdateEquipmentRequest {
+  name?: string;
+  equipmentType?: EquipmentType;
+  year?: number;
+  make?: string;
+  model?: string;
+  serialNumber?: string;
+  purchaseDate?: string;
+  purchasePrice?: number;
+  currentValue?: number;
+  notes?: string;
+  isActive?: boolean;
+}
+
+// Equipment Loan Types
+export interface EquipmentLoan {
+  id: string;
+  equipmentId: string;
+  lender: string;
+  loanNumber?: string;
+  financingType: EquipmentFinancingType;
+  useSimpleMode: boolean;
+  // Full amortization fields (for loans)
+  principal?: number;
+  interestRate?: number;
+  termMonths?: number;
+  startDate?: Date;
+  paymentFrequency?: PaymentFrequency;
+  monthlyPayment?: number;
+  remainingBalance?: number;
+  // Simple mode / Lease fields
+  annualPayment?: number;
+  // Lease-specific fields
+  leaseEndDate?: Date;
+  residualValue?: number;
+  notes?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  // Computed
+  annualInterestExpense?: number;
+  equipment?: Equipment;
+  payments?: EquipmentLoanPayment[];
+}
+
+export interface CreateEquipmentLoanRequest {
+  lender: string;
+  loanNumber?: string;
+  financingType: EquipmentFinancingType;
+  useSimpleMode: boolean;
+  // Full amortization (for loans)
+  principal?: number;
+  interestRate?: number;
+  termMonths?: number;
+  startDate?: string;
+  paymentFrequency?: PaymentFrequency;
+  monthlyPayment?: number;
+  remainingBalance?: number;
+  // Simple mode / Lease
+  annualPayment?: number;
+  // Lease-specific
+  leaseEndDate?: string;
+  residualValue?: number;
+  notes?: string;
+}
+
+export interface UpdateEquipmentLoanRequest {
+  lender?: string;
+  loanNumber?: string;
+  financingType?: EquipmentFinancingType;
+  useSimpleMode?: boolean;
+  principal?: number;
+  interestRate?: number;
+  termMonths?: number;
+  startDate?: string;
+  paymentFrequency?: PaymentFrequency;
+  monthlyPayment?: number;
+  remainingBalance?: number;
+  annualPayment?: number;
+  leaseEndDate?: string;
+  residualValue?: number;
+  notes?: string;
+  isActive?: boolean;
+}
+
+// Equipment Loan Payment Types
+export interface EquipmentLoanPayment {
+  id: string;
+  equipmentLoanId: string;
+  paymentDate: Date;
+  totalAmount: number;
+  principalAmount: number;
+  interestAmount: number;
+  notes?: string;
+  createdAt: Date;
+}
+
+export interface CreateEquipmentLoanPaymentRequest {
+  paymentDate: string;
+  totalAmount: number;
+  principalAmount: number;
+  interestAmount: number;
+  notes?: string;
 }

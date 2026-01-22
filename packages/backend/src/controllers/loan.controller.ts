@@ -5,7 +5,9 @@ import {
   landParcelService,
   landLoanService,
   operatingLoanService,
-  loanInterestService
+  loanInterestService,
+  equipmentService,
+  equipmentLoanService
 } from '../services/loan.service';
 
 const router = Router();
@@ -262,6 +264,141 @@ router.post('/operating-loans/:id/payment', async (req: AuthRequest, res: Respon
     res.status(201).json(transaction);
   } catch (error: any) {
     console.error('Error recording operating loan payment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Equipment =====
+
+// Get all equipment for a business
+router.get('/businesses/:businessId/equipment', async (req: AuthRequest, res: Response) => {
+  try {
+    const isActive = req.query.isActive === 'true' ? true :
+                     req.query.isActive === 'false' ? false : undefined;
+    const equipment = await equipmentService.getAll(req.params.businessId, { isActive });
+    res.json(equipment);
+  } catch (error: any) {
+    console.error('Error getting equipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get a specific equipment item
+router.get('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const equipment = await equipmentService.getById(req.params.id, req.params.businessId);
+    if (!equipment) {
+      res.status(404).json({ error: 'Equipment not found' });
+      return;
+    }
+    res.json(equipment);
+  } catch (error: any) {
+    console.error('Error getting equipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create new equipment
+router.post('/businesses/:businessId/equipment', async (req: AuthRequest, res: Response) => {
+  try {
+    const equipment = await equipmentService.create(req.params.businessId, req.body);
+    res.status(201).json(equipment);
+  } catch (error: any) {
+    console.error('Error creating equipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update equipment
+router.put('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const equipment = await equipmentService.update(req.params.id, req.params.businessId, req.body);
+    res.json(equipment);
+  } catch (error: any) {
+    console.error('Error updating equipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete (soft) equipment
+router.delete('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    await equipmentService.delete(req.params.id, req.params.businessId);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Error deleting equipment:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Equipment Loans =====
+
+// Get all loans for an equipment item
+router.get('/equipment/:equipmentId/loans', async (req: AuthRequest, res: Response) => {
+  try {
+    const loans = await equipmentLoanService.getByEquipment(req.params.equipmentId);
+    res.json(loans);
+  } catch (error: any) {
+    console.error('Error getting equipment loans:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get a specific equipment loan
+router.get('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const loan = await equipmentLoanService.getById(req.params.id);
+    if (!loan) {
+      res.status(404).json({ error: 'Equipment loan not found' });
+      return;
+    }
+    res.json(loan);
+  } catch (error: any) {
+    console.error('Error getting equipment loan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new loan for an equipment item
+router.post('/equipment/:equipmentId/loans', async (req: AuthRequest, res: Response) => {
+  try {
+    const loan = await equipmentLoanService.create(req.params.equipmentId, req.body);
+    res.status(201).json(loan);
+  } catch (error: any) {
+    console.error('Error creating equipment loan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update an equipment loan
+router.put('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const loan = await equipmentLoanService.update(req.params.id, req.body);
+    res.json(loan);
+  } catch (error: any) {
+    console.error('Error updating equipment loan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete (soft) an equipment loan
+router.delete('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    await equipmentLoanService.delete(req.params.id);
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Error deleting equipment loan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Record a payment on an equipment loan
+router.post('/equipment-loans/:id/payments', async (req: AuthRequest, res: Response) => {
+  try {
+    const payment = await equipmentLoanService.recordPayment(req.params.id, req.body);
+    res.status(201).json(payment);
+  } catch (error: any) {
+    console.error('Error recording equipment loan payment:', error);
     res.status(500).json({ error: error.message });
   }
 });

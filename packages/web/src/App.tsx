@@ -42,6 +42,7 @@ import Marketplace from './pages/Marketplace';
 import FarmerAccessManagement from './pages/FarmerAccessManagement';
 import LandParcels from './pages/LandParcels';
 import OperatingLoans from './pages/OperatingLoans';
+import EquipmentLoans from './pages/EquipmentLoans';
 import RequireRole from './components/RequireRole';
 
 // Wrapper for authenticated farmer routes with layout
@@ -96,6 +97,7 @@ function App() {
       <Route path="/invoice-parsing" element={<AuthRoute><InvoiceParsing /></AuthRoute>} />
       <Route path="/loans/land-parcels" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><LandParcels /></RequireRole></AuthRoute>} />
       <Route path="/loans/operating" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><OperatingLoans /></RequireRole></AuthRoute>} />
+      <Route path="/loans/equipment" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><EquipmentLoans /></RequireRole></AuthRoute>} />
       <Route path="/grain-contracts/bins" element={<AuthRoute><GrainBins /></AuthRoute>} />
 
       {/* Marketplace Routes */}
