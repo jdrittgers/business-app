@@ -10,7 +10,8 @@ import {
   GrainEntity,
   CommodityType,
   FarmBreakEven,
-  LandParcel
+  LandParcel,
+  CreateEntitySplitRequest
 } from '@business-app/shared';
 
 // Default harvest prices (will be updated from Yahoo Finance)
@@ -54,8 +55,10 @@ export default function FarmManagement() {
     year: new Date().getFullYear(),
     projectedYield: '200',
     aph: '200',
-    notes: ''
+    notes: '',
+    entitySplits: [] as CreateEntitySplitRequest[]
   });
+  const [useEntitySplits, setUseEntitySplits] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -216,13 +219,16 @@ export default function FarmManagement() {
       year: filterYear,
       projectedYield: '200',
       aph: '200',
-      notes: ''
+      notes: '',
+      entitySplits: []
     });
+    setUseEntitySplits(false);
     setShowModal(true);
   };
 
   const handleEdit = (farm: Farm) => {
     setEditingFarm(farm);
+    const hasEntitySplits = !!(farm.entitySplits && farm.entitySplits.length > 0);
     setFormData({
       grainEntityId: farm.grainEntityId,
       landParcelId: farm.landParcelId || null,
@@ -232,8 +238,12 @@ export default function FarmManagement() {
       year: farm.year,
       projectedYield: farm.projectedYield.toString(),
       aph: farm.aph.toString(),
-      notes: farm.notes || ''
+      notes: farm.notes || '',
+      entitySplits: hasEntitySplits
+        ? farm.entitySplits!.map(s => ({ grainEntityId: s.grainEntityId, percentage: s.percentage }))
+        : []
     });
+    setUseEntitySplits(hasEntitySplits);
     setShowModal(true);
   };
 
@@ -253,6 +263,15 @@ export default function FarmManagement() {
     e.preventDefault();
     if (!selectedBusinessId) return;
 
+    // Validate entity splits total to 100% if using splits
+    if (useEntitySplits && formData.entitySplits.length > 0) {
+      const total = formData.entitySplits.reduce((sum, s) => sum + s.percentage, 0);
+      if (Math.abs(total - 100) > 0.01) {
+        alert('Entity split percentages must total 100%');
+        return;
+      }
+    }
+
     try {
       const data = {
         grainEntityId: formData.grainEntityId,
@@ -263,7 +282,10 @@ export default function FarmManagement() {
         year: formData.year,
         projectedYield: parseFloat(formData.projectedYield),
         aph: parseFloat(formData.aph),
-        notes: formData.notes || undefined
+        notes: formData.notes || undefined,
+        entitySplits: useEntitySplits && formData.entitySplits.length > 0
+          ? formData.entitySplits
+          : undefined
       };
 
       if (editingFarm) {
@@ -457,7 +479,18 @@ export default function FarmManagement() {
                       <span className="text-2xl">{getCommodityIcon(farm.commodityType)}</span>
                       <div>
                         <h3 className="font-semibold text-gray-900">{farm.name}</h3>
-                        <p className="text-xs text-gray-500">{farm.grainEntity?.name || 'No Entity'}</p>
+                        {farm.entitySplits && farm.entitySplits.length > 0 ? (
+                          <p className="text-xs text-gray-500">
+                            {farm.entitySplits.map((s, i) => (
+                              <span key={s.id}>
+                                {i > 0 && ' / '}
+                                {s.grainEntityName || entities.find(e => e.id === s.grainEntityId)?.name} ({s.percentage}%)
+                              </span>
+                            ))}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500">{farm.grainEntity?.name || 'No Entity'}</p>
+                        )}
                       </div>
                     </div>
                     <div className={`text-right ${farm.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -568,7 +601,18 @@ export default function FarmManagement() {
                       </button>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                      {farm.grainEntity?.name || '-'}
+                      {farm.entitySplits && farm.entitySplits.length > 0 ? (
+                        <span>
+                          {farm.entitySplits.map((s, i) => (
+                            <span key={s.id}>
+                              {i > 0 && ' / '}
+                              {s.grainEntityName || entities.find(e => e.id === s.grainEntityId)?.name} ({s.percentage}%)
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        farm.grainEntity?.name || '-'
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-center">
                       <span className="text-lg">{getCommodityIcon(farm.commodityType)}</span>
@@ -613,19 +657,122 @@ export default function FarmManagement() {
 
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Entity *</label>
-                  <select
-                    value={formData.grainEntityId}
-                    onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
-                    required
-                  >
-                    <option value="">Select Entity</option>
-                    {entities.map(entity => (
-                      <option key={entity.id} value={entity.id}>{entity.name}</option>
-                    ))}
-                  </select>
+                {/* Entity Selection - Single or Split */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">Entity *</label>
+                    <label className="flex items-center text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={useEntitySplits}
+                        onChange={(e) => {
+                          setUseEntitySplits(e.target.checked);
+                          if (e.target.checked && formData.entitySplits.length === 0) {
+                            // Initialize with current entity at 100%
+                            setFormData({
+                              ...formData,
+                              entitySplits: formData.grainEntityId
+                                ? [{ grainEntityId: formData.grainEntityId, percentage: 100 }]
+                                : []
+                            });
+                          }
+                        }}
+                        className="mr-2 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      Split between entities
+                    </label>
+                  </div>
+
+                  {!useEntitySplits ? (
+                    <select
+                      value={formData.grainEntityId}
+                      onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      required
+                    >
+                      <option value="">Select Entity</option>
+                      {entities.map(entity => (
+                        <option key={entity.id} value={entity.id}>{entity.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      {formData.entitySplits.map((split, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <select
+                            value={split.grainEntityId}
+                            onChange={(e) => {
+                              const newSplits = [...formData.entitySplits];
+                              newSplits[index].grainEntityId = e.target.value;
+                              setFormData({ ...formData, entitySplits: newSplits });
+                            }}
+                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+                            required
+                          >
+                            <option value="">Select Entity</option>
+                            {entities.map(entity => (
+                              <option key={entity.id} value={entity.id}>{entity.name}</option>
+                            ))}
+                          </select>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={split.percentage}
+                              onChange={(e) => {
+                                const newSplits = [...formData.entitySplits];
+                                newSplits[index].percentage = parseFloat(e.target.value) || 0;
+                                setFormData({ ...formData, entitySplits: newSplits });
+                              }}
+                              className="w-20 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+                              required
+                            />
+                            <span className="text-sm text-gray-500">%</span>
+                          </div>
+                          {formData.entitySplits.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSplits = formData.entitySplits.filter((_, i) => i !== index);
+                                setFormData({ ...formData, entitySplits: newSplits });
+                              }}
+                              className="p-1 text-red-500 hover:text-red-700"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              entitySplits: [...formData.entitySplits, { grainEntityId: '', percentage: 0 }]
+                            });
+                          }}
+                          className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                        >
+                          + Add Entity
+                        </button>
+                        <div className="text-sm">
+                          <span className="text-gray-500">Total: </span>
+                          <span className={`font-medium ${
+                            Math.abs(formData.entitySplits.reduce((sum, s) => sum + s.percentage, 0) - 100) < 0.01
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          }`}>
+                            {formData.entitySplits.reduce((sum, s) => sum + s.percentage, 0).toFixed(2)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

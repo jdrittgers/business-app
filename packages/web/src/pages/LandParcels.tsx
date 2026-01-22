@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { loansApi } from '../api/loans.api';
+import { grainContractsApi } from '../api/grain-contracts.api';
 import {
   LandParcel,
   LandLoan,
   CreateLandParcelRequest,
   CreateLandLoanRequest,
-  PaymentFrequency
+  PaymentFrequency,
+  GrainEntity,
+  CreateEntitySplitRequest
 } from '@business-app/shared';
 
 // Modal component for creating/editing land parcels
@@ -15,17 +18,21 @@ interface ParcelModalProps {
   onClose: () => void;
   onSave: (data: CreateLandParcelRequest) => Promise<void>;
   parcel?: LandParcel | null;
+  entities: GrainEntity[];
 }
 
-function ParcelModal({ isOpen, onClose, onSave, parcel }: ParcelModalProps) {
-  const [formData, setFormData] = useState<CreateLandParcelRequest>({
+function ParcelModal({ isOpen, onClose, onSave, parcel, entities }: ParcelModalProps) {
+  const [formData, setFormData] = useState<CreateLandParcelRequest & { entitySplits?: CreateEntitySplitRequest[] }>({
     name: '',
-    totalAcres: 0
+    totalAcres: 0,
+    entitySplits: []
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [useEntitySplits, setUseEntitySplits] = useState(false);
 
   useEffect(() => {
     if (parcel) {
+      const hasEntitySplits = !!(parcel.entitySplits && parcel.entitySplits.length > 0);
       setFormData({
         name: parcel.name,
         totalAcres: parcel.totalAcres,
@@ -34,18 +41,39 @@ function ParcelModal({ isOpen, onClose, onSave, parcel }: ParcelModalProps) {
         state: parcel.state,
         purchaseDate: parcel.purchaseDate ? new Date(parcel.purchaseDate).toISOString().split('T')[0] : undefined,
         purchasePrice: parcel.purchasePrice,
-        notes: parcel.notes
+        notes: parcel.notes,
+        entitySplits: hasEntitySplits
+          ? parcel.entitySplits!.map(s => ({ grainEntityId: s.grainEntityId, percentage: s.percentage }))
+          : []
       });
+      setUseEntitySplits(hasEntitySplits);
     } else {
-      setFormData({ name: '', totalAcres: 0 });
+      setFormData({ name: '', totalAcres: 0, entitySplits: [] });
+      setUseEntitySplits(false);
     }
   }, [parcel, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate entity splits total to 100% if using splits
+    if (useEntitySplits && formData.entitySplits && formData.entitySplits.length > 0) {
+      const total = formData.entitySplits.reduce((sum, s) => sum + s.percentage, 0);
+      if (Math.abs(total - 100) > 0.01) {
+        alert('Entity split percentages must total 100%');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
-      await onSave(formData);
+      const dataToSave = {
+        ...formData,
+        entitySplits: useEntitySplits && formData.entitySplits && formData.entitySplits.length > 0
+          ? formData.entitySplits
+          : undefined
+      };
+      await onSave(dataToSave);
       onClose();
     } catch (error) {
       console.error('Failed to save parcel:', error);
@@ -138,6 +166,113 @@ function ParcelModal({ isOpen, onClose, onSave, parcel }: ParcelModalProps) {
                 />
               </div>
             </div>
+
+            {/* Entity Splits */}
+            <div className="space-y-3 pt-2 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">Entity Ownership</label>
+                <label className="flex items-center text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={useEntitySplits}
+                    onChange={(e) => {
+                      setUseEntitySplits(e.target.checked);
+                      if (e.target.checked && (!formData.entitySplits || formData.entitySplits.length === 0)) {
+                        // Initialize with first entity at 100%
+                        setFormData({
+                          ...formData,
+                          entitySplits: entities.length > 0
+                            ? [{ grainEntityId: entities[0].id, percentage: 100 }]
+                            : []
+                        });
+                      }
+                    }}
+                    className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Split between entities
+                </label>
+              </div>
+
+              {useEntitySplits && (
+                <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  {(formData.entitySplits || []).map((split, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <select
+                        value={split.grainEntityId}
+                        onChange={(e) => {
+                          const newSplits = [...(formData.entitySplits || [])];
+                          newSplits[index].grainEntityId = e.target.value;
+                          setFormData({ ...formData, entitySplits: newSplits });
+                        }}
+                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                        required
+                      >
+                        <option value="">Select Entity</option>
+                        {entities.map(entity => (
+                          <option key={entity.id} value={entity.id}>{entity.name}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const newSplits = [...(formData.entitySplits || [])];
+                            newSplits[index].percentage = parseFloat(e.target.value) || 0;
+                            setFormData({ ...formData, entitySplits: newSplits });
+                          }}
+                          className="w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                          required
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                      </div>
+                      {(formData.entitySplits || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSplits = (formData.entitySplits || []).filter((_, i) => i !== index);
+                            setFormData({ ...formData, entitySplits: newSplits });
+                          }}
+                          className="p-1 text-red-500 hover:text-red-700"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          entitySplits: [...(formData.entitySplits || []), { grainEntityId: '', percentage: 0 }]
+                        });
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      + Add Entity
+                    </button>
+                    <div className="text-sm">
+                      <span className="text-gray-500">Total: </span>
+                      <span className={`font-medium ${
+                        Math.abs((formData.entitySplits || []).reduce((sum, s) => sum + s.percentage, 0) - 100) < 0.01
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}>
+                        {(formData.entitySplits || []).reduce((sum, s) => sum + s.percentage, 0).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Notes</label>
               <textarea
@@ -571,6 +706,7 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
 export default function LandParcels() {
   const { user } = useAuthStore();
   const [parcels, setParcels] = useState<LandParcel[]>([]);
+  const [entities, setEntities] = useState<GrainEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [showParcelModal, setShowParcelModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
@@ -591,8 +727,12 @@ export default function LandParcels() {
     if (!businessId) return;
     try {
       setLoading(true);
-      const data = await loansApi.getLandParcels(businessId);
-      setParcels(data);
+      const [parcelsData, entitiesData] = await Promise.all([
+        loansApi.getLandParcels(businessId),
+        grainContractsApi.getGrainEntities(businessId)
+      ]);
+      setParcels(parcelsData);
+      setEntities(entitiesData);
     } catch (error) {
       console.error('Failed to load land parcels:', error);
       alert('Failed to load land parcels');
@@ -777,6 +917,16 @@ export default function LandParcels() {
                           {parcel.county && ` - ${parcel.county}`}
                           {parcel.state && `, ${parcel.state}`}
                         </p>
+                        {parcel.entitySplits && parcel.entitySplits.length > 0 && (
+                          <p className="text-xs text-blue-600">
+                            {parcel.entitySplits.map((s, i) => (
+                              <span key={s.id}>
+                                {i > 0 && ' / '}
+                                {s.grainEntityName || entities.find(e => e.id === s.grainEntityId)?.name} ({s.percentage}%)
+                              </span>
+                            ))}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center space-x-6">
@@ -910,6 +1060,7 @@ export default function LandParcels() {
         }}
         onSave={selectedParcel ? handleUpdateParcel : handleCreateParcel}
         parcel={selectedParcel}
+        entities={entities}
       />
 
       <LoanModal
