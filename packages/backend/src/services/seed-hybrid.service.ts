@@ -1,5 +1,5 @@
 import { prisma } from '../prisma/client';
-import { SeedHybrid, CreateSeedHybridRequest, UpdateSeedHybridRequest } from '@business-app/shared';
+import { SeedHybrid, CreateSeedHybridRequest, UpdateSeedHybridRequest, CommodityType } from '@business-app/shared';
 
 export class SeedHybridService {
   async getAll(businessId: string, commodityType?: string): Promise<SeedHybrid[]> {
@@ -79,6 +79,65 @@ export class SeedHybridService {
     await prisma.seedHybrid.delete({
       where: { id }
     });
+  }
+
+  /**
+   * Create a seed hybrid with needsPricing=true (for workers adding products without price info)
+   */
+  async createWithoutPrice(businessId: string, name: string, commodityType: CommodityType, seedsPerBag: number = 80000): Promise<SeedHybrid> {
+    const seedHybrid = await prisma.seedHybrid.create({
+      data: {
+        businessId,
+        name,
+        commodityType,
+        pricePerBag: 0,
+        seedsPerBag,
+        needsPricing: true
+      }
+    });
+
+    return {
+      ...seedHybrid,
+      pricePerBag: Number(seedHybrid.pricePerBag),
+      commodityType: seedHybrid.commodityType as any
+    };
+  }
+
+  /**
+   * Get all seed hybrids that need pricing
+   */
+  async getNeedsPricing(businessId: string): Promise<SeedHybrid[]> {
+    const seedHybrids = await prisma.seedHybrid.findMany({
+      where: { businessId, needsPricing: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return seedHybrids.map(s => ({
+      ...s,
+      pricePerBag: Number(s.pricePerBag),
+      commodityType: s.commodityType as any
+    }));
+  }
+
+  /**
+   * Set price for a seed hybrid (clears needsPricing flag)
+   */
+  async setPrice(id: string, businessId: string, pricePerBag: number): Promise<SeedHybrid> {
+    const existing = await this.getById(id, businessId);
+    if (!existing) {
+      throw new Error('Seed hybrid not found');
+    }
+
+    const seedHybrid = await prisma.seedHybrid.update({
+      where: { id },
+      data: { pricePerBag, needsPricing: false }
+    });
+
+    return {
+      ...seedHybrid,
+      pricePerBag: Number(seedHybrid.pricePerBag),
+      commodityType: seedHybrid.commodityType as any
+    };
   }
 
   /**

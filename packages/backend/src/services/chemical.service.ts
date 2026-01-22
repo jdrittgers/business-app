@@ -86,6 +86,68 @@ export class ChemicalService {
   }
 
   /**
+   * Create a chemical with needsPricing=true (for workers adding products without price info)
+   */
+  async createWithoutPrice(businessId: string, name: string, unit: UnitType, category: ChemicalCategory = ChemicalCategory.HERBICIDE): Promise<Chemical> {
+    const chemical = await prisma.chemical.create({
+      data: {
+        businessId,
+        name,
+        pricePerUnit: 0,
+        unit,
+        category,
+        needsPricing: true
+      }
+    });
+
+    return {
+      ...chemical,
+      pricePerUnit: Number(chemical.pricePerUnit),
+      unit: chemical.unit as UnitType,
+      category: chemical.category as ChemicalCategory
+    };
+  }
+
+  /**
+   * Get all chemicals that need pricing
+   */
+  async getNeedsPricing(businessId: string): Promise<Chemical[]> {
+    const chemicals = await prisma.chemical.findMany({
+      where: { businessId, needsPricing: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return chemicals.map(c => ({
+      ...c,
+      pricePerUnit: Number(c.pricePerUnit),
+      unit: c.unit as UnitType,
+      category: c.category as ChemicalCategory
+    }));
+  }
+
+  /**
+   * Set price for a chemical (clears needsPricing flag)
+   */
+  async setPrice(id: string, businessId: string, pricePerUnit: number): Promise<Chemical> {
+    const existing = await this.getById(id, businessId);
+    if (!existing) {
+      throw new Error('Chemical not found');
+    }
+
+    const chemical = await prisma.chemical.update({
+      where: { id },
+      data: { pricePerUnit, needsPricing: false }
+    });
+
+    return {
+      ...chemical,
+      pricePerUnit: Number(chemical.pricePerUnit),
+      unit: chemical.unit as UnitType,
+      category: chemical.category as ChemicalCategory
+    };
+  }
+
+  /**
    * Get area-wide average prices for chemicals
    * Groups by product name and unit to calculate avg, min, max prices
    */

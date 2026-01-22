@@ -5,7 +5,8 @@ import { breakevenApi } from '../api/breakeven.api';
 import {
   FarmPlanView,
   TrialStatus,
-  CommodityType
+  CommodityType,
+  UserRole
 } from '@business-app/shared';
 
 export default function FarmPlansPage() {
@@ -18,6 +19,11 @@ export default function FarmPlansPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedFarm, setExpandedFarm] = useState<string | null>(null);
+  const [approvingFarm, setApprovingFarm] = useState<string | null>(null);
+
+  // Check if user is manager or owner
+  const userRole = user?.businessMemberships.find(m => m.businessId === selectedBusinessId)?.role;
+  const canApprove = userRole === UserRole.OWNER || userRole === UserRole.MANAGER;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -65,6 +71,40 @@ export default function FarmPlansPage() {
   const handleLogout = async () => {
     await logout();
     navigate('/');
+  };
+
+  const handleApprovePlan = async (farmId: string) => {
+    if (!selectedBusinessId) return;
+    setApprovingFarm(farmId);
+    try {
+      await breakevenApi.approveFarmPlan(selectedBusinessId, farmId);
+      setFarmPlans(prev => prev.map(p =>
+        p.farmId === farmId
+          ? { ...p, planApproved: true, planApprovedAt: new Date() }
+          : p
+      ));
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to approve plan');
+    } finally {
+      setApprovingFarm(null);
+    }
+  };
+
+  const handleUnapprovePlan = async (farmId: string) => {
+    if (!selectedBusinessId) return;
+    setApprovingFarm(farmId);
+    try {
+      await breakevenApi.unapproveFarmPlan(selectedBusinessId, farmId);
+      setFarmPlans(prev => prev.map(p =>
+        p.farmId === farmId
+          ? { ...p, planApproved: false, planApprovedAt: undefined }
+          : p
+      ));
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to unapprove plan');
+    } finally {
+      setApprovingFarm(null);
+    }
   };
 
   const getCommodityColor = (type: CommodityType) => {
@@ -138,16 +178,36 @@ export default function FarmPlansPage() {
               <div key={plan.farmId} className="bg-white rounded-lg shadow-md overflow-hidden">
                 {/* Farm Header */}
                 <div
-                  className={`px-6 py-4 cursor-pointer hover:bg-gray-50 border-l-4 ${
+                  className={`px-6 py-4 border-l-4 ${
                     plan.commodityType === CommodityType.CORN ? 'border-yellow-500' :
                     plan.commodityType === CommodityType.SOYBEANS ? 'border-green-500' :
                     'border-amber-500'
                   }`}
-                  onClick={() => setExpandedFarm(expandedFarm === plan.farmId ? null : plan.farmId)}
                 >
                   <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900">{plan.farmName}</h2>
+                    <div
+                      className="flex-1 cursor-pointer hover:bg-gray-50 -ml-2 pl-2 py-1 rounded"
+                      onClick={() => setExpandedFarm(expandedFarm === plan.farmId ? null : plan.farmId)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-xl font-bold text-gray-900">{plan.farmName}</h2>
+                        {/* Plan Approval Badge */}
+                        {plan.planApproved ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Approved
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                            Pending Approval
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-3 mt-1">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getCommodityColor(plan.commodityType)}`}>
                           {plan.commodityType}
@@ -158,9 +218,59 @@ export default function FarmPlansPage() {
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-semibold text-blue-600">{plan.projectedYield} bu/acre</p>
-                      <p className="text-xs text-gray-500">Projected Yield</p>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-blue-600">{plan.projectedYield} bu/acre</p>
+                        <p className="text-xs text-gray-500">Projected Yield</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {/* Edit Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/farm-plans/${plan.farmId}/edit`);
+                          }}
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit Plan"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        {/* Approve/Unapprove Button (only for managers/owners) */}
+                        {canApprove && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (plan.planApproved) {
+                                handleUnapprovePlan(plan.farmId);
+                              } else {
+                                handleApprovePlan(plan.farmId);
+                              }
+                            }}
+                            disabled={approvingFarm === plan.farmId}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                              plan.planApproved
+                                ? 'text-amber-700 bg-amber-100 hover:bg-amber-200'
+                                : 'text-green-700 bg-green-100 hover:bg-green-200'
+                            } disabled:opacity-50`}
+                          >
+                            {approvingFarm === plan.farmId ? (
+                              <span className="flex items-center">
+                                <svg className="animate-spin w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                ...
+                              </span>
+                            ) : plan.planApproved ? (
+                              'Unapprove'
+                            ) : (
+                              'Approve'
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

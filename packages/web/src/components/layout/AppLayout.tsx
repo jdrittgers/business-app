@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react';
 import Sidebar from './Sidebar';
+import NotificationBell from '../NotificationBell';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -40,12 +41,11 @@ export default function AppLayout({ children, title, subtitle, actions }: AppLay
               )}
             </div>
 
-            {/* Actions */}
-            {actions && (
-              <div className="flex items-center space-x-3">
-                {actions}
-              </div>
-            )}
+            {/* Notification Bell and Actions */}
+            <div className="flex items-center space-x-3">
+              <NotificationBell />
+              {actions}
+            </div>
           </div>
         </header>
 

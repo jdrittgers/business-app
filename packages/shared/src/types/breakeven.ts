@@ -36,6 +36,13 @@ export enum TrialStatus {
   CANCELLED = 'CANCELLED'
 }
 
+export enum NotificationType {
+  FARM_PLAN_CHANGE = 'FARM_PLAN_CHANGE',
+  PRODUCT_NEEDS_PRICING = 'PRODUCT_NEEDS_PRICING',
+  TRIAL_UPDATE = 'TRIAL_UPDATE',
+  GENERAL = 'GENERAL'
+}
+
 // ===== Product Catalog Types =====
 
 export interface Fertilizer {
@@ -45,6 +52,7 @@ export interface Fertilizer {
   pricePerUnit: number;
   unit: UnitType;
   isActive: boolean;
+  needsPricing: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +78,7 @@ export interface Chemical {
   unit: UnitType;
   category: ChemicalCategory;
   isActive: boolean;
+  needsPricing: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,6 +106,7 @@ export interface SeedHybrid {
   pricePerBag: number;
   seedsPerBag: number;
   isActive: boolean;
+  needsPricing: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -127,6 +137,9 @@ export interface Farm {
   projectedYield: number;
   aph: number;
   notes?: string;
+  planApproved: boolean;
+  planApprovedAt?: Date;
+  planApprovedBy?: string;
   createdAt: Date;
   updatedAt: Date;
   grainEntity?: GrainEntity;
@@ -490,6 +503,8 @@ export interface FarmPlanView {
   year: number;
   grainEntityName?: string;
   projectedYield: number;
+  planApproved: boolean;
+  planApprovedAt?: Date;
 
   seedPlan: FarmPlanSeedEntry[];
   inFurrowPlan: FarmPlanProductEntry[];
@@ -497,4 +512,29 @@ export interface FarmPlanView {
   chemicalPlan: FarmPlanProductEntry[];
   fungicidePlan: FarmPlanProductEntry[];
   activeTrials: FarmPlanTrialEntry[];
+}
+
+// ===== Notification Types =====
+
+export interface Notification {
+  id: string;
+  userId: string;
+  businessId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  metadata?: Record<string, any>;
+  createdAt: Date;
+}
+
+export interface CreateNotificationRequest {
+  userId: string;
+  businessId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link?: string;
+  metadata?: Record<string, any>;
 }

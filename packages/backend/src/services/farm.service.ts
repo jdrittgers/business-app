@@ -40,7 +40,10 @@ export class FarmService {
       aph: Number(f.aph),
       commodityType: f.commodityType as any,
       grainEntity: f.grainEntity,
-      notes: f.notes || undefined
+      notes: f.notes || undefined,
+      planApproved: f.planApproved,
+      planApprovedAt: f.planApprovedAt || undefined,
+      planApprovedBy: f.planApprovedBy || undefined
     }));
   }
 
@@ -75,6 +78,9 @@ export class FarmService {
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
       notes: farm.notes || undefined,
+      planApproved: farm.planApproved,
+      planApprovedAt: farm.planApprovedAt || undefined,
+      planApprovedBy: farm.planApprovedBy || undefined,
       fertilizerUsage: farm.fertilizerUsage?.map(fu => ({
         ...fu,
         amountUsed: Number(fu.amountUsed),
@@ -83,7 +89,8 @@ export class FarmService {
         fertilizer: fu.fertilizer ? {
           ...fu.fertilizer,
           pricePerUnit: Number(fu.fertilizer.pricePerUnit),
-          unit: fu.fertilizer.unit as any
+          unit: fu.fertilizer.unit as any,
+          needsPricing: fu.fertilizer.needsPricing
         } : undefined
       })),
       chemicalUsage: farm.chemicalUsage?.map(cu => ({
@@ -95,7 +102,8 @@ export class FarmService {
           ...cu.chemical,
           pricePerUnit: Number(cu.chemical.pricePerUnit),
           unit: cu.chemical.unit as any,
-          category: cu.chemical.category as ChemicalCategory
+          category: cu.chemical.category as ChemicalCategory,
+          needsPricing: cu.chemical.needsPricing
         } : undefined
       })),
       seedUsage: farm.seedUsage?.map(su => ({
@@ -109,7 +117,8 @@ export class FarmService {
         seedHybrid: su.seedHybrid ? {
           ...su.seedHybrid,
           pricePerBag: Number(su.seedHybrid.pricePerBag),
-          commodityType: su.seedHybrid.commodityType as any
+          commodityType: su.seedHybrid.commodityType as any,
+          needsPricing: su.seedHybrid.needsPricing
         } : undefined
       })),
       otherCosts: farm.otherCosts?.map(oc => ({
@@ -154,7 +163,10 @@ export class FarmService {
       aph: Number(farm.aph),
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
-      notes: farm.notes || undefined
+      notes: farm.notes || undefined,
+      planApproved: farm.planApproved,
+      planApprovedAt: farm.planApprovedAt || undefined,
+      planApprovedBy: farm.planApprovedBy || undefined
     };
   }
 
@@ -180,7 +192,10 @@ export class FarmService {
       aph: Number(farm.aph),
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
-      notes: farm.notes || undefined
+      notes: farm.notes || undefined,
+      planApproved: farm.planApproved,
+      planApprovedAt: farm.planApprovedAt || undefined,
+      planApprovedBy: farm.planApprovedBy || undefined
     };
   }
 
@@ -758,6 +773,8 @@ export class FarmService {
       year: farm.year,
       grainEntityName: farm.grainEntity.name,
       projectedYield: Number(farm.projectedYield),
+      planApproved: farm.planApproved,
+      planApprovedAt: farm.planApprovedAt || undefined,
       seedPlan,
       inFurrowPlan,
       fertilizerPlan,
@@ -859,6 +876,8 @@ export class FarmService {
         year: farm.year,
         grainEntityName: farm.grainEntity.name,
         projectedYield: Number(farm.projectedYield),
+        planApproved: farm.planApproved,
+        planApprovedAt: farm.planApprovedAt || undefined,
         seedPlan,
         inFurrowPlan,
         fertilizerPlan,

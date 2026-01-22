@@ -10,6 +10,8 @@ import {
   SeedHybrid,
   CreateSeedHybridRequest,
   UpdateSeedHybridRequest,
+  CommodityType,
+  UnitType,
   Farm,
   CreateFarmRequest,
   UpdateFarmRequest,
@@ -27,6 +29,13 @@ import {
   UpdateFarmTrialRequest,
   FarmPlanView
 } from '@business-app/shared';
+
+export interface ProductsNeedsPricing {
+  fertilizers: Fertilizer[];
+  chemicals: Chemical[];
+  seedHybrids: SeedHybrid[];
+  totalCount: number;
+}
 
 export const breakevenApi = {
   // Fertilizers
@@ -241,6 +250,55 @@ export const breakevenApi = {
   getAllFarmPlans: async (businessId: string, year?: number): Promise<FarmPlanView[]> => {
     const params = year ? { year } : {};
     const response = await apiClient.get(`/api/businesses/${businessId}/farm-plans`, { params });
+    return response.data;
+  },
+
+  // Plan Approval
+  approveFarmPlan: async (businessId: string, farmId: string): Promise<{ success: boolean; planApproved: boolean; planApprovedAt: string }> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/farms/${farmId}/approve-plan`);
+    return response.data;
+  },
+
+  unapproveFarmPlan: async (businessId: string, farmId: string): Promise<{ success: boolean; planApproved: boolean }> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/farms/${farmId}/unapprove-plan`);
+    return response.data;
+  },
+
+  // Products Needing Pricing
+  getProductsNeedingPricing: async (businessId: string): Promise<ProductsNeedsPricing> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/products/needs-pricing`);
+    return response.data;
+  },
+
+  // Set prices (clears needsPricing)
+  setFertilizerPrice: async (businessId: string, id: string, pricePerUnit: number): Promise<Fertilizer> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/fertilizers/${id}/set-price`, { pricePerUnit });
+    return response.data;
+  },
+
+  setChemicalPrice: async (businessId: string, id: string, pricePerUnit: number): Promise<Chemical> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/chemicals/${id}/set-price`, { pricePerUnit });
+    return response.data;
+  },
+
+  setSeedHybridPrice: async (businessId: string, id: string, pricePerBag: number): Promise<SeedHybrid> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/seed-hybrids/${id}/set-price`, { pricePerBag });
+    return response.data;
+  },
+
+  // Worker product creation (creates with needsPricing=true)
+  createFertilizerAsWorker: async (businessId: string, name: string, unit: UnitType): Promise<Fertilizer> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/fertilizers/worker`, { name, unit });
+    return response.data;
+  },
+
+  createChemicalAsWorker: async (businessId: string, name: string, unit: UnitType, category?: ChemicalCategory): Promise<Chemical> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/chemicals/worker`, { name, unit, category });
+    return response.data;
+  },
+
+  createSeedHybridAsWorker: async (businessId: string, name: string, commodityType: CommodityType, seedsPerBag?: number): Promise<SeedHybrid> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/seed-hybrids/worker`, { name, commodityType, seedsPerBag });
     return response.data;
   }
 };

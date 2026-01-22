@@ -78,6 +78,64 @@ export class FertilizerService {
   }
 
   /**
+   * Create a fertilizer with needsPricing=true (for workers adding products without price info)
+   */
+  async createWithoutPrice(businessId: string, name: string, unit: UnitType): Promise<Fertilizer> {
+    const fertilizer = await prisma.fertilizer.create({
+      data: {
+        businessId,
+        name,
+        pricePerUnit: 0,
+        unit,
+        needsPricing: true
+      }
+    });
+
+    return {
+      ...fertilizer,
+      pricePerUnit: Number(fertilizer.pricePerUnit),
+      unit: fertilizer.unit as UnitType
+    };
+  }
+
+  /**
+   * Get all fertilizers that need pricing
+   */
+  async getNeedsPricing(businessId: string): Promise<Fertilizer[]> {
+    const fertilizers = await prisma.fertilizer.findMany({
+      where: { businessId, needsPricing: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return fertilizers.map(f => ({
+      ...f,
+      pricePerUnit: Number(f.pricePerUnit),
+      unit: f.unit as UnitType
+    }));
+  }
+
+  /**
+   * Set price for a fertilizer (clears needsPricing flag)
+   */
+  async setPrice(id: string, businessId: string, pricePerUnit: number): Promise<Fertilizer> {
+    const existing = await this.getById(id, businessId);
+    if (!existing) {
+      throw new Error('Fertilizer not found');
+    }
+
+    const fertilizer = await prisma.fertilizer.update({
+      where: { id },
+      data: { pricePerUnit, needsPricing: false }
+    });
+
+    return {
+      ...fertilizer,
+      pricePerUnit: Number(fertilizer.pricePerUnit),
+      unit: fertilizer.unit as UnitType
+    };
+  }
+
+  /**
    * Get area-wide average prices for fertilizers
    * Groups by product name and unit to calculate avg, min, max prices
    */

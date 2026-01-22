@@ -210,6 +210,7 @@ export class TrialService {
         pricePerBag: Number(trial.seedHybrid.pricePerBag),
         seedsPerBag: trial.seedHybrid.seedsPerBag,
         isActive: trial.seedHybrid.isActive,
+        needsPricing: trial.seedHybrid.needsPricing,
         createdAt: trial.seedHybrid.createdAt,
         updatedAt: trial.seedHybrid.updatedAt
       } : undefined,
@@ -220,6 +221,7 @@ export class TrialService {
         pricePerUnit: Number(trial.fertilizer.pricePerUnit),
         unit: trial.fertilizer.unit,
         isActive: trial.fertilizer.isActive,
+        needsPricing: trial.fertilizer.needsPricing,
         createdAt: trial.fertilizer.createdAt,
         updatedAt: trial.fertilizer.updatedAt
       } : undefined,
@@ -231,6 +233,7 @@ export class TrialService {
         unit: trial.chemical.unit,
         category: trial.chemical.category as ChemicalCategory,
         isActive: trial.chemical.isActive,
+        needsPricing: trial.chemical.needsPricing,
         createdAt: trial.chemical.createdAt,
         updatedAt: trial.chemical.updatedAt
       } : undefined,

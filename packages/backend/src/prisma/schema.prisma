@@ -133,6 +133,8 @@ model User {
   usedInvitations     BusinessInvitation[] @relation("InvitationUser")
   uploadedInvoices    Invoice[]       @relation("InvoiceUploader")
   uploadedScaleTickets ScaleTicket[]  @relation("ScaleTicketUploader")
+  notifications       Notification[]
+  approvedFarmPlans   Farm[]          @relation("FarmPlanApprover")
   binTransactions     BinTransaction[] @relation("BinTransactionCreator")
   marketingProfile    UserMarketingProfile?
 
@@ -173,6 +175,7 @@ model Business {
   oldCropInventory           OldCropInventory[]
   localBasis                 LocalBasis[]
   retailerAccessRequests     RetailerAccessRequest[]
+  notifications              Notification[]
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -545,6 +548,7 @@ model Fertilizer {
   pricePerUnit Decimal @map("price_per_unit") @db.Decimal(10, 2) // Price per lb or gallon
   unit        String   // "LB" or "GAL"
   isActive    Boolean  @default(true) @map("is_active")
+  needsPricing Boolean @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -565,6 +569,7 @@ model Chemical {
   unit        String           // "LB" or "GAL"
   category    ChemicalCategory @default(HERBICIDE)  // HERBICIDE, IN_FURROW, FUNGICIDE
   isActive    Boolean          @default(true) @map("is_active")
+  needsPricing Boolean         @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
@@ -586,6 +591,7 @@ model SeedHybrid {
   pricePerBag Decimal       @map("price_per_bag") @db.Decimal(10, 2)
   seedsPerBag Int           @map("seeds_per_bag") // Number of seeds in a bag
   isActive    Boolean       @default(true) @map("is_active")
+  needsPricing Boolean      @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
@@ -613,8 +619,14 @@ model Farm {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
+  // Plan approval fields
+  planApproved    Boolean   @default(false) @map("plan_approved")
+  planApprovedAt  DateTime? @map("plan_approved_at")
+  planApprovedBy  String?   @map("plan_approved_by")
+
   // Relations
   grainEntity   GrainEntity @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+  approver      User?       @relation("FarmPlanApprover", fields: [planApprovedBy], references: [id])
 
   // Cost tracking relations
   fertilizerUsage FarmFertilizerUsage[]
@@ -1995,4 +2007,35 @@ model CommitmentOfTraders {
   @@index([commodityType])
   @@index([reportDate])
   @@map("commitment_of_traders")
+}
+
+// Notification Types
+enum NotificationType {
+  FARM_PLAN_CHANGE    // Worker changed an approved farm plan
+  PRODUCT_NEEDS_PRICING // New product added without pricing
+  TRIAL_UPDATE        // Trial status changed
+  GENERAL             // General notification
+}
+
+// In-app notifications for bell icon
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  businessId  String           @map("business_id")
+  type        NotificationType
+  title       String
+  message     String
+  link        String?          // Optional link to relevant page
+  isRead      Boolean          @default(false) @map("is_read")
+  metadata    Json?            // Additional data (farmId, productId, etc.)
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId, isRead])
+  @@index([businessId])
+  @@index([createdAt])
 }

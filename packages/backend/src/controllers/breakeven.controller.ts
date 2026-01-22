@@ -7,6 +7,8 @@ import { SeedHybridService } from '../services/seed-hybrid.service';
 import { FarmService } from '../services/farm.service';
 import { BreakEvenAnalyticsService } from '../services/breakeven-analytics.service';
 import { TrialService } from '../services/trial.service';
+import { NotificationService } from '../services/notification.service';
+import { prisma } from '../prisma/client';
 
 const router = Router();
 const fertilizerService = new FertilizerService();
@@ -15,6 +17,7 @@ const seedHybridService = new SeedHybridService();
 const farmService = new FarmService();
 const analyticsService = new BreakEvenAnalyticsService();
 const trialService = new TrialService();
+const notificationService = new NotificationService();
 
 // Apply auth and grain access middleware to all routes
 router.use(authenticate);
@@ -498,6 +501,175 @@ router.get('/businesses/:businessId/farm-plans', async (req: AuthRequest, res: R
     res.json(plans);
   } catch (error: any) {
     console.error('Error getting farm plans:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Plan Approval =====
+
+router.put('/businesses/:businessId/farms/:id/approve-plan', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const farm = await prisma.farm.update({
+      where: { id: req.params.id },
+      data: {
+        planApproved: true,
+        planApprovedAt: new Date(),
+        planApprovedBy: userId
+      },
+      include: { grainEntity: true }
+    });
+
+    res.json({
+      success: true,
+      planApproved: farm.planApproved,
+      planApprovedAt: farm.planApprovedAt,
+      planApprovedBy: farm.planApprovedBy
+    });
+  } catch (error: any) {
+    console.error('Error approving farm plan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/businesses/:businessId/farms/:id/unapprove-plan', async (req: AuthRequest, res: Response) => {
+  try {
+    const farm = await prisma.farm.update({
+      where: { id: req.params.id },
+      data: {
+        planApproved: false,
+        planApprovedAt: null,
+        planApprovedBy: null
+      }
+    });
+
+    res.json({
+      success: true,
+      planApproved: farm.planApproved
+    });
+  } catch (error: any) {
+    console.error('Error unapproving farm plan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Products Needing Pricing =====
+
+router.get('/businesses/:businessId/products/needs-pricing', async (req: AuthRequest, res: Response) => {
+  try {
+    const businessId = req.params.businessId;
+    const [fertilizers, chemicals, seedHybrids] = await Promise.all([
+      fertilizerService.getNeedsPricing(businessId),
+      chemicalService.getNeedsPricing(businessId),
+      seedHybridService.getNeedsPricing(businessId)
+    ]);
+
+    res.json({
+      fertilizers,
+      chemicals,
+      seedHybrids,
+      totalCount: fertilizers.length + chemicals.length + seedHybrids.length
+    });
+  } catch (error: any) {
+    console.error('Error getting products needing pricing:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Set price for fertilizer (clears needsPricing)
+router.put('/businesses/:businessId/fertilizers/:id/set-price', async (req: AuthRequest, res: Response) => {
+  try {
+    const { pricePerUnit } = req.body;
+    const fertilizer = await fertilizerService.setPrice(req.params.id, req.params.businessId, pricePerUnit);
+    res.json(fertilizer);
+  } catch (error: any) {
+    console.error('Error setting fertilizer price:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Set price for chemical (clears needsPricing)
+router.put('/businesses/:businessId/chemicals/:id/set-price', async (req: AuthRequest, res: Response) => {
+  try {
+    const { pricePerUnit } = req.body;
+    const chemical = await chemicalService.setPrice(req.params.id, req.params.businessId, pricePerUnit);
+    res.json(chemical);
+  } catch (error: any) {
+    console.error('Error setting chemical price:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Set price for seed hybrid (clears needsPricing)
+router.put('/businesses/:businessId/seed-hybrids/:id/set-price', async (req: AuthRequest, res: Response) => {
+  try {
+    const { pricePerBag } = req.body;
+    const seedHybrid = await seedHybridService.setPrice(req.params.id, req.params.businessId, pricePerBag);
+    res.json(seedHybrid);
+  } catch (error: any) {
+    console.error('Error setting seed hybrid price:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Worker Product Creation (creates with needsPricing=true) =====
+
+router.post('/businesses/:businessId/fertilizers/worker', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, unit } = req.body;
+    const fertilizer = await fertilizerService.createWithoutPrice(req.params.businessId, name, unit);
+
+    // Notify owners about new product needing pricing
+    await notificationService.notifyProductNeedsPricing(
+      req.params.businessId,
+      'fertilizer',
+      name,
+      req.user!.userId
+    );
+
+    res.status(201).json(fertilizer);
+  } catch (error: any) {
+    console.error('Error creating fertilizer (worker):', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/businesses/:businessId/chemicals/worker', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, unit, category } = req.body;
+    const chemical = await chemicalService.createWithoutPrice(req.params.businessId, name, unit, category);
+
+    // Notify owners about new product needing pricing
+    await notificationService.notifyProductNeedsPricing(
+      req.params.businessId,
+      'chemical',
+      name,
+      req.user!.userId
+    );
+
+    res.status(201).json(chemical);
+  } catch (error: any) {
+    console.error('Error creating chemical (worker):', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/businesses/:businessId/seed-hybrids/worker', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, commodityType, seedsPerBag } = req.body;
+    const seedHybrid = await seedHybridService.createWithoutPrice(req.params.businessId, name, commodityType, seedsPerBag);
+
+    // Notify owners about new product needing pricing
+    await notificationService.notifyProductNeedsPricing(
+      req.params.businessId,
+      'seed',
+      name,
+      req.user!.userId
+    );
+
+    res.status(201).json(seedHybrid);
+  } catch (error: any) {
+    console.error('Error creating seed hybrid (worker):', error);
     res.status(500).json({ error: error.message });
   }
 });
