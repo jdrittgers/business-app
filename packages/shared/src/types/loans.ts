@@ -313,6 +313,10 @@ export interface Equipment {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // John Deere Integration
+  johnDeereMachineId?: string;
+  currentEngineHours?: number;
+  lastHoursSyncAt?: Date;
   // Computed/included fields
   totalLoanBalance?: number;
   annualInterestExpense?: number;

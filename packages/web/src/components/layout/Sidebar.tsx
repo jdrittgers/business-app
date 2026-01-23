@@ -57,7 +57,8 @@ const navItems: NavItem[] = [
       { label: 'Products', path: '/breakeven/products' },
       { label: 'Land Loans', path: '/loans/land-parcels' },
       { label: 'Operating Loans', path: '/loans/operating' },
-      { label: 'Equipment Loans', path: '/loans/equipment' }
+      { label: 'Equipment Loans', path: '/loans/equipment' },
+      { label: 'Maintenance', path: '/loans/maintenance' }
     ]
   },
   {

@@ -141,6 +141,7 @@ model User {
   completedFertilizerUsage FarmFertilizerUsage[] @relation("FertilizerCompletedBy")
   completedChemicalUsage  FarmChemicalUsage[]   @relation("ChemicalCompletedBy")
   operatingLoanTransactions OperatingLoanTransaction[] @relation("OperatingLoanTransactionCreator")
+  maintenanceHistory      MaintenanceHistory[]
 
   @@map("users")
 }
@@ -182,6 +183,7 @@ model Business {
   notifications              Notification[]
   landParcels                LandParcel[]
   equipment                  Equipment[]
+  johnDeereConnection        JohnDeereConnection?
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -310,6 +312,7 @@ model Task {
   creator  User          @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   assignee User?         @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
   comments TaskComment[]
+  maintenanceItem EquipmentMaintenance?
 
   @@index([businessId, status])
   @@index([assignedTo, status])
@@ -2063,6 +2066,26 @@ model CommitmentOfTraders {
   @@map("commitment_of_traders")
 }
 
+// Equipment Maintenance Types
+enum MaintenanceType {
+  GREASE
+  OIL_CHANGE
+  FILTER_CHANGE
+  INSPECTION
+  REPAIR
+  OTHER
+}
+
+enum MaintenanceFrequency {
+  ONE_TIME
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+  BY_HOURS
+}
+
 // Notification Types
 enum NotificationType {
   FARM_PLAN_CHANGE    // Worker changed an approved farm plan
@@ -2070,6 +2093,7 @@ enum NotificationType {
   TRIAL_UPDATE        // Trial status changed
   GENERAL             // General notification
   LOAN_PAYMENT_DUE    // Loan payment due within 7 days
+  MAINTENANCE_DUE     // Equipment maintenance due soon
 }
 
 // In-app notifications for bell icon
@@ -2297,9 +2321,15 @@ model Equipment {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
+  // John Deere Integration
+  johnDeereMachineId    String?   @map("john_deere_machine_id")
+  currentEngineHours    Int?      @map("current_engine_hours")
+  lastHoursSyncAt       DateTime? @map("last_hours_sync_at")
+
   // Relations
   business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
   equipmentLoans  EquipmentLoan[]
+  maintenance     EquipmentMaintenance[]
 
   // Entity splits (when equipment is owned by multiple entities)
   entitySplits    EquipmentEntitySplit[]
@@ -2307,6 +2337,7 @@ model Equipment {
   @@index([businessId])
   @@index([equipmentType])
   @@index([deletedAt])
+  @@index([johnDeereMachineId])
   @@map("equipment")
 }
 
@@ -2401,4 +2432,88 @@ model EquipmentLoanPayment {
   @@index([equipmentLoanId])
   @@index([paymentDate])
   @@map("equipment_loan_payments")
+}
+
+// Equipment Maintenance Scheduling
+model EquipmentMaintenance {
+  id                  String               @id @default(uuid())
+  equipmentId         String               @map("equipment_id")
+  title               String               // "Oil Change", "Grease Fittings"
+  description         String?
+  maintenanceType     MaintenanceType      @map("maintenance_type")
+  frequency           MaintenanceFrequency
+
+  // Time-based scheduling
+  nextDueDate         DateTime?            @map("next_due_date")
+  lastCompletedDate   DateTime?            @map("last_completed_date")
+
+  // Hours-based scheduling
+  intervalHours       Int?                 @map("interval_hours")  // e.g., every 50 hours
+  lastCompletedHours  Int?                 @map("last_completed_hours")
+  nextDueHours        Int?                 @map("next_due_hours")
+
+  // Cost tracking
+  estimatedCost       Decimal?             @map("estimated_cost") @db.Decimal(10, 2)
+
+  // Reminder tracking
+  reminderSent        Boolean              @default(false) @map("reminder_sent")
+  reminderDays        Int                  @default(7) @map("reminder_days")
+
+  // Task integration
+  autoCreateTask      Boolean              @default(true) @map("auto_create_task")
+  currentTaskId       String?              @unique @map("current_task_id")
+
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  equipment           Equipment            @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  currentTask         Task?                @relation(fields: [currentTaskId], references: [id], onDelete: SetNull)
+  history             MaintenanceHistory[]
+
+  @@index([equipmentId])
+  @@index([nextDueDate])
+  @@index([isActive, reminderSent])
+  @@map("equipment_maintenance")
+}
+
+// Maintenance Completion History
+model MaintenanceHistory {
+  id                  String               @id @default(uuid())
+  maintenanceId       String               @map("maintenance_id")
+  completedDate       DateTime             @map("completed_date")
+  completedByUserId   String?              @map("completed_by_user_id")
+  hoursAtCompletion   Int?                 @map("hours_at_completion")
+  actualCost          Decimal?             @map("actual_cost") @db.Decimal(10, 2)
+  notes               String?
+  createdAt           DateTime             @default(now()) @map("created_at")
+
+  // Relations
+  maintenance         EquipmentMaintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  completedBy         User?                @relation(fields: [completedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([maintenanceId])
+  @@map("maintenance_history")
+}
+
+// John Deere Operations Center connection for a business
+model JohnDeereConnection {
+  id                String    @id @default(uuid())
+  businessId        String    @unique @map("business_id")
+  accessToken       String    @map("access_token") @db.Text
+  refreshToken      String    @map("refresh_token") @db.Text
+  tokenExpiresAt    DateTime  @map("token_expires_at")
+  organizationId    String?   @map("organization_id")
+  organizationName  String?   @map("organization_name")
+  isActive          Boolean   @default(true) @map("is_active")
+  lastSyncAt        DateTime? @map("last_sync_at")
+  syncError         String?   @map("sync_error")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("john_deere_connections")
 }

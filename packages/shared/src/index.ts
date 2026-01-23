@@ -11,4 +11,6 @@ export * from './types/grain-marketplace';
 export * from './types/subscription';
 export * from './types/marketing-ai';
 export * from './types/loans';
+export * from './types/maintenance';
+export * from './types/john-deere';
 export * from './utils/distance';

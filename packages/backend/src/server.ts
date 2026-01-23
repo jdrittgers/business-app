@@ -30,10 +30,14 @@ import localBasisRoutes from './controllers/local-basis.controller';
 import retailerAccessRoutes from './controllers/retailer-access.controller';
 import notificationRoutes from './controllers/notification.controller';
 import loanRoutes from './controllers/loan.controller';
+import maintenanceRoutes from './controllers/maintenance.controller';
+import johnDeereRoutes from './controllers/john-deere.controller';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 import { startMarketingAIJobs } from './services/marketing-ai-job.service';
 import { loanReminderService } from './services/loan-reminder.service';
+import { maintenanceReminderService } from './services/maintenance-reminder.service';
+import { johnDeereSyncService } from './services/john-deere-sync.service';
 import { securityHeaders } from './middleware/security';
 import { apiLimiter } from './middleware/rate-limit';
 
@@ -97,6 +101,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/grain-marketplace', grainMarketplaceRoutes);
 app.use('/api', marketingAiRoutes);
 app.use('/api', loanRoutes);
+app.use('/api', maintenanceRoutes);
+app.use('/api', johnDeereRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -128,4 +134,10 @@ httpServer.listen(PORT, () => {
 
   // Start loan payment reminder job
   loanReminderService.start();
+
+  // Start maintenance reminder job
+  maintenanceReminderService.start();
+
+  // Start John Deere sync job
+  johnDeereSyncService.start();
 });

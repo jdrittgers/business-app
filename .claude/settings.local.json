@@ -33,7 +33,8 @@
       "Bash(timeout 15 tail:*)",
       "WebFetch(domain:www.procooperative.com)",
       "WebFetch(domain:finance.yahoo.com)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebFetch(domain:developer.deere.com)"
     ]
   }
 }
