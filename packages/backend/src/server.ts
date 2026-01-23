@@ -64,6 +64,36 @@ app.use('/api/subscription/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(cookieParser());
 
+// John Deere OAuth callback - BEFORE rate limiter (it's a redirect from external service)
+app.get('/api/john-deere/callback', async (req, res) => {
+  try {
+    const { code, state, error, error_description } = req.query;
+    console.log('[JohnDeere] Callback received:', { code: !!code, state: !!state, error });
+
+    if (error) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/loans/equipment?jd_error=${encodeURIComponent(error_description as string || error as string)}`);
+      return;
+    }
+
+    if (!code || !state) {
+      res.status(400).json({ error: 'Missing code or state parameter' });
+      return;
+    }
+
+    const { johnDeereService } = await import('./services/john-deere.service');
+    await johnDeereService.handleCallback(code as string, state as string);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    console.log('[JohnDeere] Callback success, redirecting to:', `${frontendUrl}/loans/equipment?jd_connected=true`);
+    res.redirect(`${frontendUrl}/loans/equipment?jd_connected=true`);
+  } catch (error: any) {
+    console.error('[JohnDeere] Callback error:', error);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/loans/equipment?jd_error=${encodeURIComponent(error.message)}`);
+  }
+});
+
 // Apply rate limiting to all API routes
 app.use('/api', apiLimiter);
 
