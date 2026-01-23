@@ -23,7 +23,7 @@ class JohnDeereService {
     this.clientId = process.env.JOHN_DEERE_CLIENT_ID || '';
     this.clientSecret = process.env.JOHN_DEERE_CLIENT_SECRET || '';
     this.redirectUri = process.env.JOHN_DEERE_REDIRECT_URI || '';
-    this.scopes = process.env.JOHN_DEERE_SCOPES || 'ag1 ag2 ag3 offline_access';
+    this.scopes = process.env.JOHN_DEERE_SCOPES || 'ag1 ag2 ag3 eq1 eq2 offline_access';
   }
 
   // ===== OAuth Methods =====
