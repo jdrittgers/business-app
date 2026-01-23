@@ -28,6 +28,15 @@ class JohnDeereService {
     // Debug: Log if JD credentials are configured
     console.log('[JohnDeere] Client ID configured:', !!this.clientId);
     console.log('[JohnDeere] Redirect URI configured:', !!this.redirectUri);
+
+    // Debug: Show all env var names containing JOHN or DEERE
+    const jdEnvVars = Object.keys(process.env).filter(k => k.includes('JOHN') || k.includes('DEERE'));
+    console.log('[JohnDeere] Env vars with JOHN/DEERE:', jdEnvVars);
+
+    // Debug: Show a few other expected env vars to verify env loading
+    console.log('[JohnDeere] DATABASE_URL set:', !!process.env.DATABASE_URL);
+    console.log('[JohnDeere] PORT set:', process.env.PORT);
+
     if (!this.clientId) {
       console.warn('[JohnDeere] WARNING: JOHN_DEERE_CLIENT_ID is not set!');
     }
