@@ -24,6 +24,16 @@ class JohnDeereService {
     this.clientSecret = process.env.JOHN_DEERE_CLIENT_SECRET || '';
     this.redirectUri = process.env.JOHN_DEERE_REDIRECT_URI || '';
     this.scopes = process.env.JOHN_DEERE_SCOPES || 'ag1 ag2 ag3 eq1 eq2 offline_access';
+
+    // Debug: Log if JD credentials are configured
+    console.log('[JohnDeere] Client ID configured:', !!this.clientId);
+    console.log('[JohnDeere] Redirect URI configured:', !!this.redirectUri);
+    if (!this.clientId) {
+      console.warn('[JohnDeere] WARNING: JOHN_DEERE_CLIENT_ID is not set!');
+    }
+    if (!this.redirectUri) {
+      console.warn('[JohnDeere] WARNING: JOHN_DEERE_REDIRECT_URI is not set!');
+    }
   }
 
   // ===== OAuth Methods =====
