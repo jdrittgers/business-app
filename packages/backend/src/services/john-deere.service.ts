@@ -296,56 +296,48 @@ class JohnDeereService {
         (orgData.links?.map(l => l.rel).join(', ') || 'none'));
     }
 
-    // The organization link might point to /isg/equipment which we may not have access to
-    // Try the /platform/equipment endpoint with organizationIds filter instead
+    // Try multiple possible equipment API paths
     const orgId = connection.organizationId;
+    const possibleUrls = [
+      // Try organization-specific machines endpoint (older API)
+      `${JD_API_BASE}/organizations/${orgId}/machines`,
+      // Try the link URL converted to sandbox
+      equipmentLink.uri.replace('https://api.deere.com', 'https://sandboxapi.deere.com'),
+      // Try without /platform prefix
+      `https://sandboxapi.deere.com/equipment?organizationId=${orgId}`,
+      // Try /isg path (the link uses this)
+      `https://sandboxapi.deere.com/isg/equipment?organizationIds=${orgId}`,
+    ];
 
-    // First try: Use the platform equipment endpoint (what we have approved)
-    let equipmentUrl = `${JD_API_BASE}/equipment?organizationId=${orgId}`;
-    console.log('[JohnDeere] Trying platform equipment endpoint:', equipmentUrl);
+    let response: Response | null = null;
+    let lastError = '';
 
-    let response = await fetch(
-      equipmentUrl,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.deere.axiom.v3+json'
-        }
-      }
-    );
-
-    // If platform endpoint fails, try the link URL (converted to sandbox)
-    if (!response.ok) {
-      console.log('[JohnDeere] Platform endpoint failed:', response.status, '- trying link URL');
-
-      let linkUrl = equipmentLink.uri;
-      if (linkUrl.includes('api.deere.com') && !linkUrl.includes('sandboxapi.deere.com')) {
-        linkUrl = linkUrl.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
-      }
-      console.log('[JohnDeere] Following link:', equipmentLink.rel, '->', linkUrl);
-
-      response = await fetch(
-        linkUrl,
-        {
+    for (const url of possibleUrls) {
+      console.log('[JohnDeere] Trying endpoint:', url);
+      try {
+        response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Accept': 'application/vnd.deere.axiom.v3+json'
           }
+        });
+
+        if (response.ok) {
+          console.log('[JohnDeere] Success with:', url);
+          break;
+        } else {
+          lastError = `${response.status} ${response.statusText}`;
+          console.log('[JohnDeere] Failed:', url, '-', lastError);
+          response = null;
         }
-      );
+      } catch (e: any) {
+        lastError = e.message;
+        console.log('[JohnDeere] Error:', url, '-', lastError);
+      }
     }
 
-    if (!response.ok) {
-      console.error('[JohnDeere] Equipment fetch error:', response.status, response.statusText);
-      const errorText = await response.text();
-      console.error('[JohnDeere] Error details:', errorText);
-      if (response.status === 403) {
-        throw new Error('Access denied to Equipment API. Please ensure "Equipment Read" API is enabled at developer.deere.com');
-      }
-      if (response.status === 404) {
-        throw new Error('Equipment endpoint not found. The sandbox may not support this endpoint.');
-      }
-      throw new Error(`Failed to fetch equipment: ${response.statusText}`);
+    if (!response || !response.ok) {
+      throw new Error(`Could not access equipment data. Tried multiple endpoints, last error: ${lastError}. You may need to request "Machines" API access at developer.deere.com`);
     }
 
     const data = await response.json() as { values?: Array<any>; links?: Array<any> };
