@@ -227,4 +227,21 @@ router.post('/businesses/:businessId/john-deere/sync', async (req: AuthRequest, 
   }
 });
 
+// Debug endpoint to see raw API responses
+router.get('/businesses/:businessId/john-deere/debug', async (req: AuthRequest, res: Response) => {
+  try {
+    // Verify user has access to this business
+    if (!await verifyBusinessAccess(req.user!.userId, req.params.businessId)) {
+      res.status(403).json({ error: 'Access denied to this business' });
+      return;
+    }
+
+    const debugInfo = await johnDeereService.getDebugInfo(req.params.businessId);
+    res.json(debugInfo);
+  } catch (error: any) {
+    console.error('Error getting JD debug info:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

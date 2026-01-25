@@ -512,6 +512,107 @@ class JohnDeereService {
       updatedAt: connection.updatedAt
     };
   }
+
+  /**
+   * Debug method to see raw API responses
+   */
+  async getDebugInfo(businessId: string): Promise<any> {
+    const connection = await prisma.johnDeereConnection.findUnique({
+      where: { businessId }
+    });
+
+    if (!connection) {
+      return { error: 'No connection found' };
+    }
+
+    const accessToken = await this.getValidAccessToken(businessId);
+    const results: any = {
+      connection: {
+        organizationId: connection.organizationId,
+        organizationName: connection.organizationName,
+        isActive: connection.isActive
+      },
+      apiResponses: {}
+    };
+
+    // Test /organizations endpoint
+    try {
+      const orgResponse = await fetch(`${JD_API_BASE}/organizations`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.deere.axiom.v3+json'
+        }
+      });
+      results.apiResponses.organizations = {
+        status: orgResponse.status,
+        statusText: orgResponse.statusText,
+        data: orgResponse.ok ? await orgResponse.json() : await orgResponse.text()
+      };
+    } catch (e: any) {
+      results.apiResponses.organizations = { error: e.message };
+    }
+
+    // Test /equipment endpoint
+    try {
+      const equipResponse = await fetch(`${JD_API_BASE}/equipment`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.deere.axiom.v3+json'
+        }
+      });
+      results.apiResponses.equipment = {
+        status: equipResponse.status,
+        statusText: equipResponse.statusText,
+        data: equipResponse.ok ? await equipResponse.json() : await equipResponse.text()
+      };
+    } catch (e: any) {
+      results.apiResponses.equipment = { error: e.message };
+    }
+
+    // Test organization-specific equipment if we have an org ID
+    if (connection.organizationId) {
+      try {
+        const orgEquipResponse = await fetch(
+          `${JD_API_BASE}/organizations/${connection.organizationId}/equipment`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/vnd.deere.axiom.v3+json'
+            }
+          }
+        );
+        results.apiResponses.organizationEquipment = {
+          status: orgEquipResponse.status,
+          statusText: orgEquipResponse.statusText,
+          data: orgEquipResponse.ok ? await orgEquipResponse.json() : await orgEquipResponse.text()
+        };
+      } catch (e: any) {
+        results.apiResponses.organizationEquipment = { error: e.message };
+      }
+
+      // Also try /machines endpoint for this org
+      try {
+        const machinesResponse = await fetch(
+          `${JD_API_BASE}/organizations/${connection.organizationId}/machines`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/vnd.deere.axiom.v3+json'
+            }
+          }
+        );
+        results.apiResponses.organizationMachines = {
+          status: machinesResponse.status,
+          statusText: machinesResponse.statusText,
+          data: machinesResponse.ok ? await machinesResponse.json() : await machinesResponse.text()
+        };
+      } catch (e: any) {
+        results.apiResponses.organizationMachines = { error: e.message };
+      }
+    }
+
+    return results;
+  }
 }
 
 export const johnDeereService = new JohnDeereService();
