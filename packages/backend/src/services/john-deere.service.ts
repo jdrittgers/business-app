@@ -299,14 +299,17 @@ class JohnDeereService {
     // Try multiple possible equipment API paths
     const orgId = connection.organizationId;
     const possibleUrls = [
+      // Try equipmentapi domain (separate equipment API)
+      `https://sandboxequipmentapi.deere.com/isg/equipment?organizationIds=${orgId}`,
+      // Try equipment endpoint on platform without query params
+      `${JD_API_BASE}/equipment`,
       // Try organization-specific machines endpoint (older API)
       `${JD_API_BASE}/organizations/${orgId}/machines`,
       // Try the link URL converted to sandbox
       equipmentLink.uri.replace('https://api.deere.com', 'https://sandboxapi.deere.com'),
       // Try without /platform prefix
+      `https://sandboxapi.deere.com/equipment`,
       `https://sandboxapi.deere.com/equipment?organizationId=${orgId}`,
-      // Try /isg path (the link uses this)
-      `https://sandboxapi.deere.com/isg/equipment?organizationIds=${orgId}`,
     ];
 
     let response: Response | null = null;
