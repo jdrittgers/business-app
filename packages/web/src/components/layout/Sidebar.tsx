@@ -57,8 +57,7 @@ const navItems: NavItem[] = [
       { label: 'Products', path: '/breakeven/products' },
       { label: 'Land Loans', path: '/loans/land-parcels' },
       { label: 'Operating Loans', path: '/loans/operating' },
-      { label: 'Equipment Loans', path: '/loans/equipment' },
-      { label: 'Maintenance', path: '/loans/maintenance' }
+      { label: 'Equipment Loans', path: '/loans/equipment' }
     ]
   },
   {
@@ -86,7 +85,11 @@ const navItems: NavItem[] = [
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
-    )
+    ),
+    children: [
+      { label: 'Task List', path: '/tasks' },
+      { label: 'Maintenance', path: '/loans/maintenance' }
+    ]
   },
   {
     label: 'Marketplace',
