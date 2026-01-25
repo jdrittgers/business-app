@@ -3,25 +3,25 @@ import { johnDeereApi } from '../api/john-deere.api';
 import {
   JohnDeereConnectionStatus,
   JohnDeereOrganization,
-  JohnDeereMachine,
-  EquipmentJohnDeereMapping
+  JohnDeereMachine
 } from '@business-app/shared';
 
 interface JohnDeereIntegrationProps {
   businessId: string;
+  onImportEquipment?: (machine: JohnDeereMachine) => void;
   onSync?: () => void;
 }
 
-export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIntegrationProps) {
+export default function JohnDeereIntegration({ businessId, onImportEquipment, onSync }: JohnDeereIntegrationProps) {
   const [status, setStatus] = useState<JohnDeereConnectionStatus | null>(null);
   const [organizations, setOrganizations] = useState<JohnDeereOrganization[]>([]);
   const [machines, setMachines] = useState<JohnDeereMachine[]>([]);
-  const [mappings, setMappings] = useState<EquipmentJohnDeereMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showOrgSelect, setShowOrgSelect] = useState(false);
-  const [showMapping, setShowMapping] = useState(false);
+  const [showMachines, setShowMachines] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importingMachineId, setImportingMachineId] = useState<string | null>(null);
 
   useEffect(() => {
     loadStatus();
@@ -49,8 +49,8 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
       setStatus(statusData);
 
       if (statusData.isConnected && statusData.connection?.organizationId) {
-        // Load mappings if connected
-        await loadMappings();
+        // Load machines if connected
+        await loadMachines();
       }
     } catch (err) {
       console.error('Error loading JD status:', err);
@@ -59,16 +59,12 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
     }
   };
 
-  const loadMappings = async () => {
+  const loadMachines = async () => {
     try {
-      const [mappingsData, machinesData] = await Promise.all([
-        johnDeereApi.getMappings(businessId),
-        johnDeereApi.getMachines(businessId)
-      ]);
-      setMappings(mappingsData);
+      const machinesData = await johnDeereApi.getMachines(businessId);
       setMachines(machinesData);
     } catch (err) {
-      console.error('Error loading mappings:', err);
+      console.error('Error loading machines:', err);
     }
   };
 
@@ -83,13 +79,12 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect from John Deere? Equipment mappings will be removed.')) {
+    if (!confirm('Are you sure you want to disconnect from John Deere?')) {
       return;
     }
     try {
       await johnDeereApi.disconnect(businessId);
       setStatus({ isConnected: false });
-      setMappings([]);
       setMachines([]);
     } catch (err: any) {
       setError(err.message || 'Failed to disconnect');
@@ -111,18 +106,20 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
       await johnDeereApi.setOrganization(businessId, org.id, org.name);
       setShowOrgSelect(false);
       await loadStatus();
-      await loadMappings();
+      await loadMachines();
     } catch (err: any) {
       setError(err.message || 'Failed to set organization');
     }
   };
 
-  const handleMapEquipment = async (equipmentId: string, machineId: string | null) => {
+  const handleImportMachine = async (machine: JohnDeereMachine) => {
+    if (!onImportEquipment) return;
+
+    setImportingMachineId(machine.id);
     try {
-      await johnDeereApi.mapEquipment(equipmentId, machineId);
-      await loadMappings();
-    } catch (err: any) {
-      setError(err.message || 'Failed to map equipment');
+      await onImportEquipment(machine);
+    } finally {
+      setImportingMachineId(null);
     }
   };
 
@@ -135,7 +132,7 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
       } else {
         alert(`Sync completed with errors: ${result.errors?.join(', ')}`);
       }
-      await loadMappings();
+      await loadMachines();
       onSync?.();
     } catch (err: any) {
       setError(err.message || 'Failed to sync');
@@ -174,7 +171,7 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
               <p className="text-sm text-gray-500">
                 {status?.isConnected
                   ? status.connection?.organizationName || 'Connected'
-                  : 'Sync equipment hours automatically'}
+                  : 'Import equipment and sync hours automatically'}
               </p>
             </div>
           </div>
@@ -207,7 +204,16 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
       {error && (
         <div className="px-4 py-3 bg-red-50 border-b border-red-100">
           <p className="text-sm text-red-600">{error}</p>
-          <button onClick={() => setError(null)} className="text-xs text-red-500 underline mt-1">
+          {error.includes('developer.deere.com') && (
+            <p className="text-xs text-red-500 mt-1">
+              Go to{' '}
+              <a href="https://developer.deere.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                developer.deere.com
+              </a>
+              {' '}→ Your Application → Access tab → Request Access to "Operations Center - Machines" API
+            </p>
+          )}
+          <button onClick={() => setError(null)} className="text-xs text-red-500 underline mt-2">
             Dismiss
           </button>
         </div>
@@ -258,29 +264,29 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
             </div>
           )}
 
-          {/* Equipment Mapping Section */}
+          {/* Equipment Import Section */}
           {status.connection?.organizationId && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-900">Equipment Mapping</h4>
+                  <h4 className="text-sm font-medium text-gray-900">John Deere Equipment</h4>
                   <p className="text-xs text-gray-500">
-                    Link your equipment to John Deere machines for automatic hours sync
+                    Import equipment from Operations Center for maintenance tracking
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setShowMapping(!showMapping)}
+                    onClick={() => setShowMachines(!showMachines)}
                     className="text-sm text-blue-600 hover:text-blue-800"
                   >
-                    {showMapping ? 'Hide' : 'Configure'}
+                    {showMachines ? 'Hide' : 'View Equipment'}
                   </button>
                   <button
                     onClick={handleSync}
                     disabled={syncing}
                     className="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
                   >
-                    {syncing ? 'Syncing...' : 'Sync Now'}
+                    {syncing ? 'Syncing...' : 'Sync Hours'}
                   </button>
                 </div>
               </div>
@@ -292,48 +298,52 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
                 </p>
               )}
 
-              {/* Mapping table */}
-              {showMapping && (
+              {/* Machine list for import */}
+              {showMachines && (
                 <div className="border rounded-lg overflow-hidden">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Equipment</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">John Deere Machine</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Machine</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Type</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Hours</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {mappings.map(mapping => (
-                        <tr key={mapping.equipmentId}>
-                          <td className="px-4 py-2 text-sm text-gray-900">
-                            {mapping.equipmentName}
-                          </td>
+                      {machines.map(machine => (
+                        <tr key={machine.id}>
                           <td className="px-4 py-2">
-                            <select
-                              value={mapping.johnDeereMachineId || ''}
-                              onChange={(e) => handleMapEquipment(mapping.equipmentId, e.target.value || null)}
-                              className="text-sm border-gray-300 rounded-md"
-                            >
-                              <option value="">Not linked</option>
-                              {machines.map(machine => (
-                                <option key={machine.id} value={machine.id}>
-                                  {machine.name}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="text-sm text-gray-900">{machine.name}</div>
+                            {machine.serialNumber && (
+                              <div className="text-xs text-gray-500">S/N: {machine.serialNumber}</div>
+                            )}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-500">
-                            {mapping.currentEngineHours != null
-                              ? `${mapping.currentEngineHours.toLocaleString()} hrs`
+                            {machine.type || `${machine.make} ${machine.model}`}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-500">
+                            {machine.engineHours != null
+                              ? `${machine.engineHours.toLocaleString()} hrs`
                               : '-'}
+                          </td>
+                          <td className="px-4 py-2">
+                            {onImportEquipment && (
+                              <button
+                                onClick={() => handleImportMachine(machine)}
+                                disabled={importingMachineId === machine.id}
+                                className="text-sm text-green-600 hover:text-green-800 disabled:opacity-50"
+                              >
+                                {importingMachineId === machine.id ? 'Importing...' : 'Import'}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
-                      {mappings.length === 0 && (
+                      {machines.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="px-4 py-4 text-center text-sm text-gray-500">
-                            No equipment found. Add equipment first.
+                          <td colSpan={4} className="px-4 py-4 text-center text-sm text-gray-500">
+                            No machines found in Operations Center.
                           </td>
                         </tr>
                       )}
@@ -343,9 +353,9 @@ export default function JohnDeereIntegration({ businessId, onSync }: JohnDeereIn
               )}
 
               {/* Quick status */}
-              {!showMapping && mappings.length > 0 && (
+              {!showMachines && machines.length > 0 && (
                 <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <span>{mappings.filter(m => m.johnDeereMachineId).length} of {mappings.length} equipment linked</span>
+                  <span>{machines.length} machines available in Operations Center</span>
                 </div>
               )}
             </div>

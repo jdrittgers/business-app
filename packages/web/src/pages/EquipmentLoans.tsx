@@ -16,7 +16,7 @@ import {
   GrainEntity,
   CreateEntitySplitRequest
 } from '@business-app/shared';
-import JohnDeereIntegration from '../components/JohnDeereIntegration';
+// John Deere integration moved to Maintenance page
 
 const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
   [EquipmentType.TRACTOR]: 'Tractor',
@@ -1140,11 +1140,6 @@ export default function EquipmentLoans() {
           </div>
         </div>
       </div>
-
-      {/* John Deere Integration */}
-      {businessId && (
-        <JohnDeereIntegration businessId={businessId} onSync={loadData} />
-      )}
 
       {/* Equipment List */}
       {equipment.length === 0 ? (

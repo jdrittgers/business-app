@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { maintenanceApi } from '../api/maintenance.api';
 import { loansApi } from '../api/loans.api';
+import JohnDeereIntegration from '../components/JohnDeereIntegration';
 import {
   EquipmentMaintenance as MaintenanceItem,
   CreateMaintenanceRequest,
@@ -11,7 +12,9 @@ import {
   MaintenanceFrequency,
   maintenanceTypeLabels,
   maintenanceFrequencyLabels,
-  Equipment
+  Equipment,
+  JohnDeereMachine,
+  EquipmentType
 } from '@business-app/shared';
 
 // Modal for creating/editing maintenance schedules
@@ -448,6 +451,35 @@ export default function EquipmentMaintenance() {
     }
   };
 
+  // Import equipment from John Deere
+  const handleImportFromJohnDeere = async (machine: JohnDeereMachine) => {
+    if (!businessId) return;
+
+    // Determine equipment type based on machine type
+    let equipmentType = EquipmentType.OTHER;
+    const machineType = (machine.type || '').toLowerCase();
+    if (machineType.includes('tractor')) equipmentType = EquipmentType.TRACTOR;
+    else if (machineType.includes('combine')) equipmentType = EquipmentType.COMBINE;
+    else if (machineType.includes('sprayer')) equipmentType = EquipmentType.SPRAYER;
+    else if (machineType.includes('planter')) equipmentType = EquipmentType.PLANTER;
+
+    try {
+      await loansApi.createEquipment(businessId, {
+        name: machine.name,
+        equipmentType,
+        make: machine.make,
+        model: machine.model,
+        serialNumber: machine.serialNumber,
+        year: machine.modelYear
+      });
+      alert(`Imported ${machine.name} successfully!`);
+      await loadData();
+    } catch (error: any) {
+      console.error('Failed to import equipment:', error);
+      alert(error.message || 'Failed to import equipment');
+    }
+  };
+
   const handleCompleteMaintenance = async (data: CompleteMaintenanceRequest) => {
     if (!selectedMaintenance) return;
     await maintenanceApi.complete(selectedMaintenance.id, data);
@@ -528,6 +560,15 @@ export default function EquipmentMaintenance() {
           </button>
         </div>
       </div>
+
+      {/* John Deere Integration */}
+      {businessId && (
+        <JohnDeereIntegration
+          businessId={businessId}
+          onImportEquipment={handleImportFromJohnDeere}
+          onSync={loadData}
+        />
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">

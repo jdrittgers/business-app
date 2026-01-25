@@ -23,7 +23,7 @@ class JohnDeereService {
     this.clientId = process.env.JOHN_DEERE_CLIENT_ID || '';
     this.clientSecret = process.env.JOHN_DEERE_CLIENT_SECRET || '';
     this.redirectUri = process.env.JOHN_DEERE_REDIRECT_URI || '';
-    this.scopes = process.env.JOHN_DEERE_SCOPES || 'ag1 ag2 ag3 eq1 eq2 offline_access';
+    this.scopes = process.env.JOHN_DEERE_SCOPES || 'ag1 ag2 ag3 eq1 eq2 org1 org2 files offline_access';
 
     // Debug: Log if JD credentials are configured
     console.log('[JohnDeere] Client ID value:', JSON.stringify(this.clientId));
@@ -266,8 +266,33 @@ class JohnDeereService {
 
     const accessToken = await this.getValidAccessToken(businessId);
 
+    // First, try to get the organization details which may contain a link to machines
+    const orgResponse = await fetch(
+      `${JD_API_BASE}/organizations/${connection.organizationId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.deere.axiom.v3+json'
+        }
+      }
+    );
+
+    if (!orgResponse.ok) {
+      throw new Error(`Failed to fetch organization: ${orgResponse.statusText}`);
+    }
+
+    const orgData = await orgResponse.json() as { links?: Array<{ rel: string; uri: string }> };
+    console.log('[JohnDeere] Organization response:', JSON.stringify(orgData, null, 2));
+
+    // Look for machines link in the organization response
+    const machinesLink = orgData.links?.find(link => link.rel === 'machines');
+
+    if (!machinesLink) {
+      throw new Error('Machines API not available. Please request access to "Operations Center - Machines" API at developer.deere.com. Go to Access tab → Request Access → Search for "Machines"');
+    }
+
     const response = await fetch(
-      `${JD_API_BASE}/organizations/${connection.organizationId}/machines`,
+      machinesLink.uri,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -277,6 +302,9 @@ class JohnDeereService {
     );
 
     if (!response.ok) {
+      if (response.status === 403) {
+        throw new Error('Access denied to Machines API. Please request access to "Operations Center - Machines" API at developer.deere.com');
+      }
       throw new Error(`Failed to fetch machines: ${response.statusText}`);
     }
 
