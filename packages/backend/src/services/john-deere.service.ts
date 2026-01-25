@@ -296,11 +296,17 @@ class JohnDeereService {
         (orgData.links?.map(l => l.rel).join(', ') || 'none'));
     }
 
-    console.log('[JohnDeere] Following link:', equipmentLink.rel, '->', equipmentLink.uri);
+    // Convert production URL to sandbox URL if needed
+    let equipmentUrl = equipmentLink.uri;
+    if (equipmentUrl.includes('api.deere.com') && !equipmentUrl.includes('sandboxapi.deere.com')) {
+      equipmentUrl = equipmentUrl.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
+      console.log('[JohnDeere] Converted to sandbox URL:', equipmentUrl);
+    }
+    console.log('[JohnDeere] Following link:', equipmentLink.rel, '->', equipmentUrl);
 
     // Step 3: Follow the equipment link
     const response = await fetch(
-      equipmentLink.uri,
+      equipmentUrl,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
