@@ -166,7 +166,9 @@ router.get('/businesses/:businessId/john-deere/mappings', async (req: AuthReques
       return;
     }
 
+    console.log('[JohnDeere] Getting mappings for businessId:', req.params.businessId);
     const mappings = await johnDeereService.getEquipmentMappings(req.params.businessId);
+    console.log('[JohnDeere] Found', mappings.length, 'equipment for mapping');
     res.json(mappings);
   } catch (error: any) {
     console.error('Error getting JD mappings:', error);
