@@ -296,16 +296,15 @@ class JohnDeereService {
         (orgData.links?.map(l => l.rel).join(', ') || 'none'));
     }
 
-    // Convert production URL to sandbox URL if needed
-    let equipmentUrl = equipmentLink.uri;
-    if (equipmentUrl.includes('api.deere.com') && !equipmentUrl.includes('sandboxapi.deere.com')) {
-      equipmentUrl = equipmentUrl.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
-      console.log('[JohnDeere] Converted to sandbox URL:', equipmentUrl);
-    }
-    console.log('[JohnDeere] Following link:', equipmentLink.rel, '->', equipmentUrl);
+    // The organization link might point to /isg/equipment which we may not have access to
+    // Try the /platform/equipment endpoint with organizationIds filter instead
+    const orgId = connection.organizationId;
 
-    // Step 3: Follow the equipment link
-    const response = await fetch(
+    // First try: Use the platform equipment endpoint (what we have approved)
+    let equipmentUrl = `${JD_API_BASE}/equipment?organizationId=${orgId}`;
+    console.log('[JohnDeere] Trying platform equipment endpoint:', equipmentUrl);
+
+    let response = await fetch(
       equipmentUrl,
       {
         headers: {
@@ -315,12 +314,36 @@ class JohnDeereService {
       }
     );
 
+    // If platform endpoint fails, try the link URL (converted to sandbox)
+    if (!response.ok) {
+      console.log('[JohnDeere] Platform endpoint failed:', response.status, '- trying link URL');
+
+      let linkUrl = equipmentLink.uri;
+      if (linkUrl.includes('api.deere.com') && !linkUrl.includes('sandboxapi.deere.com')) {
+        linkUrl = linkUrl.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
+      }
+      console.log('[JohnDeere] Following link:', equipmentLink.rel, '->', linkUrl);
+
+      response = await fetch(
+        linkUrl,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.deere.axiom.v3+json'
+          }
+        }
+      );
+    }
+
     if (!response.ok) {
       console.error('[JohnDeere] Equipment fetch error:', response.status, response.statusText);
       const errorText = await response.text();
       console.error('[JohnDeere] Error details:', errorText);
       if (response.status === 403) {
         throw new Error('Access denied to Equipment API. Please ensure "Equipment Read" API is enabled at developer.deere.com');
+      }
+      if (response.status === 404) {
+        throw new Error('Equipment endpoint not found. The sandbox may not support this endpoint.');
       }
       throw new Error(`Failed to fetch equipment: ${response.statusText}`);
     }
