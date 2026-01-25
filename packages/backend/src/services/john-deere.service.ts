@@ -253,7 +253,7 @@ class JohnDeereService {
   }
 
   /**
-   * Get machines (equipment) from John Deere
+   * Get machines (equipment) from John Deere using the Equipment API
    */
   async getMachines(businessId: string): Promise<JohnDeereMachine[]> {
     const connection = await prisma.johnDeereConnection.findUnique({
@@ -266,33 +266,10 @@ class JohnDeereService {
 
     const accessToken = await this.getValidAccessToken(businessId);
 
-    // First, try to get the organization details which may contain a link to machines
-    const orgResponse = await fetch(
-      `${JD_API_BASE}/organizations/${connection.organizationId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.deere.axiom.v3+json'
-        }
-      }
-    );
-
-    if (!orgResponse.ok) {
-      throw new Error(`Failed to fetch organization: ${orgResponse.statusText}`);
-    }
-
-    const orgData = await orgResponse.json() as { links?: Array<{ rel: string; uri: string }> };
-    console.log('[JohnDeere] Organization response:', JSON.stringify(orgData, null, 2));
-
-    // Look for machines link in the organization response
-    const machinesLink = orgData.links?.find(link => link.rel === 'machines');
-
-    if (!machinesLink) {
-      throw new Error('Machines API not available. Please request access to "Operations Center - Machines" API at developer.deere.com. Go to Access tab → Request Access → Search for "Machines"');
-    }
-
+    // Use the Equipment API endpoint (newer API)
+    // The Equipment API uses /equipment endpoint which lists equipment for the authenticated user's organizations
     const response = await fetch(
-      machinesLink.uri,
+      `${JD_API_BASE}/equipment`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -302,43 +279,70 @@ class JohnDeereService {
     );
 
     if (!response.ok) {
+      console.error('[JohnDeere] Equipment API error:', response.status, response.statusText);
       if (response.status === 403) {
-        throw new Error('Access denied to Machines API. Please request access to "Operations Center - Machines" API at developer.deere.com');
+        throw new Error('Access denied to Equipment API. Please ensure "Equipment Read" API is enabled at developer.deere.com');
       }
-      throw new Error(`Failed to fetch machines: ${response.statusText}`);
+      throw new Error(`Failed to fetch equipment: ${response.statusText}`);
     }
 
-    const data = await response.json() as { values?: Array<any> };
-    return (data.values || []).map((machine) => ({
-      id: machine.id,
-      name: machine.name || `${machine.make} ${machine.model}`,
-      make: machine.make,
-      model: machine.model,
-      modelYear: machine.modelYear,
-      serialNumber: machine.serialNumber,
-      engineHours: machine.engineHours,
-      type: machine.machineType
+    const data = await response.json() as { values?: Array<any>; links?: Array<any> };
+    console.log('[JohnDeere] Equipment API response - found', data.values?.length || 0, 'items');
+
+    // Filter equipment by the selected organization if needed
+    const equipment = data.values || [];
+
+    return equipment.map((equip: any) => ({
+      id: equip.id,
+      name: equip.name || `${equip.make || ''} ${equip.model || ''}`.trim() || 'Unknown Equipment',
+      make: equip.make,
+      model: equip.model,
+      modelYear: equip.modelYear,
+      serialNumber: equip.serialNumber || equip.vin,
+      engineHours: equip.engineHours,
+      type: equip.equipmentType || equip.type || equip.category
     }));
   }
 
   /**
-   * Get engine hours for a specific machine
+   * Get engine hours for a specific machine/equipment
+   * Uses the /machines/{id}/engineHours endpoint
    */
   async getMachineHours(businessId: string, machineId: string): Promise<number | null> {
-    const connection = await prisma.johnDeereConnection.findUnique({
-      where: { businessId }
-    });
-
-    if (!connection?.organizationId) {
-      throw new Error('No organization selected');
-    }
-
     const accessToken = await this.getValidAccessToken(businessId);
 
-    // Try the measurements endpoint first (newer API)
+    // Use the engineHours endpoint that's available in the API
     try {
       const response = await fetch(
-        `${JD_API_BASE}/organizations/${connection.organizationId}/machines/${machineId}`,
+        `${JD_API_BASE}/machines/${machineId}/engineHours`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.deere.axiom.v3+json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json() as { values?: Array<{ engineHours?: number }> };
+        // The response may be an array of readings, get the most recent
+        if (data.values && data.values.length > 0) {
+          return data.values[0].engineHours || null;
+        }
+        // Or it might be a direct value
+        const directData = data as any;
+        return directData.engineHours || directData.value || null;
+      } else {
+        console.log('[JohnDeere] Engine hours not available for machine:', machineId, response.status);
+      }
+    } catch (error) {
+      console.error('[JohnDeere] Error fetching machine hours:', error);
+    }
+
+    // Fallback: try the equipment endpoint directly
+    try {
+      const response = await fetch(
+        `${JD_API_BASE}/equipment/${machineId}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -352,7 +356,7 @@ class JohnDeereService {
         return data.engineHours || null;
       }
     } catch (error) {
-      console.error('Error fetching machine hours:', error);
+      console.error('[JohnDeere] Error fetching equipment details:', error);
     }
 
     return null;
