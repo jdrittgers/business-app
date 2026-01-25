@@ -253,7 +253,7 @@ class JohnDeereService {
   }
 
   /**
-   * Get machines (equipment) from John Deere using the Equipment API
+   * Get machines (equipment) from John Deere using HATEOAS navigation
    */
   async getMachines(businessId: string): Promise<JohnDeereMachine[]> {
     const connection = await prisma.johnDeereConnection.findUnique({
@@ -266,10 +266,41 @@ class JohnDeereService {
 
     const accessToken = await this.getValidAccessToken(businessId);
 
-    // Use the Equipment API endpoint (newer API)
-    // The Equipment API uses /equipment endpoint which lists equipment for the authenticated user's organizations
+    // Step 1: Get the organization to find equipment/machines links
+    const orgResponse = await fetch(
+      `${JD_API_BASE}/organizations/${connection.organizationId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.deere.axiom.v3+json'
+        }
+      }
+    );
+
+    if (!orgResponse.ok) {
+      throw new Error(`Failed to fetch organization: ${orgResponse.statusText}`);
+    }
+
+    const orgData = await orgResponse.json() as { links?: Array<{ rel: string; uri: string }> };
+    console.log('[JohnDeere] Organization links:', orgData.links?.map(l => l.rel).join(', '));
+
+    // Step 2: Look for equipment or machines link
+    const equipmentLink = orgData.links?.find(link =>
+      link.rel === 'equipment' || link.rel === 'machines' || link.rel === 'contributedEquipment'
+    );
+
+    if (!equipmentLink) {
+      // Log available links for debugging
+      console.log('[JohnDeere] Available links:', JSON.stringify(orgData.links, null, 2));
+      throw new Error('No equipment/machines link found in organization. Available links: ' +
+        (orgData.links?.map(l => l.rel).join(', ') || 'none'));
+    }
+
+    console.log('[JohnDeere] Following link:', equipmentLink.rel, '->', equipmentLink.uri);
+
+    // Step 3: Follow the equipment link
     const response = await fetch(
-      `${JD_API_BASE}/equipment`,
+      equipmentLink.uri,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -279,7 +310,9 @@ class JohnDeereService {
     );
 
     if (!response.ok) {
-      console.error('[JohnDeere] Equipment API error:', response.status, response.statusText);
+      console.error('[JohnDeere] Equipment fetch error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('[JohnDeere] Error details:', errorText);
       if (response.status === 403) {
         throw new Error('Access denied to Equipment API. Please ensure "Equipment Read" API is enabled at developer.deere.com');
       }
@@ -287,9 +320,8 @@ class JohnDeereService {
     }
 
     const data = await response.json() as { values?: Array<any>; links?: Array<any> };
-    console.log('[JohnDeere] Equipment API response - found', data.values?.length || 0, 'items');
+    console.log('[JohnDeere] Equipment response - found', data.values?.length || 0, 'items');
 
-    // Filter equipment by the selected organization if needed
     const equipment = data.values || [];
 
     return equipment.map((equip: any) => ({
