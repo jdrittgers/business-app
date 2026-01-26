@@ -174,6 +174,7 @@ export interface CreateFarmRequest {
 
 export interface UpdateFarmRequest {
   name?: string;
+  grainEntityId?: string;
   landParcelId?: string | null;
   acres?: number;
   commodityType?: CommodityType;

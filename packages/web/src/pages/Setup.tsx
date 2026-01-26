@@ -248,6 +248,120 @@ function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModal
   );
 }
 
+// Farm Edit Modal for updating existing farms
+interface FarmEditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: { grainEntityId?: string; acres?: number; name?: string }) => Promise<void>;
+  farm: Farm | null;
+  entities: GrainEntity[];
+}
+
+function FarmEditModal({ isOpen, onClose, onSave, farm, entities }: FarmEditModalProps) {
+  const [formData, setFormData] = useState({
+    name: '',
+    acres: 0,
+    grainEntityId: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && farm) {
+      setFormData({
+        name: farm.name,
+        acres: farm.acres || 0,
+        grainEntityId: farm.grainEntityId
+      });
+    }
+  }, [isOpen, farm]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      console.error('Failed to update farm:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update farm');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen || !farm) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div className="glass-backdrop transition-opacity" onClick={onClose} />
+        <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+        <div className="inline-block align-bottom glass-modal text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              Edit Farm
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Farm/Field Name</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Entity</label>
+                <select
+                  value={formData.grainEntityId}
+                  onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                  required
+                >
+                  {entities.map(e => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Move this farm to a different entity</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Acres</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.acres || ''}
+                  onChange={(e) => setFormData({ ...formData, acres: parseFloat(e.target.value) || 0 })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
+                  required
+                />
+              </div>
+              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-900 text-base font-medium text-white hover:bg-gray-800 sm:text-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Setup() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SetupTab>('entities');
@@ -261,6 +375,8 @@ export default function Setup() {
 
   // Farm modal
   const [showFarmModal, setShowFarmModal] = useState(false);
+  const [showFarmEditModal, setShowFarmEditModal] = useState(false);
+  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
 
   // John Deere
   const [jdStatus, setJdStatus] = useState<JohnDeereConnectionStatus | null>(null);
@@ -370,6 +486,12 @@ export default function Setup() {
       console.error('Failed to delete farm:', error);
       alert('Failed to delete farm');
     }
+  };
+
+  const handleUpdateFarm = async (data: { grainEntityId?: string; acres?: number; name?: string }) => {
+    if (!businessId || !selectedFarm) return;
+    await breakevenApi.updateFarm(businessId, selectedFarm.id, data);
+    await loadData();
   };
 
   // John Deere handlers
@@ -653,6 +775,15 @@ export default function Setup() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{farm.year}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => {
+                              setSelectedFarm(farm);
+                              setShowFarmEditModal(true);
+                            }}
+                            className="text-gray-600 hover:text-gray-900 mr-4"
+                          >
+                            Edit
+                          </button>
                           <a href={`/breakeven/farms/${farm.id}/costs`} className="text-gray-600 hover:text-gray-900 mr-4">
                             Costs
                           </a>
@@ -828,6 +959,17 @@ export default function Setup() {
         onSave={handleCreateFarm}
         entities={entities}
         defaultYear={currentYear}
+      />
+
+      <FarmEditModal
+        isOpen={showFarmEditModal}
+        onClose={() => {
+          setShowFarmEditModal(false);
+          setSelectedFarm(null);
+        }}
+        onSave={handleUpdateFarm}
+        farm={selectedFarm}
+        entities={entities}
       />
     </div>
   );
