@@ -485,22 +485,45 @@ class JohnDeereService {
       // Log first field for debugging structure
       if (data.values && data.values.length > 0 && allFields.length === 0) {
         console.log('[JohnDeere] Sample field structure:', JSON.stringify(data.values[0], null, 2));
+        console.log('[JohnDeere] Field keys:', Object.keys(data.values[0]).join(', '));
       }
 
       const fields = data.values || [];
       for (const field of fields) {
         // Parse acres - JD typically uses 'area' with value and unitOfMeasure
+        // Or it might be in activeArea or totalArea
         let acres: number | undefined;
-        if (field.area?.value !== undefined) {
-          acres = parseFloat(field.area.value);
-          // Convert from hectares if needed (JD often uses hectares)
-          if (field.area?.unitOfMeasure === 'ha' || field.area?.unitOfMeasure === 'hectare') {
-            acres = acres * 2.47105;
+
+        // Try various possible acre fields
+        const possibleAcreFields = [
+          field.area?.value,
+          field.activeArea?.value,
+          field.totalArea?.value,
+          field.acres,
+          field.totalArea,
+          field.activeArea,
+          field.area
+        ];
+
+        for (const val of possibleAcreFields) {
+          if (val !== undefined && val !== null) {
+            const parsed = typeof val === 'number' ? val : parseFloat(val);
+            if (!isNaN(parsed) && parsed > 0) {
+              acres = parsed;
+              // Check if we need to convert from hectares
+              const unit = field.area?.unitOfMeasure || field.activeArea?.unitOfMeasure || field.totalArea?.unitOfMeasure;
+              if (unit === 'ha' || unit === 'hectare' || unit === 'hectares') {
+                acres = acres * 2.47105;
+              }
+              break;
+            }
           }
-        } else if (field.acres !== undefined) {
-          acres = parseFloat(field.acres);
-        } else if (field.totalArea !== undefined) {
-          acres = parseFloat(field.totalArea);
+        }
+
+        // Log if we couldn't find acres for first field
+        if (allFields.length === 0 && !acres) {
+          console.log('[JohnDeere] Could not find acres in field. Available properties:',
+            JSON.stringify({ area: field.area, activeArea: field.activeArea, totalArea: field.totalArea, acres: field.acres }));
         }
 
         allFields.push({
