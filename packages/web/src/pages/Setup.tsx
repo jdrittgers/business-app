@@ -108,6 +108,16 @@ interface FarmModalProps {
   defaultYear: number;
 }
 
+// Get commodity-specific yield defaults
+const getYieldDefaults = (commodityType: CommodityType) => {
+  switch (commodityType) {
+    case 'CORN': return { projectedYield: 200, aph: 200 };
+    case 'SOYBEANS': return { projectedYield: 60, aph: 60 };
+    case 'WHEAT': return { projectedYield: 80, aph: 80 };
+    default: return { projectedYield: 0, aph: 0 };
+  }
+};
+
 function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModalProps) {
   const [formData, setFormData] = useState({
     name: '',
@@ -115,8 +125,7 @@ function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModal
     grainEntityId: '',
     commodityType: CommodityType.CORN,
     year: defaultYear,
-    projectedYield: 200,
-    aph: 200
+    ...getYieldDefaults(CommodityType.CORN)
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -128,8 +137,7 @@ function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModal
         grainEntityId: entities[0]?.id || '',
         commodityType: CommodityType.CORN,
         year: defaultYear,
-        projectedYield: 200,
-        aph: 200
+        ...getYieldDefaults(CommodityType.CORN)
       });
     }
   }, [isOpen, entities, defaultYear]);
@@ -214,7 +222,11 @@ function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModal
                   <label className="block text-sm font-medium text-gray-700">Commodity *</label>
                   <select
                     value={formData.commodityType}
-                    onChange={(e) => setFormData({ ...formData, commodityType: e.target.value as CommodityType })}
+                    onChange={(e) => {
+                      const newCommodity = e.target.value as CommodityType;
+                      const defaults = getYieldDefaults(newCommodity);
+                      setFormData({ ...formData, commodityType: newCommodity, ...defaults });
+                    }}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
                     required
                   >
@@ -601,14 +613,14 @@ export default function Setup() {
 
     for (const field of fieldsToImport) {
       try {
+        const defaults = getYieldDefaults(CommodityType.CORN);
         await breakevenApi.createFarm(businessId, {
           name: field.name,
           acres: field.acres || 0,
           grainEntityId: entities[0].id, // Default to first entity
           commodityType: CommodityType.CORN, // Default
           year: currentYear,
-          projectedYield: 200, // Default yield
-          aph: 200 // Default APH
+          ...defaults
         });
         imported++;
       } catch (error: any) {
