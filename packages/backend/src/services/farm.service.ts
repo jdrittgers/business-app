@@ -24,7 +24,10 @@ export class FarmService {
         ...(query?.commodityType && { commodityType: query.commodityType })
       },
       include: {
-        grainEntity: true
+        grainEntity: true,
+        entitySplits: {
+          include: { grainEntity: true }
+        }
       },
       orderBy: [
         { year: 'desc' },
@@ -44,7 +47,13 @@ export class FarmService {
       landParcelId: f.landParcelId || undefined,
       planApproved: f.planApproved,
       planApprovedAt: f.planApprovedAt || undefined,
-      planApprovedBy: f.planApprovedBy || undefined
+      planApprovedBy: f.planApprovedBy || undefined,
+      entitySplits: f.entitySplits?.map(s => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity.name,
+        percentage: Number(s.percentage)
+      }))
     }));
   }
 

@@ -8,7 +8,8 @@ import {
   Farm,
   CommodityType,
   JohnDeereConnectionStatus,
-  JohnDeereOrganization
+  JohnDeereOrganization,
+  CreateEntitySplitRequest
 } from '@business-app/shared';
 
 // Tab types
@@ -263,8 +264,10 @@ export default function Setup() {
   const [showFarmModal, setShowFarmModal] = useState(false);
 
   // Inline editing state - tracks changes to farms before saving
-  const [pendingChanges, setPendingChanges] = useState<Record<string, { grainEntityId?: string; acres?: number }>>({});
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { grainEntityId?: string; acres?: number; entitySplits?: CreateEntitySplitRequest[] }>>({});
   const [savingFarms, setSavingFarms] = useState<Set<string>>(new Set());
+  // Track which farms have split mode expanded
+  const [expandedSplits, setExpandedSplits] = useState<Set<string>>(new Set());
 
   // John Deere
   const [jdStatus, setJdStatus] = useState<JohnDeereConnectionStatus | null>(null);
@@ -382,9 +385,80 @@ export default function Setup() {
       ...prev,
       [farmId]: {
         ...prev[farmId],
-        [field]: value
+        [field]: value,
+        // Clear entitySplits when switching back to single entity
+        ...(field === 'grainEntityId' ? { entitySplits: undefined } : {})
       }
     }));
+    // Collapse split mode when selecting a single entity
+    if (field === 'grainEntityId') {
+      setExpandedSplits(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(farmId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSplitChange = (farmId: string, splits: CreateEntitySplitRequest[]) => {
+    setPendingChanges(prev => ({
+      ...prev,
+      [farmId]: {
+        ...prev[farmId],
+        entitySplits: splits,
+        grainEntityId: undefined // Clear single entity when using splits
+      }
+    }));
+  };
+
+  const toggleSplitMode = (farmId: string) => {
+    const farm = farms.find(f => f.id === farmId);
+    if (!farm) return;
+
+    setExpandedSplits(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(farmId)) {
+        newSet.delete(farmId);
+        // When collapsing, reset to single entity if no pending splits
+        const changes = pendingChanges[farmId];
+        if (!changes?.entitySplits || changes.entitySplits.length === 0) {
+          setPendingChanges(p => ({
+            ...p,
+            [farmId]: {
+              ...p[farmId],
+              entitySplits: undefined
+            }
+          }));
+        }
+      } else {
+        newSet.add(farmId);
+        // When expanding, initialize with current splits or default 50/50 if multiple entities
+        const currentSplits = farm.entitySplits || [];
+        if (currentSplits.length === 0 && entities.length >= 2) {
+          // Default to 50/50 split with first two entities
+          setPendingChanges(p => ({
+            ...p,
+            [farmId]: {
+              ...p[farmId],
+              entitySplits: [
+                { grainEntityId: farm.grainEntityId, percentage: 50 },
+                { grainEntityId: entities.find(e => e.id !== farm.grainEntityId)?.id || entities[1].id, percentage: 50 }
+              ]
+            }
+          }));
+        } else if (currentSplits.length > 0) {
+          // Use existing splits
+          setPendingChanges(p => ({
+            ...p,
+            [farmId]: {
+              ...p[farmId],
+              entitySplits: currentSplits.map(s => ({ grainEntityId: s.grainEntityId, percentage: s.percentage }))
+            }
+          }));
+        }
+      }
+      return newSet;
+    });
   };
 
   const hasChanges = (farmId: string) => {
@@ -392,6 +466,18 @@ export default function Setup() {
     if (!changes) return false;
     const farm = farms.find(f => f.id === farmId);
     if (!farm) return false;
+
+    // Check for entity split changes
+    if (changes.entitySplits !== undefined) {
+      const currentSplits = farm.entitySplits || [];
+      if (changes.entitySplits.length !== currentSplits.length) return true;
+      const splitsChanged = changes.entitySplits.some((s, i) =>
+        currentSplits[i]?.grainEntityId !== s.grainEntityId ||
+        currentSplits[i]?.percentage !== s.percentage
+      );
+      if (splitsChanged) return true;
+    }
+
     return (
       (changes.grainEntityId !== undefined && changes.grainEntityId !== farm.grainEntityId) ||
       (changes.acres !== undefined && changes.acres !== farm.acres)
@@ -756,25 +842,148 @@ export default function Setup() {
                     const currentAcres = farmChanges?.acres ?? farm.acres;
                     const farmHasChanges = hasChanges(farm.id);
                     const isSaving = savingFarms.has(farm.id);
+                    const isExpanded = expandedSplits.has(farm.id);
+                    const currentSplits = farmChanges?.entitySplits ?? farm.entitySplits ?? [];
+                    const hasSplits = currentSplits.length > 0;
 
                     return (
                       <tr key={farm.id} className={`${farmHasChanges ? 'bg-yellow-50' : 'hover:bg-gray-50'} transition-colors`}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{farm.name}</td>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <select
-                            value={currentEntityId}
-                            onChange={(e) => handleInlineChange(farm.id, 'grainEntityId', e.target.value)}
-                            disabled={isSaving}
-                            className={`block w-full rounded-md text-sm py-1.5 pl-2 pr-8 ${
-                              farmHasChanges && farmChanges?.grainEntityId !== undefined
-                                ? 'border-yellow-400 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500'
-                                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
-                            } disabled:opacity-50`}
-                          >
-                            {entities.map(e => (
-                              <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                          </select>
+                        <td className="px-6 py-3">
+                          {isExpanded ? (
+                            // Expanded split editing mode
+                            <div className="space-y-2">
+                              {(farmChanges?.entitySplits || currentSplits).map((split, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <select
+                                    value={split.grainEntityId}
+                                    onChange={(e) => {
+                                      const newSplits = [...(farmChanges?.entitySplits || currentSplits)];
+                                      newSplits[idx] = { ...newSplits[idx], grainEntityId: e.target.value };
+                                      handleSplitChange(farm.id, newSplits);
+                                    }}
+                                    disabled={isSaving}
+                                    className="flex-1 rounded-md text-sm py-1 pl-2 pr-6 border-gray-300 focus:border-gray-900 focus:ring-gray-900"
+                                  >
+                                    {entities.map(e => (
+                                      <option key={e.id} value={e.id}>{e.name}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={split.percentage}
+                                    onChange={(e) => {
+                                      const newSplits = [...(farmChanges?.entitySplits || currentSplits)];
+                                      newSplits[idx] = { ...newSplits[idx], percentage: parseInt(e.target.value) || 0 };
+                                      handleSplitChange(farm.id, newSplits);
+                                    }}
+                                    disabled={isSaving}
+                                    className="w-16 rounded-md text-sm py-1 px-2 border-gray-300 focus:border-gray-900 focus:ring-gray-900"
+                                  />
+                                  <span className="text-xs text-gray-500">%</span>
+                                  {(farmChanges?.entitySplits || currentSplits).length > 2 && (
+                                    <button
+                                      onClick={() => {
+                                        const newSplits = (farmChanges?.entitySplits || currentSplits).filter((_, i) => i !== idx);
+                                        handleSplitChange(farm.id, newSplits);
+                                      }}
+                                      disabled={isSaving}
+                                      className="text-red-500 hover:text-red-700 text-xs"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                              <div className="flex items-center gap-2 pt-1">
+                                {(farmChanges?.entitySplits || currentSplits).length < entities.length && (
+                                  <button
+                                    onClick={() => {
+                                      const currentEntityIds = (farmChanges?.entitySplits || currentSplits).map(s => s.grainEntityId);
+                                      const availableEntity = entities.find(e => !currentEntityIds.includes(e.id));
+                                      if (availableEntity) {
+                                        handleSplitChange(farm.id, [
+                                          ...(farmChanges?.entitySplits || currentSplits),
+                                          { grainEntityId: availableEntity.id, percentage: 0 }
+                                        ]);
+                                      }
+                                    }}
+                                    disabled={isSaving}
+                                    className="text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    + Add Entity
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => toggleSplitMode(farm.id)}
+                                  className="text-xs text-gray-500 hover:text-gray-700 ml-auto"
+                                >
+                                  Cancel Split
+                                </button>
+                              </div>
+                              {/* Percentage total indicator */}
+                              {(() => {
+                                const total = (farmChanges?.entitySplits || currentSplits).reduce((sum, s) => sum + s.percentage, 0);
+                                return total !== 100 ? (
+                                  <div className="text-xs text-red-500">
+                                    Total: {total}% (must equal 100%)
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-green-600">Total: 100%</div>
+                                );
+                              })()}
+                            </div>
+                          ) : hasSplits ? (
+                            // Display existing splits compactly
+                            <div className="space-y-0.5">
+                              {currentSplits.map((split, idx) => {
+                                const entity = entities.find(e => e.id === split.grainEntityId);
+                                return (
+                                  <div key={idx} className="text-sm">
+                                    <span className="font-medium">{entity?.name || 'Unknown'}</span>
+                                    <span className="text-gray-500 ml-1">({split.percentage}%)</span>
+                                  </div>
+                                );
+                              })}
+                              <button
+                                onClick={() => toggleSplitMode(farm.id)}
+                                disabled={isSaving}
+                                className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                              >
+                                Edit Splits
+                              </button>
+                            </div>
+                          ) : (
+                            // Single entity mode with split button
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={currentEntityId}
+                                onChange={(e) => handleInlineChange(farm.id, 'grainEntityId', e.target.value)}
+                                disabled={isSaving}
+                                className={`flex-1 rounded-md text-sm py-1.5 pl-2 pr-8 ${
+                                  farmHasChanges && farmChanges?.grainEntityId !== undefined
+                                    ? 'border-yellow-400 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500'
+                                    : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
+                                } disabled:opacity-50`}
+                              >
+                                {entities.map(e => (
+                                  <option key={e.id} value={e.id}>{e.name}</option>
+                                ))}
+                              </select>
+                              {entities.length >= 2 && (
+                                <button
+                                  onClick={() => toggleSplitMode(farm.id)}
+                                  disabled={isSaving}
+                                  className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                                  title="Split between multiple entities"
+                                >
+                                  Split
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
                           <input
