@@ -389,13 +389,24 @@ export class ChemicalPlanTemplateService {
 
         // Create FarmChemicalUsage for each template item
         for (const item of template.items) {
+          // Convert rate to purchase units for amountUsed
+          // e.g., 8 OZ/acre * 100 acres = 800 OZ = 6.25 GAL
+          const chemical = (item as any).chemical;
+          const rateUnit = item.rateUnit || chemical?.unit || 'GAL';
+          const purchaseUnit = chemical?.unit || 'GAL';
+          const rateInPurchaseUnits = this.convertRateToBaseUnit(
+            Number(item.ratePerAcre),
+            rateUnit,
+            purchaseUnit
+          );
+
           await tx.farmChemicalUsage.create({
             data: {
               farmId,
               chemicalId: item.chemicalId,
               ratePerAcre: item.ratePerAcre,
               acresApplied: farmAcres,
-              amountUsed: Number(item.ratePerAcre) * farmAcres,
+              amountUsed: rateInPurchaseUnits * farmAcres,
               templateItemId: item.id,
               isOverride: false
             }
@@ -553,7 +564,11 @@ export class ChemicalPlanTemplateService {
     // Verify template exists and belongs to business
     const template = await prisma.chemicalPlanTemplate.findFirst({
       where: { id: templateId, businessId },
-      include: { items: true }
+      include: {
+        items: {
+          include: { chemical: true }
+        }
+      }
     });
     if (!template) {
       throw new Error('Template not found');
@@ -588,13 +603,22 @@ export class ChemicalPlanTemplateService {
 
       // Re-create from template
       for (const item of template.items) {
+        // Convert rate to purchase units for amountUsed
+        const rateUnit = item.rateUnit || (item as any).chemical?.unit || 'GAL';
+        const purchaseUnit = (item as any).chemical?.unit || 'GAL';
+        const rateInPurchaseUnits = this.convertRateToBaseUnit(
+          Number(item.ratePerAcre),
+          rateUnit,
+          purchaseUnit
+        );
+
         await tx.farmChemicalUsage.create({
           data: {
             farmId,
             chemicalId: item.chemicalId,
             ratePerAcre: item.ratePerAcre,
             acresApplied: farmAcres,
-            amountUsed: Number(item.ratePerAcre) * farmAcres,
+            amountUsed: rateInPurchaseUnits * farmAcres,
             templateItemId: item.id,
             isOverride: false
           }
@@ -867,5 +891,40 @@ export class ChemicalPlanTemplateService {
         rateUnit: i.chemical.rateUnit || undefined
       } : undefined
     };
+  }
+
+  /**
+   * Convert application rate to purchase unit equivalent
+   * e.g., 8 OZ/acre at purchase unit GAL = 8/128 = 0.0625 GAL/acre
+   */
+  private convertRateToBaseUnit(rate: number, rateUnit: string, purchaseUnit: string): number {
+    if (rateUnit === purchaseUnit) return rate;
+
+    // Volume conversions (to GAL)
+    const volumeToGal: Record<string, number> = {
+      'GAL': 1,
+      'QT': 0.25,      // 1 quart = 0.25 gallon
+      'PT': 0.125,     // 1 pint = 0.125 gallon
+      'OZ': 0.0078125  // 1 fl oz = 1/128 gallon
+    };
+
+    // Weight conversions (to LB)
+    const weightToLb: Record<string, number> = {
+      'LB': 1,
+      'OZ': 0.0625     // 1 oz = 1/16 lb
+    };
+
+    // Handle volume-based chemicals (GAL purchase unit)
+    if (purchaseUnit === 'GAL' && volumeToGal[rateUnit]) {
+      return rate * volumeToGal[rateUnit];
+    }
+
+    // Handle weight-based chemicals (LB purchase unit)
+    if (purchaseUnit === 'LB' && weightToLb[rateUnit]) {
+      return rate * weightToLb[rateUnit];
+    }
+
+    // If units don't match type, return as-is
+    return rate;
   }
 }
