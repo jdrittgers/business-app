@@ -16,6 +16,8 @@ interface ParsedLineItem {
   unit: string;
   pricePerUnit: number;
   totalPrice: number;
+  ratePerAcre?: number;  // Application rate (e.g., 2 oz/acre)
+  rateUnit?: string;     // Unit for rate (OZ, PT, QT, GAL, LB)
 }
 
 export class InvoiceParserService {
@@ -149,7 +151,9 @@ Extract:
       "quantity": 1000,
       "unit": "TON|LB|GAL|BAG",
       "pricePerUnit": 0.50,
-      "totalPrice": 500.00
+      "totalPrice": 500.00,
+      "ratePerAcre": 2.5,
+      "rateUnit": "OZ|PT|QT|GAL|LB"
     }
   ]
 }
@@ -160,6 +164,8 @@ Rules:
 - Extract numeric values only (remove $ and commas)
 - If date format is unclear, use YYYY-MM-DD
 - If information is missing, omit the field or use null
+- For chemicals, look for application rate info (e.g., "2 oz/acre", "1 pt/acre", "32 oz/A")
+- ratePerAcre is the numeric rate, rateUnit is OZ, PT, QT, GAL, or LB
 - Return valid JSON only - NO markdown, NO code blocks, NO explanation text`;
   }
 }

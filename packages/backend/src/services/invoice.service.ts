@@ -68,7 +68,9 @@ export class InvoiceService {
               unit: item.unit,
               pricePerUnit: new Decimal(item.pricePerUnit),
               totalPrice: new Decimal(item.totalPrice),
-              isNewProduct: false
+              isNewProduct: false,
+              ratePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : null,
+              rateUnit: item.rateUnit || null
             }
           });
         }

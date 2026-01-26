@@ -707,8 +707,8 @@ export default function InvoiceParsing() {
                         <input
                           type="number"
                           step="0.0001"
-                          value={item.ratePerAcre !== undefined ? Number(item.ratePerAcre) : ''}
-                          onChange={(e) => handleLineItemChange(index, 'ratePerAcre', e.target.value)}
+                          value={item.ratePerAcre ?? ''}
+                          onChange={(e) => handleLineItemChange(index, 'ratePerAcre', e.target.value === '' ? null : e.target.value)}
                           className="text-sm border-gray-300 rounded-md w-20"
                           disabled={!!item.priceLockedAt}
                           placeholder="Rate"
