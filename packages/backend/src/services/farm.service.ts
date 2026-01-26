@@ -20,7 +20,17 @@ export class FarmService {
       where: {
         grainEntity: { businessId },
         deletedAt: null,  // Exclude soft-deleted farms
-        ...(query?.grainEntityId && { grainEntityId: query.grainEntityId }),
+        // If filtering by entity, respect entity splits:
+        // Include farms where entity is in splits OR is primary with no splits
+        ...(query?.grainEntityId && {
+          OR: [
+            { entitySplits: { some: { grainEntityId: query.grainEntityId } } },
+            {
+              grainEntityId: query.grainEntityId,
+              entitySplits: { none: {} }
+            }
+          ]
+        }),
         ...(query?.year && { year: query.year }),
         ...(query?.commodityType && { commodityType: query.commodityType })
       },
@@ -936,7 +946,17 @@ export class FarmService {
       where: {
         grainEntity: { businessId },
         deletedAt: null,  // Exclude soft-deleted farms
-        ...(query?.grainEntityId && { grainEntityId: query.grainEntityId }),
+        // If filtering by entity, respect entity splits:
+        // Include farms where entity is in splits OR is primary with no splits
+        ...(query?.grainEntityId && {
+          OR: [
+            { entitySplits: { some: { grainEntityId: query.grainEntityId } } },
+            {
+              grainEntityId: query.grainEntityId,
+              entitySplits: { none: {} }
+            }
+          ]
+        }),
         ...(query?.year && { year: query.year }),
         ...(query?.commodityType && { commodityType: query.commodityType })
       },
