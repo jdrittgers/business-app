@@ -140,6 +140,23 @@ router.post('/businesses/:businessId/john-deere/organization', async (req: AuthR
   }
 });
 
+// Get John Deere fields
+router.get('/businesses/:businessId/john-deere/fields', async (req: AuthRequest, res: Response) => {
+  try {
+    // Verify user has access to this business
+    if (!await verifyBusinessAccess(req.user!.userId, req.params.businessId)) {
+      res.status(403).json({ error: 'Access denied to this business' });
+      return;
+    }
+
+    const fields = await johnDeereService.getFields(req.params.businessId);
+    res.json(fields);
+  } catch (error: any) {
+    console.error('Error getting JD fields:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get John Deere machines
 router.get('/businesses/:businessId/john-deere/machines', async (req: AuthRequest, res: Response) => {
   try {

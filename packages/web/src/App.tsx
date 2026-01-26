@@ -45,6 +45,7 @@ import LandParcels from './pages/LandParcels';
 import OperatingLoans from './pages/OperatingLoans';
 import EquipmentLoans from './pages/EquipmentLoans';
 import EquipmentMaintenance from './pages/EquipmentMaintenance';
+import Setup from './pages/Setup';
 import RequireRole from './components/RequireRole';
 
 // Wrapper for authenticated farmer routes with layout
@@ -123,6 +124,7 @@ function App() {
       <Route path="/subscription/success" element={<AuthRoute><SubscriptionManagement /></AuthRoute>} />
       <Route path="/deleted-items" element={<AuthRoute><DeletedItems /></AuthRoute>} />
       <Route path="/marketing-ai" element={<AuthRoute><MarketingAI /></AuthRoute>} />
+      <Route path="/setup" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><Setup /></RequireRole></AuthRoute>} />
 
       {/* Retailer Routes */}
       <Route path="/retailer/login" element={<RetailerLogin />} />

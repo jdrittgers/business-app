@@ -28,12 +28,10 @@ const strengthLabels: Record<SignalStrength, string> = {
   STRONG_SELL: 'Warning'
 };
 
-const signalTypeLabels: Record<MarketingSignalType, string> = {
+const signalTypeLabels: Partial<Record<MarketingSignalType, string>> = {
   CASH_SALE: 'Cash Sale',
   BASIS_CONTRACT: 'Basis Contract',
   HTA_RECOMMENDATION: 'HTA',
-  ACCUMULATOR_STRATEGY: 'Accumulator',
-  ACCUMULATOR_INQUIRY: 'Check Accumulator',
   PUT_OPTION: 'Put Option',
   CALL_OPTION: 'Call Option',
   COLLAR_STRATEGY: 'Collar',
@@ -41,6 +39,12 @@ const signalTypeLabels: Record<MarketingSignalType, string> = {
   WEATHER_ALERT: 'Weather Alert',
   BREAKING_NEWS: 'Breaking News'
 };
+
+// Signal types to hide from UI
+const hiddenSignalTypes = [
+  MarketingSignalType.ACCUMULATOR_STRATEGY,
+  MarketingSignalType.ACCUMULATOR_INQUIRY
+];
 
 const commodityColors: Record<CommodityType, string> = {
   CORN: 'bg-yellow-500',
@@ -63,7 +67,7 @@ function SignalCard({ signal, onDismiss, onTakeAction }: {
           <div className="flex items-center gap-2">
             <span className={`w-3 h-3 rounded-full ${commodityColors[signal.commodityType]}`}></span>
             <span className="font-medium text-gray-900">{signal.commodityType}</span>
-            <span className="text-sm text-gray-500">{signalTypeLabels[signal.signalType]}</span>
+            <span className="text-sm text-gray-500">{signalTypeLabels[signal.signalType] || signal.signalType}</span>
           </div>
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
             {strengthLabels[signal.strength]}
@@ -278,7 +282,9 @@ export default function MarketingAI() {
     }
   };
 
-  const activeSignals = signals.filter(s => s.status === SignalStatus.ACTIVE);
+  // Filter out accumulator signals from display
+  const visibleSignals = signals.filter(s => !hiddenSignalTypes.includes(s.signalType));
+  const activeSignals = visibleSignals.filter(s => s.status === SignalStatus.ACTIVE);
   const strongSignals = activeSignals.filter(s =>
     s.strength === SignalStrength.STRONG_BUY || s.strength === SignalStrength.BUY
   );
@@ -385,7 +391,7 @@ export default function MarketingAI() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
               Loading signals...
             </div>
-          ) : signals.length === 0 ? (
+          ) : visibleSignals.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -399,7 +405,7 @@ export default function MarketingAI() {
             </div>
           ) : (
             <div className="space-y-4">
-              {signals.map(signal => (
+              {visibleSignals.map(signal => (
                 <SignalCard
                   key={signal.id}
                   signal={signal}

@@ -63,5 +63,11 @@ export const johnDeereApi = {
   sync: async (businessId: string): Promise<JohnDeereSyncResult> => {
     const response = await apiClient.post(`/api/businesses/${businessId}/john-deere/sync`);
     return response.data;
+  },
+
+  // Get fields from John Deere
+  getFields: async (businessId: string): Promise<Array<{ id: string; name: string; acres?: number }>> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/john-deere/fields`);
+    return response.data;
   }
 };

@@ -8,6 +8,7 @@ import {
   CreateMaintenanceRequest,
   UpdateMaintenanceRequest,
   CompleteMaintenanceRequest,
+  CreateEquipmentRequest,
   MaintenanceType,
   MaintenanceFrequency,
   maintenanceTypeLabels,
@@ -16,6 +17,18 @@ import {
   JohnDeereMachine,
   EquipmentType
 } from '@business-app/shared';
+
+const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
+  [EquipmentType.TRACTOR]: 'Tractor',
+  [EquipmentType.COMBINE]: 'Combine',
+  [EquipmentType.PLANTER]: 'Planter',
+  [EquipmentType.SPRAYER]: 'Sprayer',
+  [EquipmentType.GRAIN_CART]: 'Grain Cart',
+  [EquipmentType.SEMI_TRUCK]: 'Semi Truck',
+  [EquipmentType.TRAILER]: 'Trailer',
+  [EquipmentType.TILLAGE]: 'Tillage',
+  [EquipmentType.OTHER]: 'Other'
+};
 
 // Modal for creating/editing maintenance schedules
 interface MaintenanceModalProps {
@@ -395,6 +408,157 @@ function CompleteMaintenanceModal({ isOpen, onClose, onSave, maintenance }: Comp
   );
 }
 
+// Modal for adding equipment
+interface EquipmentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: CreateEquipmentRequest) => Promise<void>;
+}
+
+function EquipmentModal({ isOpen, onClose, onSave }: EquipmentModalProps) {
+  const [formData, setFormData] = useState<CreateEquipmentRequest>({
+    name: '',
+    equipmentType: EquipmentType.TRACTOR
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: '',
+        equipmentType: EquipmentType.TRACTOR
+      });
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await onSave(formData);
+      onClose();
+    } catch (error) {
+      console.error('Failed to save equipment:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save equipment');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div className="glass-backdrop transition-opacity" onClick={onClose} />
+        <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+        <div className="inline-block align-bottom glass-modal text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              Add Equipment
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  placeholder="e.g., John Deere 8R 410"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Type *</label>
+                  <select
+                    value={formData.equipmentType}
+                    onChange={(e) => setFormData({ ...formData, equipmentType: e.target.value as EquipmentType })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required
+                  >
+                    {Object.entries(EQUIPMENT_TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Year</label>
+                  <input
+                    type="number"
+                    value={formData.year || ''}
+                    onChange={(e) => setFormData({ ...formData, year: e.target.value ? parseInt(e.target.value) : undefined })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="e.g., 2022"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Make</label>
+                  <input
+                    type="text"
+                    value={formData.make || ''}
+                    onChange={(e) => setFormData({ ...formData, make: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="e.g., John Deere"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Model</label>
+                  <input
+                    type="text"
+                    value={formData.model || ''}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="e.g., 8R 410"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Serial Number</label>
+                <input
+                  type="text"
+                  value={formData.serialNumber || ''}
+                  onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+                            <div>
+                <label className="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea
+                  value={formData.notes || ''}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={2}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EquipmentMaintenance() {
   const { user } = useAuthStore();
   const [maintenanceItems, setMaintenanceItems] = useState<MaintenanceItem[]>([]);
@@ -402,6 +566,7 @@ export default function EquipmentMaintenance() {
   const [loading, setLoading] = useState(true);
   const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState<MaintenanceItem | null>(null);
   const [selectedEquipmentFilter, setSelectedEquipmentFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'overdue' | 'upcoming' | 'ok'>('all');
@@ -453,6 +618,12 @@ export default function EquipmentMaintenance() {
       console.error('Failed to delete maintenance:', error);
       alert('Failed to delete maintenance');
     }
+  };
+
+  const handleCreateEquipment = async (data: CreateEquipmentRequest) => {
+    if (!businessId) return;
+    await loansApi.createEquipment(businessId, data);
+    await loadData();
   };
 
   // Import equipment from John Deere
@@ -552,7 +723,13 @@ export default function EquipmentMaintenance() {
             Track and schedule maintenance for your equipment.
           </p>
         </div>
-        <div className="mt-3 sm:mt-0">
+        <div className="mt-3 sm:mt-0 flex gap-3">
+          <button
+            onClick={() => setShowEquipmentModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Add Equipment
+          </button>
           <button
             onClick={() => {
               setSelectedMaintenance(null);
@@ -811,6 +988,12 @@ export default function EquipmentMaintenance() {
         }}
         onSave={handleCompleteMaintenance}
         maintenance={selectedMaintenance}
+      />
+
+      <EquipmentModal
+        isOpen={showEquipmentModal}
+        onClose={() => setShowEquipmentModal(false)}
+        onSave={handleCreateEquipment}
       />
     </div>
   );

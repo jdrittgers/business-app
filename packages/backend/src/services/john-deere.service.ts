@@ -418,6 +418,72 @@ class JohnDeereService {
     return null;
   }
 
+  /**
+   * Get fields from John Deere organization
+   */
+  async getFields(businessId: string): Promise<Array<{ id: string; name: string; acres?: number }>> {
+    const connection = await prisma.johnDeereConnection.findUnique({
+      where: { businessId }
+    });
+
+    if (!connection?.organizationId) {
+      throw new Error('No organization selected');
+    }
+
+    const accessToken = await this.getValidAccessToken(businessId);
+    const orgId = connection.organizationId;
+
+    // Try to get fields from the organization
+    const possibleUrls = [
+      `${JD_API_BASE}/organizations/${orgId}/fields`,
+      `${JD_API_BASE}/fields?organizationId=${orgId}`,
+    ];
+
+    let response: Response | null = null;
+    let lastError = '';
+
+    for (const url of possibleUrls) {
+      console.log('[JohnDeere] Trying fields endpoint:', url);
+      try {
+        response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.deere.axiom.v3+json'
+          }
+        });
+
+        if (response.ok) {
+          console.log('[JohnDeere] Fields success with:', url);
+          break;
+        } else {
+          lastError = `${response.status} ${response.statusText}`;
+          console.log('[JohnDeere] Fields failed:', url, '-', lastError);
+          response = null;
+        }
+      } catch (e: any) {
+        lastError = e.message;
+        console.log('[JohnDeere] Fields error:', url, '-', lastError);
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.log('[JohnDeere] Could not access fields. Last error:', lastError);
+      // Return empty array instead of throwing - fields access may not be approved yet
+      return [];
+    }
+
+    const data = await response.json() as { values?: Array<any>; links?: Array<any> };
+    console.log('[JohnDeere] Fields response - found', data.values?.length || 0, 'fields');
+
+    const fields = data.values || [];
+
+    return fields.map((field: any) => ({
+      id: field.id,
+      name: field.name || 'Unnamed Field',
+      acres: field.area?.value || field.acres || field.totalArea || undefined
+    }));
+  }
+
   // ===== Equipment Mapping & Sync Methods =====
 
   /**
