@@ -253,7 +253,8 @@ class JohnDeereService {
   }
 
   /**
-   * Get machines (equipment) from John Deere using HATEOAS navigation
+   * Get machines (equipment) from John Deere
+   * Uses GET /equipment endpoint from Equipment Read API
    */
   async getMachines(businessId: string): Promise<JohnDeereMachine[]> {
     const connection = await prisma.johnDeereConnection.findUnique({
@@ -266,98 +267,66 @@ class JohnDeereService {
 
     const accessToken = await this.getValidAccessToken(businessId);
 
-    // Step 1: Get the organization to find equipment/machines links
-    const orgResponse = await fetch(
-      `${JD_API_BASE}/organizations/${connection.organizationId}`,
-      {
+    // Use the documented Equipment Read endpoint: GET /equipment
+    // This returns all equipment the user has access to
+    const equipmentUrl = `${JD_API_BASE}/equipment`;
+    console.log('[JohnDeere] Fetching equipment from:', equipmentUrl);
+
+    const allEquipment: JohnDeereMachine[] = [];
+    let nextUrl: string | null = equipmentUrl;
+
+    while (nextUrl) {
+      console.log('[JohnDeere] Fetching:', nextUrl);
+      const response = await fetch(nextUrl, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/vnd.deere.axiom.v3+json'
         }
-      }
-    );
+      });
 
-    if (!orgResponse.ok) {
-      throw new Error(`Failed to fetch organization: ${orgResponse.statusText}`);
-    }
-
-    const orgData = await orgResponse.json() as { links?: Array<{ rel: string; uri: string }> };
-    console.log('[JohnDeere] Organization links:', orgData.links?.map(l => l.rel).join(', '));
-
-    // Step 2: Look for equipment or machines link
-    const equipmentLink = orgData.links?.find(link =>
-      link.rel === 'equipment' || link.rel === 'machines' || link.rel === 'contributedEquipment'
-    );
-
-    if (!equipmentLink) {
-      // Log available links for debugging
-      console.log('[JohnDeere] Available links:', JSON.stringify(orgData.links, null, 2));
-      throw new Error('No equipment/machines link found in organization. Available links: ' +
-        (orgData.links?.map(l => l.rel).join(', ') || 'none'));
-    }
-
-    // Try multiple possible equipment API paths
-    const orgId = connection.organizationId;
-    const possibleUrls = [
-      // Try equipmentapi domain (separate equipment API)
-      `https://sandboxequipmentapi.deere.com/isg/equipment?organizationIds=${orgId}`,
-      // Try equipment endpoint on platform without query params
-      `${JD_API_BASE}/equipment`,
-      // Try organization-specific machines endpoint (older API)
-      `${JD_API_BASE}/organizations/${orgId}/machines`,
-      // Try the link URL converted to sandbox
-      equipmentLink.uri.replace('https://api.deere.com', 'https://sandboxapi.deere.com'),
-      // Try without /platform prefix
-      `https://sandboxapi.deere.com/equipment`,
-      `https://sandboxapi.deere.com/equipment?organizationId=${orgId}`,
-    ];
-
-    let response: Response | null = null;
-    let lastError = '';
-
-    for (const url of possibleUrls) {
-      console.log('[JohnDeere] Trying endpoint:', url);
-      try {
-        response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/vnd.deere.axiom.v3+json'
-          }
-        });
-
-        if (response.ok) {
-          console.log('[JohnDeere] Success with:', url);
-          break;
-        } else {
-          lastError = `${response.status} ${response.statusText}`;
-          console.log('[JohnDeere] Failed:', url, '-', lastError);
-          response = null;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('[JohnDeere] Equipment request failed:', response.status, response.statusText, errorText);
+        if (allEquipment.length === 0) {
+          // Try to get more info about the error
+          throw new Error(`Equipment API returned ${response.status}: ${errorText.substring(0, 200)}`);
         }
-      } catch (e: any) {
-        lastError = e.message;
-        console.log('[JohnDeere] Error:', url, '-', lastError);
+        break;
+      }
+
+      const data = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
+      console.log('[JohnDeere] Equipment page - found', data.values?.length || 0, 'items');
+
+      // Log first item for debugging structure
+      if (data.values && data.values.length > 0 && allEquipment.length === 0) {
+        console.log('[JohnDeere] Sample equipment structure:', JSON.stringify(data.values[0], null, 2));
+      }
+
+      const equipment = data.values || [];
+      for (const equip of equipment) {
+        allEquipment.push({
+          id: equip.id,
+          name: equip.name || `${equip.make || ''} ${equip.model || ''}`.trim() || 'Unknown Equipment',
+          make: equip.make,
+          model: equip.model,
+          modelYear: equip.modelYear,
+          serialNumber: equip.serialNumber || equip.vin,
+          engineHours: equip.engineHours,
+          type: equip.equipmentType || equip.type || equip.category
+        });
+      }
+
+      // Check for next page
+      const nextLink = data.links?.find(l => l.rel === 'nextPage');
+      nextUrl = nextLink?.uri || null;
+
+      if (nextUrl) {
+        console.log('[JohnDeere] More equipment available, fetching next page...');
       }
     }
 
-    if (!response || !response.ok) {
-      throw new Error(`Could not access equipment data. Tried multiple endpoints, last error: ${lastError}. You may need to request "Machines" API access at developer.deere.com`);
-    }
-
-    const data = await response.json() as { values?: Array<any>; links?: Array<any> };
-    console.log('[JohnDeere] Equipment response - found', data.values?.length || 0, 'items');
-
-    const equipment = data.values || [];
-
-    return equipment.map((equip: any) => ({
-      id: equip.id,
-      name: equip.name || `${equip.make || ''} ${equip.model || ''}`.trim() || 'Unknown Equipment',
-      make: equip.make,
-      model: equip.model,
-      modelYear: equip.modelYear,
-      serialNumber: equip.serialNumber || equip.vin,
-      engineHours: equip.engineHours,
-      type: equip.equipmentType || equip.type || equip.category
-    }));
+    console.log('[JohnDeere] Total equipment retrieved:', allEquipment.length);
+    return allEquipment;
   }
 
   /**
