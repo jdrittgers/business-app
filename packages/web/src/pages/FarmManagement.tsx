@@ -199,7 +199,7 @@ export default function FarmManagement() {
   const getYieldDefaults = (commodityType: CommodityType) => {
     switch (commodityType) {
       case 'CORN': return { projectedYield: '200', aph: '200' };
-      case 'SOYBEANS': return { projectedYield: '65', aph: '65' };
+      case 'SOYBEANS': return { projectedYield: '60', aph: '60' };
       case 'WHEAT': return { projectedYield: '80', aph: '80' };
       default: return { projectedYield: '0', aph: '0' };
     }
