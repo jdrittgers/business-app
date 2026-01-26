@@ -254,7 +254,7 @@ class JohnDeereService {
 
   /**
    * Get machines (equipment) from John Deere
-   * Tries multiple endpoints since equipment API structure varies
+   * Uses HATEOAS to discover equipment endpoint from organization
    */
   async getMachines(businessId: string): Promise<JohnDeereMachine[]> {
     const connection = await prisma.johnDeereConnection.findUnique({
@@ -268,60 +268,58 @@ class JohnDeereService {
     const accessToken = await this.getValidAccessToken(businessId);
     const orgId = connection.organizationId;
 
-    // Try multiple possible equipment endpoints
-    const possibleUrls = [
-      // Organization-scoped equipment (most likely for sandbox)
-      `${JD_API_BASE}/organizations/${orgId}/equipment`,
-      // Direct equipment endpoint
-      `${JD_API_BASE}/equipment`,
-      // With embed parameter for more details
-      `${JD_API_BASE}/equipment?embed=terminals`,
-      // Machines endpoint (older API)
-      `${JD_API_BASE}/organizations/${orgId}/machines`,
-    ];
+    // Step 1: Get organization to discover available links
+    console.log('[JohnDeere] Fetching organization to discover equipment links...');
+    const orgResponse = await fetch(`${JD_API_BASE}/organizations/${orgId}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.deere.axiom.v3+json'
+      }
+    });
 
-    let successUrl: string | null = null;
-    let response: Response | null = null;
+    if (!orgResponse.ok) {
+      console.log('[JohnDeere] Failed to fetch organization:', orgResponse.status);
+      return [];
+    }
 
-    for (const url of possibleUrls) {
-      console.log('[JohnDeere] Trying equipment endpoint:', url);
-      try {
-        response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/vnd.deere.axiom.v3+json'
-          }
-        });
+    const orgData = await orgResponse.json() as { links?: Array<{ rel: string; uri: string }> };
+    console.log('[JohnDeere] Organization links available:', orgData.links?.map(l => l.rel).join(', '));
 
-        if (response.ok) {
-          console.log('[JohnDeere] Equipment success with:', url);
-          successUrl = url;
-          break;
-        } else {
-          console.log('[JohnDeere] Equipment failed:', url, '-', response.status, response.statusText);
-          response = null;
-        }
-      } catch (e: any) {
-        console.log('[JohnDeere] Equipment error:', url, '-', e.message);
+    // Step 2: Look for equipment/machines links
+    const equipmentRels = ['equipment', 'machines', 'contributedEquipment', 'ownedEquipment'];
+    let equipmentUrl: string | null = null;
+
+    for (const rel of equipmentRels) {
+      const link = orgData.links?.find(l => l.rel === rel);
+      if (link?.uri) {
+        // Convert production URL to sandbox if needed
+        equipmentUrl = link.uri.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
+        console.log('[JohnDeere] Found equipment link:', rel, '->', equipmentUrl);
+        break;
       }
     }
 
-    if (!response || !successUrl) {
-      console.log('[JohnDeere] No equipment endpoint worked. Equipment may not be available in sandbox or needs different API access.');
-      return []; // Return empty instead of throwing - equipment access may not be available
+    if (!equipmentUrl) {
+      console.log('[JohnDeere] No equipment link found in organization. Available links:',
+        JSON.stringify(orgData.links?.map(l => ({ rel: l.rel, uri: l.uri })), null, 2));
+      return [];
+    }
+
+    // Step 3: Fetch equipment from discovered URL
+    console.log('[JohnDeere] Fetching equipment from:', equipmentUrl);
+    const response = await fetch(equipmentUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.deere.axiom.v3+json'
+      }
+    });
+
+    if (!response.ok) {
+      console.log('[JohnDeere] Equipment fetch failed:', response.status, response.statusText);
+      return [];
     }
 
     const allEquipment: JohnDeereMachine[] = [];
-    let nextUrl: string | null = successUrl;
-
-    // Parse first response we already have
-    const firstData = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
-    console.log('[JohnDeere] Equipment page - found', firstData.values?.length || 0, 'items');
-
-    // Log first item for debugging structure
-    if (firstData.values && firstData.values.length > 0) {
-      console.log('[JohnDeere] Sample equipment structure:', JSON.stringify(firstData.values[0], null, 2));
-    }
 
     const parseEquipment = (equipment: Array<any>) => {
       for (const equip of equipment) {
@@ -338,21 +336,25 @@ class JohnDeereService {
       }
     };
 
+    const firstData = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
+    console.log('[JohnDeere] Equipment page - found', firstData.values?.length || 0, 'items');
+
+    if (firstData.values && firstData.values.length > 0) {
+      console.log('[JohnDeere] Sample equipment:', JSON.stringify(firstData.values[0], null, 2));
+    }
+
     parseEquipment(firstData.values || []);
 
     // Handle pagination
     let nextLink = firstData.links?.find(l => l.rel === 'nextPage');
     while (nextLink?.uri) {
-      console.log('[JohnDeere] Fetching next equipment page...');
       const pageResponse = await fetch(nextLink.uri, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/vnd.deere.axiom.v3+json'
         }
       });
-
       if (!pageResponse.ok) break;
-
       const pageData = await pageResponse.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
       parseEquipment(pageData.values || []);
       nextLink = pageData.links?.find(l => l.rel === 'nextPage');
