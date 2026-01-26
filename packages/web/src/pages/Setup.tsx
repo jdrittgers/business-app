@@ -248,120 +248,6 @@ function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModal
   );
 }
 
-// Farm Edit Modal for updating existing farms
-interface FarmEditModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: { grainEntityId?: string; acres?: number; name?: string }) => Promise<void>;
-  farm: Farm | null;
-  entities: GrainEntity[];
-}
-
-function FarmEditModal({ isOpen, onClose, onSave, farm, entities }: FarmEditModalProps) {
-  const [formData, setFormData] = useState({
-    name: '',
-    acres: 0,
-    grainEntityId: ''
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && farm) {
-      setFormData({
-        name: farm.name,
-        acres: farm.acres || 0,
-        grainEntityId: farm.grainEntityId
-      });
-    }
-  }, [isOpen, farm]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await onSave(formData);
-      onClose();
-    } catch (error) {
-      console.error('Failed to update farm:', error);
-      alert(error instanceof Error ? error.message : 'Failed to update farm');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!isOpen || !farm) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="glass-backdrop transition-opacity" onClick={onClose} />
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-        <div className="inline-block align-bottom glass-modal text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Edit Farm
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Farm/Field Name</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Entity</label>
-                <select
-                  value={formData.grainEntityId}
-                  onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                  required
-                >
-                  {entities.map(e => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">Move this farm to a different entity</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Acres</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.acres || ''}
-                  onChange={(e) => setFormData({ ...formData, acres: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"
-                  required
-                />
-              </div>
-              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={isSubmitting}
-                  className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:text-sm disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-900 text-base font-medium text-white hover:bg-gray-800 sm:text-sm disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Setup() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SetupTab>('entities');
@@ -375,8 +261,10 @@ export default function Setup() {
 
   // Farm modal
   const [showFarmModal, setShowFarmModal] = useState(false);
-  const [showFarmEditModal, setShowFarmEditModal] = useState(false);
-  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
+
+  // Inline editing state - tracks changes to farms before saving
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { grainEntityId?: string; acres?: number }>>({});
+  const [savingFarms, setSavingFarms] = useState<Set<string>>(new Set());
 
   // John Deere
   const [jdStatus, setJdStatus] = useState<JohnDeereConnectionStatus | null>(null);
@@ -488,10 +376,88 @@ export default function Setup() {
     }
   };
 
-  const handleUpdateFarm = async (data: { grainEntityId?: string; acres?: number; name?: string }) => {
-    if (!businessId || !selectedFarm) return;
-    await breakevenApi.updateFarm(businessId, selectedFarm.id, data);
-    await loadData();
+  // Inline editing handlers
+  const handleInlineChange = (farmId: string, field: 'grainEntityId' | 'acres', value: string | number) => {
+    setPendingChanges(prev => ({
+      ...prev,
+      [farmId]: {
+        ...prev[farmId],
+        [field]: value
+      }
+    }));
+  };
+
+  const hasChanges = (farmId: string) => {
+    const changes = pendingChanges[farmId];
+    if (!changes) return false;
+    const farm = farms.find(f => f.id === farmId);
+    if (!farm) return false;
+    return (
+      (changes.grainEntityId !== undefined && changes.grainEntityId !== farm.grainEntityId) ||
+      (changes.acres !== undefined && changes.acres !== farm.acres)
+    );
+  };
+
+  const hasPendingChanges = Object.keys(pendingChanges).some(farmId => hasChanges(farmId));
+
+  const handleSaveFarm = async (farmId: string) => {
+    if (!businessId) return;
+    const changes = pendingChanges[farmId];
+    if (!changes || !hasChanges(farmId)) return;
+
+    setSavingFarms(prev => new Set(prev).add(farmId));
+    try {
+      await breakevenApi.updateFarm(businessId, farmId, changes);
+      // Remove from pending changes after successful save
+      setPendingChanges(prev => {
+        const newChanges = { ...prev };
+        delete newChanges[farmId];
+        return newChanges;
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Failed to save farm:', error);
+      alert('Failed to save changes');
+    } finally {
+      setSavingFarms(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(farmId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSaveAllFarms = async () => {
+    if (!businessId) return;
+    const farmsToSave = Object.keys(pendingChanges).filter(farmId => hasChanges(farmId));
+
+    for (const farmId of farmsToSave) {
+      setSavingFarms(prev => new Set(prev).add(farmId));
+    }
+
+    try {
+      await Promise.all(
+        farmsToSave.map(async (farmId) => {
+          const changes = pendingChanges[farmId];
+          await breakevenApi.updateFarm(businessId, farmId, changes);
+        })
+      );
+      setPendingChanges({});
+      await loadData();
+    } catch (error) {
+      console.error('Failed to save farms:', error);
+      alert('Failed to save some changes');
+    } finally {
+      setSavingFarms(new Set());
+    }
+  };
+
+  const handleDiscardChanges = (farmId: string) => {
+    setPendingChanges(prev => {
+      const newChanges = { ...prev };
+      delete newChanges[farmId];
+      return newChanges;
+    });
   };
 
   // John Deere handlers
@@ -717,6 +683,18 @@ export default function Setup() {
               Farms/fields for crop planning and cost tracking. Import from John Deere or add manually.
             </p>
             <div className="flex gap-3">
+              {hasPendingChanges && (
+                <button
+                  onClick={handleSaveAllFarms}
+                  disabled={savingFarms.size > 0}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 animate-pulse"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {savingFarms.size > 0 ? 'Saving...' : 'Save All Changes'}
+                </button>
+              )}
               {jdStatus?.isConnected && (
                 <button
                   onClick={() => setActiveTab('john-deere')}
@@ -773,12 +751,45 @@ export default function Setup() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {farms.map((farm) => {
-                    const entity = entities.find(e => e.id === farm.grainEntityId);
+                    const farmChanges = pendingChanges[farm.id];
+                    const currentEntityId = farmChanges?.grainEntityId ?? farm.grainEntityId;
+                    const currentAcres = farmChanges?.acres ?? farm.acres;
+                    const farmHasChanges = hasChanges(farm.id);
+                    const isSaving = savingFarms.has(farm.id);
+
                     return (
-                      <tr key={farm.id} className="hover:bg-gray-50">
+                      <tr key={farm.id} className={`${farmHasChanges ? 'bg-yellow-50' : 'hover:bg-gray-50'} transition-colors`}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{farm.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{entity?.name || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{farm.acres?.toLocaleString() || '-'}</td>
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <select
+                            value={currentEntityId}
+                            onChange={(e) => handleInlineChange(farm.id, 'grainEntityId', e.target.value)}
+                            disabled={isSaving}
+                            className={`block w-full rounded-md text-sm py-1.5 pl-2 pr-8 ${
+                              farmHasChanges && farmChanges?.grainEntityId !== undefined
+                                ? 'border-yellow-400 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500'
+                                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
+                            } disabled:opacity-50`}
+                          >
+                            {entities.map(e => (
+                              <option key={e.id} value={e.id}>{e.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={currentAcres || ''}
+                            onChange={(e) => handleInlineChange(farm.id, 'acres', parseFloat(e.target.value) || 0)}
+                            disabled={isSaving}
+                            className={`block w-24 rounded-md text-sm py-1.5 px-2 ${
+                              farmHasChanges && farmChanges?.acres !== undefined
+                                ? 'border-yellow-400 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500'
+                                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
+                            } disabled:opacity-50`}
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                             farm.commodityType === 'CORN' ? 'bg-yellow-100 text-yellow-800' :
@@ -790,21 +801,32 @@ export default function Setup() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{farm.year}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => {
-                              setSelectedFarm(farm);
-                              setShowFarmEditModal(true);
-                            }}
-                            className="text-gray-600 hover:text-gray-900 mr-4"
-                          >
-                            Edit
-                          </button>
-                          <a href={`/breakeven/farms/${farm.id}/costs`} className="text-gray-600 hover:text-gray-900 mr-4">
-                            Costs
-                          </a>
+                          {farmHasChanges ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveFarm(farm.id)}
+                                disabled={isSaving}
+                                className="text-green-600 hover:text-green-900 mr-3 font-medium disabled:opacity-50"
+                              >
+                                {isSaving ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => handleDiscardChanges(farm.id)}
+                                disabled={isSaving}
+                                className="text-gray-500 hover:text-gray-700 mr-3 disabled:opacity-50"
+                              >
+                                Discard
+                              </button>
+                            </>
+                          ) : (
+                            <a href={`/breakeven/farms/${farm.id}/costs`} className="text-gray-600 hover:text-gray-900 mr-4">
+                              Costs
+                            </a>
+                          )}
                           <button
                             onClick={() => handleDeleteFarm(farm.id)}
-                            className="text-red-600 hover:text-red-900"
+                            disabled={isSaving}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
                           >
                             Delete
                           </button>
@@ -989,17 +1011,6 @@ export default function Setup() {
         onSave={handleCreateFarm}
         entities={entities}
         defaultYear={currentYear}
-      />
-
-      <FarmEditModal
-        isOpen={showFarmEditModal}
-        onClose={() => {
-          setShowFarmEditModal(false);
-          setSelectedFarm(null);
-        }}
-        onSave={handleUpdateFarm}
-        farm={selectedFarm}
-        entities={entities}
       />
     </div>
   );
