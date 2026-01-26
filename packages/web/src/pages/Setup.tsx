@@ -542,10 +542,12 @@ export default function Setup() {
     if (!businessId || selectedFields.size === 0 || entities.length === 0) return;
 
     setImportingFields(true);
-    try {
-      const fieldsToImport = jdFields.filter(f => selectedFields.has(f.id));
+    const fieldsToImport = jdFields.filter(f => selectedFields.has(f.id));
+    let imported = 0;
+    const skipped: string[] = [];
 
-      for (const field of fieldsToImport) {
+    for (const field of fieldsToImport) {
+      try {
         await breakevenApi.createFarm(businessId, {
           name: field.name,
           acres: field.acres || 0,
@@ -555,16 +557,29 @@ export default function Setup() {
           projectedYield: 200, // Default yield
           aph: 200 // Default APH
         });
+        imported++;
+      } catch (error: any) {
+        // Skip duplicates (unique constraint violation)
+        if (error?.response?.data?.error?.includes('Unique constraint') ||
+            error?.message?.includes('Unique constraint')) {
+          skipped.push(field.name);
+        } else {
+          console.error('Failed to import field:', field.name, error);
+          skipped.push(`${field.name} (error)`);
+        }
       }
+    }
 
-      setSelectedFields(new Set());
-      await loadData();
-      alert(`Successfully imported ${fieldsToImport.length} field(s) as farms`);
-    } catch (error) {
-      console.error('Failed to import fields:', error);
-      alert('Failed to import some fields');
-    } finally {
-      setImportingFields(false);
+    setSelectedFields(new Set());
+    await loadData();
+    setImportingFields(false);
+
+    if (skipped.length > 0 && imported > 0) {
+      alert(`Imported ${imported} field(s). Skipped ${skipped.length} (already exist): ${skipped.join(', ')}`);
+    } else if (skipped.length > 0 && imported === 0) {
+      alert(`All selected fields already exist: ${skipped.join(', ')}`);
+    } else {
+      alert(`Successfully imported ${imported} field(s) as farms`);
     }
   };
 
