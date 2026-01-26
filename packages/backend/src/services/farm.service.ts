@@ -178,22 +178,53 @@ export class FarmService {
     // Extract entitySplits from data
     const { entitySplits, ...farmData } = data;
 
-    const farm = await prisma.farm.create({
-      data: {
+    // Check if a soft-deleted farm with the same name, entity, and year exists
+    // We need to bypass the soft-delete middleware by explicitly querying for deleted records
+    const softDeletedFarm = await prisma.farm.findFirst({
+      where: {
         grainEntityId: farmData.grainEntityId,
-        landParcelId: farmData.landParcelId,
         name: farmData.name,
-        acres: farmData.acres,
-        commodityType: farmData.commodityType,
         year: farmData.year,
-        projectedYield: farmData.projectedYield,
-        aph: farmData.aph,
-        notes: farmData.notes
-      },
-      include: {
-        grainEntity: true
+        deletedAt: { not: null }
       }
     });
+
+    let farm;
+    if (softDeletedFarm) {
+      // Restore the soft-deleted farm by setting deletedAt to null and updating fields
+      farm = await prisma.farm.update({
+        where: { id: softDeletedFarm.id },
+        data: {
+          deletedAt: null,
+          landParcelId: farmData.landParcelId,
+          acres: farmData.acres,
+          commodityType: farmData.commodityType,
+          projectedYield: farmData.projectedYield,
+          aph: farmData.aph,
+          notes: farmData.notes
+        },
+        include: {
+          grainEntity: true
+        }
+      });
+    } else {
+      farm = await prisma.farm.create({
+        data: {
+          grainEntityId: farmData.grainEntityId,
+          landParcelId: farmData.landParcelId,
+          name: farmData.name,
+          acres: farmData.acres,
+          commodityType: farmData.commodityType,
+          year: farmData.year,
+          projectedYield: farmData.projectedYield,
+          aph: farmData.aph,
+          notes: farmData.notes
+        },
+        include: {
+          grainEntity: true
+        }
+      });
+    }
 
     // Create entity splits if provided
     if (entitySplits && entitySplits.length > 0) {

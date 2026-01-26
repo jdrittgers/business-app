@@ -904,6 +904,21 @@ export default function Setup() {
                 </div>
               ) : jdFields.length > 0 ? (
                 <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-500">{jdFields.length} fields available</span>
+                    <button
+                      onClick={() => {
+                        if (selectedFields.size === jdFields.length) {
+                          setSelectedFields(new Set());
+                        } else {
+                          setSelectedFields(new Set(jdFields.map(f => f.id)));
+                        }
+                      }}
+                      className="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      {selectedFields.size === jdFields.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
                   <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
                     {jdFields.map(field => (
                       <label key={field.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
