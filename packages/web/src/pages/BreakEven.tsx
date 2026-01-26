@@ -4,7 +4,8 @@ import { useAuthStore } from '../store/authStore';
 import { breakevenApi } from '../api/breakeven.api';
 import { analyticsApi } from '../api/analytics.api';
 import { marketingAiApi } from '../api/marketing-ai.api';
-import { OperationBreakEven, DashboardSummary } from '@business-app/shared';
+import { farmAllocationApi } from '../api/farm-allocation.api';
+import { OperationBreakEven, DashboardSummary, FarmAllocationSummary } from '@business-app/shared';
 
 // Default futures prices (user can update)
 const DEFAULT_FUTURES: Record<string, number> = {
@@ -100,6 +101,11 @@ export default function BreakEven() {
 
   // Historical comparison
   const [showHistorical, setShowHistorical] = useState(false);
+
+  // Farm contract coverage
+  const [farmAllocations, setFarmAllocations] = useState<Record<string, FarmAllocationSummary[]>>({});
+  const [showContractCoverage, setShowContractCoverage] = useState(false);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -209,6 +215,40 @@ export default function BreakEven() {
       console.error('Failed to load historical data:', err);
     }
   };
+
+  // Load farm contract allocations
+  const loadFarmAllocations = async () => {
+    if (!selectedBusinessId || !summary) return;
+
+    setAllocationsLoading(true);
+    try {
+      const allocationsByEntity: Record<string, FarmAllocationSummary[]> = {};
+
+      // Load allocations for each grain entity
+      for (const entity of summary.byEntity) {
+        const allocations = await farmAllocationApi.getEntityFarmAllocations(
+          selectedBusinessId,
+          entity.grainEntityId,
+          filterYear,
+          entity.commodityType as any
+        );
+        const key = `${entity.grainEntityId}-${entity.commodityType}`;
+        allocationsByEntity[key] = allocations;
+      }
+
+      setFarmAllocations(allocationsByEntity);
+    } catch (err) {
+      console.error('Failed to load farm allocations:', err);
+    } finally {
+      setAllocationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedBusinessId && showContractCoverage && summary) {
+      loadFarmAllocations();
+    }
+  }, [selectedBusinessId, showContractCoverage, summary, filterYear]);
 
   // Calculate cash price from futures and basis
   const cashPrices = useMemo(() => {
@@ -1046,6 +1086,134 @@ export default function BreakEven() {
               </div>
             </div>
           )}
+
+          {/* Farm Contract Coverage Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Farm Contract Coverage</h3>
+              <button
+                onClick={() => setShowContractCoverage(!showContractCoverage)}
+                className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+              >
+                {showContractCoverage ? 'Hide' : 'Show'} Coverage Details
+              </button>
+            </div>
+
+            {showContractCoverage && (
+              <div className="space-y-4">
+                {allocationsLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading contract allocations...</div>
+                ) : Object.keys(farmAllocations).length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No contract allocations found</p>
+                    <p className="text-sm mt-2">
+                      Allocate contracts to farms from the{' '}
+                      <button
+                        onClick={() => navigate('/grain-contracts')}
+                        className="text-purple-600 hover:underline"
+                      >
+                        Grain Contracts
+                      </button>
+                      {' '}page
+                    </p>
+                  </div>
+                ) : (
+                  summary?.byEntity.map((entity) => {
+                    const key = `${entity.grainEntityId}-${entity.commodityType}`;
+                    const entityAllocations = farmAllocations[key] || [];
+
+                    if (entityAllocations.length === 0) return null;
+
+                    const totalExpected = entityAllocations.reduce((sum, a) => sum + a.expectedBushels, 0);
+                    const totalContracted = entityAllocations.reduce((sum, a) => sum + a.totalContracted, 0);
+                    const overallCoverage = totalExpected > 0 ? (totalContracted / totalExpected) * 100 : 0;
+
+                    return (
+                      <div key={key} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">
+                              {entity.commodityType === 'CORN' ? '🌽' : entity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
+                            </span>
+                            <h4 className="font-medium text-gray-900">{entity.grainEntityName}</h4>
+                            <span className="text-sm text-gray-500">• {entity.commodityType}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              overallCoverage >= 75 ? 'bg-green-100 text-green-700' :
+                              overallCoverage >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                              overallCoverage >= 25 ? 'bg-orange-100 text-orange-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {overallCoverage.toFixed(0)}% Contracted
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Farm</th>
+                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Expected Bu</th>
+                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Contracted</th>
+                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Uncontracted</th>
+                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Coverage</th>
+                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Blended $/bu</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {entityAllocations.map((alloc) => (
+                                <tr key={alloc.farm.id}>
+                                  <td className="px-3 py-2 text-gray-900">{alloc.farm.name}</td>
+                                  <td className="px-3 py-2 text-right text-gray-600">
+                                    {alloc.expectedBushels.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-green-600 font-medium">
+                                    {alloc.totalContracted.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-orange-600">
+                                    {alloc.uncontractedBushels.toLocaleString()}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      alloc.coveragePercentage >= 75 ? 'bg-green-100 text-green-700' :
+                                      alloc.coveragePercentage >= 50 ? 'bg-yellow-100 text-yellow-700' :
+                                      alloc.coveragePercentage >= 25 ? 'bg-orange-100 text-orange-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {alloc.coveragePercentage.toFixed(0)}%
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-purple-600 font-medium">
+                                    {alloc.blendedPrice ? `$${alloc.blendedPrice.toFixed(2)}` : '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-gray-50">
+                              <tr>
+                                <td className="px-3 py-2 font-medium text-gray-900">Total</td>
+                                <td className="px-3 py-2 text-right font-medium">{totalExpected.toLocaleString()}</td>
+                                <td className="px-3 py-2 text-right font-medium text-green-600">{totalContracted.toLocaleString()}</td>
+                                <td className="px-3 py-2 text-right font-medium text-orange-600">
+                                  {(totalExpected - totalContracted).toLocaleString()}
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium">
+                                  {overallCoverage.toFixed(0)}%
+                                </td>
+                                <td className="px-3 py-2 text-right">-</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

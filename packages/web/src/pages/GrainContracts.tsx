@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { grainContractsApi } from '../api/grain-contracts.api';
+import { farmAllocationApi } from '../api/farm-allocation.api';
 import {
   GrainContract,
   GrainEntity,
   CropYear,
   ContractType,
   CommodityType,
-  AccumulatorType
+  AccumulatorType,
+  AllocationType,
+  CreateFarmAllocationRequest
 } from '@business-app/shared';
 import { usePermissions } from '../hooks/usePermissions';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
@@ -64,6 +67,20 @@ export default function GrainContracts() {
   // Entity creation modal
   const [showEntityModal, setShowEntityModal] = useState(false);
   const [newEntityName, setNewEntityName] = useState('');
+
+  // Allocation modal state
+  const [showAllocationModal, setShowAllocationModal] = useState(false);
+  const [allocatingContract, setAllocatingContract] = useState<GrainContract | null>(null);
+  const [allocationCalculations, setAllocationCalculations] = useState<{
+    farmId: string;
+    farmName: string;
+    expectedBushels: number;
+    share: number;
+    allocatedBushels: number;
+  }[]>([]);
+  const [allocationMode, setAllocationMode] = useState<'PROPORTIONAL' | 'MANUAL'>('PROPORTIONAL');
+  const [manualAllocations, setManualAllocations] = useState<Record<string, number>>({});
+  const [allocationLoading, setAllocationLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -267,6 +284,81 @@ export default function GrainContracts() {
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete contract');
     }
+  };
+
+  // Allocation handlers
+  const handleOpenAllocationModal = async (contract: GrainContract) => {
+    setAllocatingContract(contract);
+    setAllocationMode('PROPORTIONAL');
+    setManualAllocations({});
+    setAllocationLoading(true);
+    setShowAllocationModal(true);
+
+    try {
+      const calculations = await farmAllocationApi.calculateAllocations(
+        selectedBusinessId!,
+        contract.id
+      );
+      setAllocationCalculations(calculations);
+      // Initialize manual allocations with calculated values
+      const initialManual: Record<string, number> = {};
+      calculations.forEach(calc => {
+        initialManual[calc.farmId] = calc.allocatedBushels;
+      });
+      setManualAllocations(initialManual);
+    } catch (err: any) {
+      console.error('Error calculating allocations:', err);
+      setAllocationCalculations([]);
+    } finally {
+      setAllocationLoading(false);
+    }
+  };
+
+  const handleCloseAllocationModal = () => {
+    setShowAllocationModal(false);
+    setAllocatingContract(null);
+    setAllocationCalculations([]);
+  };
+
+  const handleSaveAllocations = async () => {
+    if (!allocatingContract || !selectedBusinessId) return;
+
+    setAllocationLoading(true);
+    try {
+      if (allocationMode === 'PROPORTIONAL') {
+        await farmAllocationApi.autoAllocateContract(selectedBusinessId, allocatingContract.id);
+      } else {
+        const allocations: CreateFarmAllocationRequest[] = allocationCalculations.map(calc => ({
+          farmId: calc.farmId,
+          allocationType: AllocationType.MANUAL,
+          allocatedBushels: manualAllocations[calc.farmId] || 0
+        }));
+        await farmAllocationApi.setContractAllocations(selectedBusinessId, allocatingContract.id, {
+          allocations
+        });
+      }
+      handleCloseAllocationModal();
+      alert('Allocations saved successfully!');
+    } catch (err: any) {
+      console.error('Error saving allocations:', err);
+      alert(err.response?.data?.error || 'Failed to save allocations');
+    } finally {
+      setAllocationLoading(false);
+    }
+  };
+
+  const handleManualAllocationChange = (farmId: string, value: number) => {
+    setManualAllocations(prev => ({
+      ...prev,
+      [farmId]: value
+    }));
+  };
+
+  const getTotalAllocated = () => {
+    if (allocationMode === 'PROPORTIONAL') {
+      return allocationCalculations.reduce((sum, calc) => sum + calc.allocatedBushels, 0);
+    }
+    return Object.values(manualAllocations).reduce((sum, val) => sum + (val || 0), 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -646,24 +738,35 @@ export default function GrainContracts() {
                           {contract.isActive ? 'Active' : 'Inactive'}
                         </div>
                         {canEdit() && (
-                          <div className="flex gap-2">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditModal(contract);
+                                }}
+                                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(contract.id);
+                                }}
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
+                            </div>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenEditModal(contract);
+                                handleOpenAllocationModal(contract);
                               }}
-                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                              className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
                             >
-                              Edit
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(contract.id);
-                              }}
-                              className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                            >
-                              Delete
+                              Allocate to Farms
                             </button>
                           </div>
                         )}
@@ -1186,6 +1289,166 @@ export default function GrainContracts() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Allocation Modal */}
+      {showAllocationModal && allocatingContract && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Allocate Contract to Farms
+              </h2>
+              <button
+                onClick={handleCloseAllocationModal}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Contract Info */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">{getCommodityIcon(allocatingContract.commodityType)}</span>
+                <span className="font-medium">{allocatingContract.grainEntity?.name}</span>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${getContractTypeColor(allocatingContract.contractType)}`}>
+                  {allocatingContract.contractType}
+                </span>
+              </div>
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Total Bushels:</span> {allocatingContract.totalBushels.toLocaleString()} bu
+                <span className="mx-2">|</span>
+                <span className="font-medium">Buyer:</span> {allocatingContract.buyer}
+              </div>
+            </div>
+
+            {/* Allocation Mode Toggle */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Allocation Mode</label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setAllocationMode('PROPORTIONAL')}
+                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    allocationMode === 'PROPORTIONAL'
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  Proportional (Auto)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllocationMode('MANUAL')}
+                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    allocationMode === 'MANUAL'
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  Manual Override
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {allocationMode === 'PROPORTIONAL'
+                  ? 'Allocate based on each farm\'s expected production (acres × projected yield)'
+                  : 'Manually specify bushels allocated to each farm'}
+              </p>
+            </div>
+
+            {/* Allocations Table */}
+            {allocationLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading farm data...</div>
+            ) : allocationCalculations.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No farms found matching this contract's entity, commodity type, and year.
+                <br />
+                <span className="text-sm">Make sure you have farms set up in Farm Management.</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Farm</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Expected Bu</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Share %</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Allocated Bu</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {allocationCalculations.map((calc) => (
+                      <tr key={calc.farmId}>
+                        <td className="px-4 py-2 text-sm text-gray-900">{calc.farmName}</td>
+                        <td className="px-4 py-2 text-sm text-gray-600 text-right">
+                          {calc.expectedBushels.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-600 text-right">
+                          {(calc.share * 100).toFixed(1)}%
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {allocationMode === 'PROPORTIONAL' ? (
+                            <span className="text-sm text-gray-900">
+                              {calc.allocatedBushels.toLocaleString()}
+                            </span>
+                          ) : (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={manualAllocations[calc.farmId] || 0}
+                              onChange={(e) => handleManualAllocationChange(calc.farmId, parseFloat(e.target.value) || 0)}
+                              className="w-28 px-2 py-1 text-sm text-right border border-gray-300 rounded focus:ring-purple-500 focus:border-purple-500"
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900" colSpan={3}>
+                        Total Allocated
+                      </td>
+                      <td className="px-4 py-2 text-sm font-medium text-right">
+                        <span className={getTotalAllocated() > allocatingContract.totalBushels ? 'text-red-600' : 'text-gray-900'}>
+                          {getTotalAllocated().toLocaleString()}
+                        </span>
+                        <span className="text-gray-500"> / {allocatingContract.totalBushels.toLocaleString()}</span>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                {getTotalAllocated() > allocatingContract.totalBushels && (
+                  <p className="mt-2 text-sm text-red-600">
+                    Warning: Total allocated exceeds contract total by{' '}
+                    {(getTotalAllocated() - allocatingContract.totalBushels).toLocaleString()} bushels
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+              <button
+                type="button"
+                onClick={handleCloseAllocationModal}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAllocations}
+                disabled={allocationLoading || allocationCalculations.length === 0}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {allocationLoading ? 'Saving...' : 'Save Allocations'}
+              </button>
             </div>
           </div>
         </div>

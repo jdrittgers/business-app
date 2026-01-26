@@ -337,3 +337,88 @@ export interface UpdateLocalBasisRequest {
   basisValue: number;
   notes?: string;
 }
+
+// ===== FARM CONTRACT ALLOCATION TYPES =====
+
+export enum AllocationType {
+  PROPORTIONAL = 'PROPORTIONAL',  // Default: based on expected bushels ratio
+  MANUAL = 'MANUAL'               // User-specified allocation
+}
+
+// Simplified farm info for allocation views
+export interface FarmBasicInfo {
+  id: string;
+  grainEntityId: string;
+  name: string;
+  acres: number;
+  commodityType: CommodityType;
+  year: number;
+  projectedYield: number;
+  aph: number;
+}
+
+export interface FarmContractAllocation {
+  id: string;
+  contractId: string;
+  farmId: string;
+  allocationType: AllocationType;
+  allocatedBushels: number;
+  manualPercentage?: number;  // Only for MANUAL type (0-100)
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Populated relations
+  contract?: GrainContract;
+  farm?: FarmBasicInfo;
+}
+
+// Contract with all farm allocations
+export interface ContractWithAllocations extends GrainContract {
+  farmAllocations: FarmContractAllocation[];
+  totalAllocated: number;
+  unallocatedBushels: number;
+}
+
+// Farm's allocation summary
+export interface FarmAllocationSummary {
+  farm: FarmBasicInfo;
+  expectedBushels: number;       // acres * projectedYield
+  allocations: FarmContractAllocation[];
+  totalContracted: number;       // Sum of all allocatedBushels
+  uncontractedBushels: number;   // expectedBushels - totalContracted
+  coveragePercentage: number;    // (totalContracted / expectedBushels) * 100
+  blendedPrice?: number;         // Weighted average of contract prices
+}
+
+// Request types
+export interface CreateFarmAllocationRequest {
+  farmId: string;
+  allocationType: AllocationType;
+  allocatedBushels?: number;     // Required for MANUAL
+  manualPercentage?: number;     // Optional for MANUAL
+  notes?: string;
+}
+
+export interface UpdateFarmAllocationRequest {
+  allocationType?: AllocationType;
+  allocatedBushels?: number;
+  manualPercentage?: number;
+  notes?: string;
+}
+
+export interface SetContractAllocationsRequest {
+  allocations: CreateFarmAllocationRequest[];
+}
+
+export interface AutoAllocateRequest {
+  farmIds?: string[];  // Optional: if not provided, allocate to all matching farms
+}
+
+// Response types
+export interface AllocationResult {
+  success: boolean;
+  allocationsCreated: number;
+  allocationsUpdated: number;
+  totalAllocated: number;
+  errors: string[];
+}
