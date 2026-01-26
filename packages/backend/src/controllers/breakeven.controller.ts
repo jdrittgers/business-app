@@ -180,10 +180,12 @@ router.get('/businesses/:businessId/farms/:id', async (req: AuthRequest, res: Re
 
 router.post('/businesses/:businessId/farms', async (req: AuthRequest, res: Response) => {
   try {
+    console.log('[Farm] Creating farm with data:', JSON.stringify(req.body));
     const farm = await farmService.create(req.params.businessId, req.body);
     res.status(201).json(farm);
   } catch (error: any) {
-    console.error('Error creating farm:', error);
+    console.error('[Farm] Error creating farm:', error.message, error.stack);
+    console.error('[Farm] Request body was:', JSON.stringify(req.body));
     res.status(500).json({ error: error.message });
   }
 });
