@@ -19,6 +19,7 @@ export class FarmService {
     const farms = await prisma.farm.findMany({
       where: {
         grainEntity: { businessId },
+        deletedAt: null,  // Exclude soft-deleted farms
         ...(query?.grainEntityId && { grainEntityId: query.grainEntityId }),
         ...(query?.year && { year: query.year }),
         ...(query?.commodityType && { commodityType: query.commodityType })
@@ -934,6 +935,7 @@ export class FarmService {
     const farms = await prisma.farm.findMany({
       where: {
         grainEntity: { businessId },
+        deletedAt: null,  // Exclude soft-deleted farms
         ...(query?.grainEntityId && { grainEntityId: query.grainEntityId }),
         ...(query?.year && { year: query.year }),
         ...(query?.commodityType && { commodityType: query.commodityType })
