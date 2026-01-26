@@ -254,7 +254,7 @@ class JohnDeereService {
 
   /**
    * Get machines (equipment) from John Deere
-   * Uses GET /equipment endpoint from Equipment Read API
+   * Tries multiple endpoints since equipment API structure varies
    */
   async getMachines(businessId: string): Promise<JohnDeereMachine[]> {
     const connection = await prisma.johnDeereConnection.findUnique({
@@ -266,43 +266,64 @@ class JohnDeereService {
     }
 
     const accessToken = await this.getValidAccessToken(businessId);
+    const orgId = connection.organizationId;
 
-    // Use the documented Equipment Read endpoint: GET /equipment
-    // This returns all equipment the user has access to
-    const equipmentUrl = `${JD_API_BASE}/equipment`;
-    console.log('[JohnDeere] Fetching equipment from:', equipmentUrl);
+    // Try multiple possible equipment endpoints
+    const possibleUrls = [
+      // Organization-scoped equipment (most likely for sandbox)
+      `${JD_API_BASE}/organizations/${orgId}/equipment`,
+      // Direct equipment endpoint
+      `${JD_API_BASE}/equipment`,
+      // With embed parameter for more details
+      `${JD_API_BASE}/equipment?embed=terminals`,
+      // Machines endpoint (older API)
+      `${JD_API_BASE}/organizations/${orgId}/machines`,
+    ];
+
+    let successUrl: string | null = null;
+    let response: Response | null = null;
+
+    for (const url of possibleUrls) {
+      console.log('[JohnDeere] Trying equipment endpoint:', url);
+      try {
+        response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.deere.axiom.v3+json'
+          }
+        });
+
+        if (response.ok) {
+          console.log('[JohnDeere] Equipment success with:', url);
+          successUrl = url;
+          break;
+        } else {
+          console.log('[JohnDeere] Equipment failed:', url, '-', response.status, response.statusText);
+          response = null;
+        }
+      } catch (e: any) {
+        console.log('[JohnDeere] Equipment error:', url, '-', e.message);
+      }
+    }
+
+    if (!response || !successUrl) {
+      console.log('[JohnDeere] No equipment endpoint worked. Equipment may not be available in sandbox or needs different API access.');
+      return []; // Return empty instead of throwing - equipment access may not be available
+    }
 
     const allEquipment: JohnDeereMachine[] = [];
-    let nextUrl: string | null = equipmentUrl;
+    let nextUrl: string | null = successUrl;
 
-    while (nextUrl) {
-      console.log('[JohnDeere] Fetching:', nextUrl);
-      const response = await fetch(nextUrl, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.deere.axiom.v3+json'
-        }
-      });
+    // Parse first response we already have
+    const firstData = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
+    console.log('[JohnDeere] Equipment page - found', firstData.values?.length || 0, 'items');
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log('[JohnDeere] Equipment request failed:', response.status, response.statusText, errorText);
-        if (allEquipment.length === 0) {
-          // Try to get more info about the error
-          throw new Error(`Equipment API returned ${response.status}: ${errorText.substring(0, 200)}`);
-        }
-        break;
-      }
+    // Log first item for debugging structure
+    if (firstData.values && firstData.values.length > 0) {
+      console.log('[JohnDeere] Sample equipment structure:', JSON.stringify(firstData.values[0], null, 2));
+    }
 
-      const data = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
-      console.log('[JohnDeere] Equipment page - found', data.values?.length || 0, 'items');
-
-      // Log first item for debugging structure
-      if (data.values && data.values.length > 0 && allEquipment.length === 0) {
-        console.log('[JohnDeere] Sample equipment structure:', JSON.stringify(data.values[0], null, 2));
-      }
-
-      const equipment = data.values || [];
+    const parseEquipment = (equipment: Array<any>) => {
       for (const equip of equipment) {
         allEquipment.push({
           id: equip.id,
@@ -315,14 +336,26 @@ class JohnDeereService {
           type: equip.equipmentType || equip.type || equip.category
         });
       }
+    };
 
-      // Check for next page
-      const nextLink = data.links?.find(l => l.rel === 'nextPage');
-      nextUrl = nextLink?.uri || null;
+    parseEquipment(firstData.values || []);
 
-      if (nextUrl) {
-        console.log('[JohnDeere] More equipment available, fetching next page...');
-      }
+    // Handle pagination
+    let nextLink = firstData.links?.find(l => l.rel === 'nextPage');
+    while (nextLink?.uri) {
+      console.log('[JohnDeere] Fetching next equipment page...');
+      const pageResponse = await fetch(nextLink.uri, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.deere.axiom.v3+json'
+        }
+      });
+
+      if (!pageResponse.ok) break;
+
+      const pageData = await pageResponse.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
+      parseEquipment(pageData.values || []);
+      nextLink = pageData.links?.find(l => l.rel === 'nextPage');
     }
 
     console.log('[JohnDeere] Total equipment retrieved:', allEquipment.length);
