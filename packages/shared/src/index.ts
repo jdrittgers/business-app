@@ -14,4 +14,5 @@ export * from './types/loans';
 export * from './types/maintenance';
 export * from './types/john-deere';
 export * from './types/partner-access';
+export * from './types/chemical-plan-template';
 export * from './utils/distance';

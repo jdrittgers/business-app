@@ -150,6 +150,7 @@ model User {
   completedChemicalUsage  FarmChemicalUsage[]   @relation("ChemicalCompletedBy")
   operatingLoanTransactions OperatingLoanTransaction[] @relation("OperatingLoanTransactionCreator")
   maintenanceHistory      MaintenanceHistory[]
+  chemicalPlanApplications ChemicalPlanApplication[] @relation("ChemicalPlanAppliedBy")
 
   @@map("users")
 }
@@ -192,6 +193,7 @@ model Business {
   landParcels                LandParcel[]
   equipment                  Equipment[]
   johnDeereConnection        JohnDeereConnection?
+  chemicalPlanTemplates      ChemicalPlanTemplate[]
 
   @@index([latitude, longitude])
   @@index([deletedAt])
@@ -600,9 +602,10 @@ model Chemical {
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
   // Relations
-  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  usage       FarmChemicalUsage[]
-  trials      FarmTrial[]
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  usage         FarmChemicalUsage[]
+  trials        FarmTrial[]
+  templateItems ChemicalPlanTemplateItem[]
 
   @@map("chemicals")
   @@index([businessId])
@@ -657,11 +660,12 @@ model Farm {
   landParcel    LandParcel?  @relation(fields: [landParcelId], references: [id])
 
   // Cost tracking relations
-  fertilizerUsage FarmFertilizerUsage[]
-  chemicalUsage   FarmChemicalUsage[]
-  seedUsage       FarmSeedUsage[]
-  otherCosts      FarmOtherCost[]
-  trials          FarmTrial[]
+  fertilizerUsage          FarmFertilizerUsage[]
+  chemicalUsage            FarmChemicalUsage[]
+  seedUsage                FarmSeedUsage[]
+  otherCosts               FarmOtherCost[]
+  trials                   FarmTrial[]
+  chemicalPlanApplications ChemicalPlanApplication[]
 
   @@map("farms")
   @@index([grainEntityId])
@@ -729,15 +733,21 @@ model FarmChemicalUsage {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
+  // Template tracking (for plan templates feature)
+  templateItemId  String?   @map("template_item_id")  // Link to template item if created from template
+  isOverride      Boolean   @default(false) @map("is_override")  // True if modified from original template value
+
   // Relations
   farm          Farm            @relation(fields: [farmId], references: [id], onDelete: Cascade)
   chemical      Chemical        @relation(fields: [chemicalId], references: [id], onDelete: Cascade)
   completedBy   User?           @relation("ChemicalCompletedBy", fields: [completedById], references: [id])
   calendarEvent CalendarEvent?  @relation("ChemicalCalendarEvent", fields: [calendarEventId], references: [id])
+  templateItem  ChemicalPlanTemplateItem? @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
 
   @@map("farm_chemical_usage")
   @@index([farmId])
   @@index([chemicalId])
+  @@index([templateItemId])
 }
 
 model FarmSeedUsage {
@@ -2534,4 +2544,70 @@ model JohnDeereConnection {
   business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@map("john_deere_connections")
+}
+
+// ===== Chemical Plan Template Models =====
+
+// Reusable chemical plan template
+model ChemicalPlanTemplate {
+  id            String        @id @default(uuid())
+  businessId    String        @map("business_id")
+  name          String        // e.g., "2025 Corn Herbicide Program"
+  description   String?
+  commodityType CommodityType? @map("commodity_type") // Optional: for filtering (CORN, SOYBEANS, WHEAT)
+  year          Int?          // Optional: crop year this plan is for
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  business      Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items         ChemicalPlanTemplateItem[]
+  applications  ChemicalPlanApplication[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([commodityType])
+  @@index([year])
+  @@map("chemical_plan_templates")
+}
+
+// Products within a template
+model ChemicalPlanTemplateItem {
+  id          String   @id @default(uuid())
+  templateId  String   @map("template_id")
+  chemicalId  String   @map("chemical_id")
+  ratePerAcre Decimal  @map("rate_per_acre") @db.Decimal(10, 4) // e.g., 2.5 gal/acre
+  notes       String?  // Application notes
+  order       Int      @default(0) // Display order
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  template    ChemicalPlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  chemical    Chemical             @relation(fields: [chemicalId], references: [id])
+  usages      FarmChemicalUsage[]  // Farms using this template item
+
+  @@index([templateId])
+  @@index([chemicalId])
+  @@map("chemical_plan_template_items")
+}
+
+// Track which farms have a template applied
+model ChemicalPlanApplication {
+  id           String   @id @default(uuid())
+  templateId   String   @map("template_id")
+  farmId       String   @map("farm_id")
+  appliedAt    DateTime @default(now()) @map("applied_at")
+  appliedById  String?  @map("applied_by_id") // User ID
+  hasOverrides Boolean  @default(false) @map("has_overrides") // Flag if field has modifications
+
+  // Relations
+  template     ChemicalPlanTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  farm         Farm                 @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  appliedBy    User?                @relation("ChemicalPlanAppliedBy", fields: [appliedById], references: [id])
+
+  @@unique([templateId, farmId])
+  @@index([templateId])
+  @@index([farmId])
+  @@map("chemical_plan_applications")
 }

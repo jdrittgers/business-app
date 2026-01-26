@@ -45,6 +45,7 @@ import LandParcels from './pages/LandParcels';
 import OperatingLoans from './pages/OperatingLoans';
 import EquipmentLoans from './pages/EquipmentLoans';
 import EquipmentMaintenance from './pages/EquipmentMaintenance';
+import ChemicalPlanTemplates from './pages/ChemicalPlanTemplates';
 import Setup from './pages/Setup';
 import RequireRole from './components/RequireRole';
 
@@ -100,6 +101,7 @@ function App() {
       <Route path="/breakeven/farms/:farmId/costs" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole></AuthRoute>} />
       <Route path="/farm-plans" element={<AuthRoute><FarmPlanView /></AuthRoute>} />
       <Route path="/farm-plans/:farmId/edit" element={<AuthRoute><FarmPlanEdit /></AuthRoute>} />
+      <Route path="/farm-plans/templates" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ChemicalPlanTemplates /></RequireRole></AuthRoute>} />
       <Route path="/invoice-parsing" element={<AuthRoute><InvoiceParsing /></AuthRoute>} />
       <Route path="/loans/land-parcels" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><LandParcels /></RequireRole></AuthRoute>} />
       <Route path="/loans/operating" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><OperatingLoans /></RequireRole></AuthRoute>} />
