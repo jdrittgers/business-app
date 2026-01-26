@@ -440,6 +440,7 @@ class JohnDeereService {
 
   /**
    * Get fields from John Deere organization (with pagination)
+   * Also fetches boundaries to get acreage
    */
   async getFields(businessId: string): Promise<Array<{ id: string; name: string; acres?: number; farmName?: string }>> {
     const connection = await prisma.johnDeereConnection.findUnique({
@@ -473,7 +474,6 @@ class JohnDeereService {
         const errorText = await response.text();
         console.log('[JohnDeere] Fields request failed:', response.status, response.statusText, errorText);
         if (allFields.length === 0) {
-          // Only return empty if we got nothing
           return [];
         }
         break;
@@ -482,68 +482,71 @@ class JohnDeereService {
       const data = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
       console.log('[JohnDeere] Fields page - found', data.values?.length || 0, 'fields');
 
-      // Log first field for debugging structure
-      if (data.values && data.values.length > 0 && allFields.length === 0) {
-        console.log('[JohnDeere] Sample field structure:', JSON.stringify(data.values[0], null, 2));
-        console.log('[JohnDeere] Field keys:', Object.keys(data.values[0]).join(', '));
-      }
-
       const fields = data.values || [];
       for (const field of fields) {
-        // Parse acres - JD typically uses 'area' with value and unitOfMeasure
-        // Or it might be in activeArea or totalArea
-        let acres: number | undefined;
-
-        // Try various possible acre fields
-        const possibleAcreFields = [
-          field.area?.value,
-          field.activeArea?.value,
-          field.totalArea?.value,
-          field.acres,
-          field.totalArea,
-          field.activeArea,
-          field.area
-        ];
-
-        for (const val of possibleAcreFields) {
-          if (val !== undefined && val !== null) {
-            const parsed = typeof val === 'number' ? val : parseFloat(val);
-            if (!isNaN(parsed) && parsed > 0) {
-              acres = parsed;
-              // Check if we need to convert from hectares
-              const unit = field.area?.unitOfMeasure || field.activeArea?.unitOfMeasure || field.totalArea?.unitOfMeasure;
-              if (unit === 'ha' || unit === 'hectare' || unit === 'hectares') {
-                acres = acres * 2.47105;
-              }
-              break;
-            }
-          }
-        }
-
-        // Log if we couldn't find acres for first field
-        if (allFields.length === 0 && !acres) {
-          console.log('[JohnDeere] Could not find acres in field. Available properties:',
-            JSON.stringify({ area: field.area, activeArea: field.activeArea, totalArea: field.totalArea, acres: field.acres }));
-        }
-
         allFields.push({
           id: field.id,
           name: field.name || 'Unnamed Field',
-          acres: acres && !isNaN(acres) ? Math.round(acres * 100) / 100 : undefined,
+          acres: undefined, // Will be filled from boundaries
           farmName: field.farm?.name || undefined
         });
       }
 
-      // Check for next page - JD uses HATEOAS links
       const nextLink = data.links?.find(l => l.rel === 'nextPage');
       nextUrl = nextLink?.uri || null;
+    }
 
-      if (nextUrl) {
-        console.log('[JohnDeere] More fields available, fetching next page...');
+    console.log('[JohnDeere] Retrieved', allFields.length, 'fields, now fetching boundaries for acreage...');
+
+    // Fetch boundaries to get acreage for each field
+    for (const field of allFields) {
+      try {
+        const boundariesUrl = `${JD_API_BASE}/organizations/${orgId}/fields/${field.id}/boundaries`;
+        const boundaryResponse = await fetch(boundariesUrl, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.deere.axiom.v3+json'
+          }
+        });
+
+        if (boundaryResponse.ok) {
+          const boundaryData = await boundaryResponse.json() as { values?: Array<any> };
+
+          // Log first boundary structure for debugging
+          if (field === allFields[0] && boundaryData.values && boundaryData.values.length > 0) {
+            console.log('[JohnDeere] Sample boundary structure:', JSON.stringify(boundaryData.values[0], null, 2));
+          }
+
+          // Get acres from active boundary (usually the first one or one marked active)
+          const boundaries = boundaryData.values || [];
+          for (const boundary of boundaries) {
+            // Try various acre properties
+            let acres = boundary.area?.value || boundary.totalArea?.value || boundary.acres || boundary.area;
+
+            if (acres !== undefined && acres !== null) {
+              acres = typeof acres === 'number' ? acres : parseFloat(acres);
+
+              // Convert from hectares if needed
+              const unit = boundary.area?.unitOfMeasure || boundary.totalArea?.unitOfMeasure || '';
+              if (unit.toLowerCase().includes('ha') || unit.toLowerCase().includes('hectare')) {
+                acres = acres * 2.47105;
+              }
+
+              if (!isNaN(acres) && acres > 0) {
+                field.acres = Math.round(acres * 100) / 100;
+                break; // Use first valid boundary
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Skip boundary fetch errors, field just won't have acres
+        console.log('[JohnDeere] Could not fetch boundary for field:', field.name);
       }
     }
 
-    console.log('[JohnDeere] Total fields retrieved:', allFields.length);
+    const withAcres = allFields.filter(f => f.acres).length;
+    console.log('[JohnDeere] Total fields:', allFields.length, 'with acres:', withAcres);
     return allFields;
   }
 
