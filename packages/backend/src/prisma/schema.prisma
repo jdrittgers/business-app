@@ -2622,7 +2622,8 @@ model ChemicalPlanTemplateItem {
   id          String   @id @default(uuid())
   templateId  String   @map("template_id")
   chemicalId  String   @map("chemical_id")
-  ratePerAcre Decimal  @map("rate_per_acre") @db.Decimal(10, 4) // e.g., 2.5 gal/acre
+  ratePerAcre Decimal  @map("rate_per_acre") @db.Decimal(10, 4) // e.g., 2.5 oz/acre
+  rateUnit    String?  @map("rate_unit") // OZ, PT, QT, GAL, LB - unit for the rate
   notes       String?  // Application notes
   order       Int      @default(0) // Display order
   createdAt   DateTime @default(now()) @map("created_at")

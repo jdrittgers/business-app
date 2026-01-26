@@ -30,6 +30,48 @@ const PASS_TYPE_OPTIONS = [
   { value: 'IN_FURROW', label: 'In-Furrow' }
 ];
 
+const RATE_UNIT_OPTIONS = [
+  { value: 'GAL', label: 'Gallons' },
+  { value: 'QT', label: 'Quarts' },
+  { value: 'PT', label: 'Pints' },
+  { value: 'OZ', label: 'Ounces (fl oz)' },
+  { value: 'LB', label: 'Pounds' }
+];
+
+// Convert application rate to purchase unit equivalent for cost calculation
+// e.g., 8 oz/acre at $50/gal = 8/128 * $50 = $3.125/acre
+const convertRateToBaseUnit = (rate: number, rateUnit: string, purchaseUnit: string): number => {
+  // If same unit, no conversion needed
+  if (rateUnit === purchaseUnit) return rate;
+
+  // Volume conversions (to GAL)
+  const volumeToGal: Record<string, number> = {
+    'GAL': 1,
+    'QT': 0.25,      // 1 quart = 0.25 gallon
+    'PT': 0.125,     // 1 pint = 0.125 gallon
+    'OZ': 0.0078125  // 1 fl oz = 1/128 gallon
+  };
+
+  // Weight conversions (to LB)
+  const weightToLb: Record<string, number> = {
+    'LB': 1,
+    'OZ': 0.0625     // 1 oz = 1/16 lb
+  };
+
+  // Handle volume-based chemicals (GAL purchase unit)
+  if (purchaseUnit === 'GAL' && volumeToGal[rateUnit]) {
+    return rate * volumeToGal[rateUnit];
+  }
+
+  // Handle weight-based chemicals (LB purchase unit)
+  if (purchaseUnit === 'LB' && weightToLb[rateUnit]) {
+    return rate * weightToLb[rateUnit];
+  }
+
+  // If units don't match type (e.g., weight rate for volume purchase), return as-is
+  return rate;
+};
+
 export default function ChemicalPlanTemplates() {
   const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
@@ -68,6 +110,7 @@ export default function ChemicalPlanTemplates() {
   const [itemForm, setItemForm] = useState({
     chemicalId: '',
     ratePerAcre: '',
+    rateUnit: '',
     notes: ''
   });
 
@@ -78,6 +121,9 @@ export default function ChemicalPlanTemplates() {
   const [applyCommodityType, setApplyCommodityType] = useState<CommodityType | ''>('');
   const [selectedFarmIds, setSelectedFarmIds] = useState<string[]>([]);
   const [applyYear, setApplyYear] = useState(new Date().getFullYear());
+
+  // Bulk selection for template items
+  const [selectedItemIds, setSelectedItemIds] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -195,8 +241,9 @@ export default function ChemicalPlanTemplates() {
     setSelectedTemplateId(templateId);
     setEditingItem(null);
     setItemForm({
-      chemicalId: chemicals[0]?.id || '',
+      chemicalId: '',
       ratePerAcre: '',
+      rateUnit: '',
       notes: ''
     });
     setShowItemModal(true);
@@ -205,9 +252,11 @@ export default function ChemicalPlanTemplates() {
   const openEditItemModal = (templateId: string, item: ChemicalPlanTemplateItem) => {
     setSelectedTemplateId(templateId);
     setEditingItem(item);
+    const chemical = item.chemical || chemicals.find(c => c.id === item.chemicalId);
     setItemForm({
       chemicalId: item.chemicalId,
       ratePerAcre: String(item.ratePerAcre),
+      rateUnit: item.rateUnit || chemical?.rateUnit || chemical?.unit || 'GAL',
       notes: item.notes || ''
     });
     setShowItemModal(true);
@@ -220,6 +269,7 @@ export default function ChemicalPlanTemplates() {
       if (editingItem) {
         await chemicalPlanTemplateApi.updateItem(selectedBusinessId, selectedTemplateId, editingItem.id, {
           ratePerAcre: parseFloat(itemForm.ratePerAcre),
+          rateUnit: itemForm.rateUnit || undefined,
           notes: itemForm.notes.trim() || undefined
         });
         showSuccess('Chemical updated');
@@ -227,6 +277,7 @@ export default function ChemicalPlanTemplates() {
         await chemicalPlanTemplateApi.addItem(selectedBusinessId, selectedTemplateId, {
           chemicalId: itemForm.chemicalId,
           ratePerAcre: parseFloat(itemForm.ratePerAcre),
+          rateUnit: itemForm.rateUnit || undefined,
           notes: itemForm.notes.trim() || undefined
         });
         showSuccess('Chemical added to template');
@@ -249,6 +300,50 @@ export default function ChemicalPlanTemplates() {
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to remove chemical');
+    }
+  };
+
+  // Bulk selection handlers
+  const toggleItemSelection = (templateId: string, itemId: string) => {
+    setSelectedItemIds(prev => {
+      const current = prev[templateId] || [];
+      if (current.includes(itemId)) {
+        return { ...prev, [templateId]: current.filter(id => id !== itemId) };
+      }
+      return { ...prev, [templateId]: [...current, itemId] };
+    });
+  };
+
+  const selectAllItems = (templateId: string, items: ChemicalPlanTemplateItem[]) => {
+    setSelectedItemIds(prev => ({
+      ...prev,
+      [templateId]: items.map(i => i.id)
+    }));
+  };
+
+  const clearItemSelection = (templateId: string) => {
+    setSelectedItemIds(prev => ({
+      ...prev,
+      [templateId]: []
+    }));
+  };
+
+  const handleBulkRemoveItems = async (templateId: string) => {
+    if (!selectedBusinessId) return;
+    const itemsToRemove = selectedItemIds[templateId] || [];
+    if (itemsToRemove.length === 0) return;
+    if (!confirm(`Remove ${itemsToRemove.length} chemical(s) from the template?`)) return;
+
+    try {
+      // Remove items one by one
+      for (const itemId of itemsToRemove) {
+        await chemicalPlanTemplateApi.removeItem(selectedBusinessId, templateId, itemId);
+      }
+      showSuccess(`${itemsToRemove.length} chemical(s) removed`);
+      clearItemSelection(templateId);
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to remove chemicals');
     }
   };
 
@@ -308,14 +403,25 @@ export default function ChemicalPlanTemplates() {
     setSelectedFarmIds([]);
   };
 
-  // Calculate template cost
+  // Calculate template cost with unit conversion
   const calculateTemplateCost = (template: ChemicalPlanTemplate): number => {
     if (!template.items) return 0;
     return template.items.reduce((sum, item) => {
-      const chemical = chemicals.find(c => c.id === item.chemicalId);
+      const chemical = item.chemical || chemicals.find(c => c.id === item.chemicalId);
       if (!chemical) return sum;
-      return sum + (item.ratePerAcre * chemical.pricePerUnit);
+      // Convert rate to purchase unit for accurate cost
+      const rateUnit = item.rateUnit || chemical.rateUnit || chemical.unit;
+      const rateInPurchaseUnits = convertRateToBaseUnit(item.ratePerAcre, rateUnit, chemical.unit);
+      return sum + (rateInPurchaseUnits * chemical.pricePerUnit);
     }, 0);
+  };
+
+  // Calculate cost per acre for a single item with unit conversion
+  const calculateItemCost = (item: ChemicalPlanTemplateItem, chemical: Chemical | undefined): number => {
+    if (!chemical) return 0;
+    const rateUnit = item.rateUnit || chemical.rateUnit || chemical.unit;
+    const rateInPurchaseUnits = convertRateToBaseUnit(item.ratePerAcre, rateUnit, chemical.unit);
+    return rateInPurchaseUnits * chemical.pricePerUnit;
   };
 
   const getCommodityLabel = (type: CommodityType | undefined): string => {
@@ -574,12 +680,46 @@ export default function ChemicalPlanTemplates() {
                   <p className="text-gray-500 text-sm italic">No chemicals added yet</p>
                 ) : (
                   <div className="overflow-x-auto">
+                    {/* Bulk actions bar */}
+                    {(selectedItemIds[template.id]?.length || 0) > 0 && (
+                      <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 border-b border-blue-100 mb-2 rounded-t">
+                        <span className="text-sm text-blue-700">
+                          {selectedItemIds[template.id]?.length} selected
+                        </span>
+                        <button
+                          onClick={() => handleBulkRemoveItems(template.id)}
+                          className="text-sm text-red-600 hover:text-red-800 font-medium"
+                        >
+                          Delete Selected
+                        </button>
+                        <button
+                          onClick={() => clearItemSelection(template.id)}
+                          className="text-sm text-gray-600 hover:text-gray-800"
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    )}
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead>
                         <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-10">
+                            <input
+                              type="checkbox"
+                              checked={template.items?.length > 0 && (selectedItemIds[template.id]?.length || 0) === template.items.length}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  selectAllItems(template.id, template.items || []);
+                                } else {
+                                  clearItemSelection(template.id);
+                                }
+                              }}
+                              className="text-green-600 focus:ring-green-500 rounded"
+                            />
+                          </th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rate/Acre</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cost/Acre</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -588,17 +728,27 @@ export default function ChemicalPlanTemplates() {
                       <tbody className="divide-y divide-gray-200">
                         {template.items.map(item => {
                           const chemical = item.chemical || chemicals.find(c => c.id === item.chemicalId);
-                          const costPerAcre = chemical ? item.ratePerAcre * chemical.pricePerUnit : 0;
+                          const displayUnit = item.rateUnit || chemical?.rateUnit || chemical?.unit || '-';
+                          const costPerAcre = calculateItemCost(item, chemical);
+                          const isSelected = selectedItemIds[template.id]?.includes(item.id);
                           return (
-                            <tr key={item.id} className="hover:bg-gray-50">
+                            <tr key={item.id} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected || false}
+                                  onChange={() => toggleItemSelection(template.id, item.id)}
+                                  className="text-green-600 focus:ring-green-500 rounded"
+                                />
+                              </td>
                               <td className="px-3 py-2 text-sm font-medium text-gray-900">
                                 {chemical?.name || 'Unknown'}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
-                                {item.ratePerAcre}
+                                {item.ratePerAcre} {displayUnit}/ac
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-500">
-                                {chemical?.unit || '-'}
+                                ${chemical?.pricePerUnit.toFixed(2)}/{chemical?.unit || '-'}
                               </td>
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 ${costPerAcre.toFixed(2)}
@@ -741,10 +891,11 @@ export default function ChemicalPlanTemplates() {
                       setItemForm(prev => ({
                         ...prev,
                         chemicalId: e.target.value,
-                        // Auto-populate rate from chemical's default rate if available
+                        // Auto-populate rate and unit from chemical's default if available
                         ratePerAcre: selectedChemical?.defaultRatePerAcre
                           ? String(selectedChemical.defaultRatePerAcre)
-                          : prev.ratePerAcre
+                          : prev.ratePerAcre,
+                        rateUnit: selectedChemical?.rateUnit || selectedChemical?.unit || 'GAL'
                       }));
                     }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -760,24 +911,43 @@ export default function ChemicalPlanTemplates() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Rate per Acre *
-                  {itemForm.chemicalId && (
-                    <span className="font-normal text-gray-500">
-                      {' '}({chemicals.find(c => c.id === itemForm.chemicalId)?.unit}/acre)
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={itemForm.ratePerAcre}
-                  onChange={e => setItemForm(prev => ({ ...prev, ratePerAcre: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="e.g., 2.5"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rate per Acre *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={itemForm.ratePerAcre}
+                    onChange={e => setItemForm(prev => ({ ...prev, ratePerAcre: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="e.g., 8"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rate Unit
+                  </label>
+                  <select
+                    value={itemForm.rateUnit}
+                    onChange={e => setItemForm(prev => ({ ...prev, rateUnit: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    {RATE_UNIT_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+              {itemForm.chemicalId && itemForm.ratePerAcre && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                  Cost: ${calculateItemCost(
+                    { ratePerAcre: parseFloat(itemForm.ratePerAcre) || 0, rateUnit: itemForm.rateUnit } as ChemicalPlanTemplateItem,
+                    chemicals.find(c => c.id === itemForm.chemicalId)
+                  ).toFixed(2)}/acre
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

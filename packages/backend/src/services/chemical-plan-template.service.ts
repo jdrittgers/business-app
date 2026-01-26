@@ -105,6 +105,7 @@ export class ChemicalPlanTemplateService {
           create: data.items.map((item, index) => ({
             chemicalId: item.chemicalId,
             ratePerAcre: item.ratePerAcre,
+            rateUnit: item.rateUnit,
             notes: item.notes,
             order: item.order ?? index
           }))
@@ -229,6 +230,7 @@ export class ChemicalPlanTemplateService {
         templateId,
         chemicalId: data.chemicalId,
         ratePerAcre: data.ratePerAcre,
+        rateUnit: data.rateUnit,
         notes: data.notes,
         order: data.order ?? (maxOrder._max.order ?? 0) + 1
       },
@@ -255,6 +257,7 @@ export class ChemicalPlanTemplateService {
       where: { id: itemId },
       data: {
         ratePerAcre: data.ratePerAcre,
+        rateUnit: data.rateUnit,
         notes: data.notes,
         order: data.order
       },
@@ -733,6 +736,7 @@ export class ChemicalPlanTemplateService {
             templateId: template.id,
             chemicalId: chemical.id,
             ratePerAcre: ratePerAcre,
+            rateUnit: lineItem.rateUnit || undefined,
             notes: `Imported from invoice`,
             order: maxOrder
           }
@@ -844,6 +848,7 @@ export class ChemicalPlanTemplateService {
       templateId: i.templateId,
       chemicalId: i.chemicalId,
       ratePerAcre: Number(i.ratePerAcre),
+      rateUnit: i.rateUnit || undefined,
       notes: i.notes || undefined,
       order: i.order,
       createdAt: i.createdAt,
@@ -857,7 +862,9 @@ export class ChemicalPlanTemplateService {
         isActive: i.chemical.isActive,
         needsPricing: i.chemical.needsPricing,
         createdAt: i.chemical.createdAt,
-        updatedAt: i.chemical.updatedAt
+        updatedAt: i.chemical.updatedAt,
+        defaultRatePerAcre: i.chemical.defaultRatePerAcre ? Number(i.chemical.defaultRatePerAcre) : undefined,
+        rateUnit: i.chemical.rateUnit || undefined
       } : undefined
     };
   }

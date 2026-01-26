@@ -34,6 +34,7 @@ export interface ChemicalPlanTemplateItem {
   templateId: string;
   chemicalId: string;
   ratePerAcre: number;
+  rateUnit?: string;  // OZ, PT, QT, GAL, LB - unit for the rate
   notes?: string;
   order: number;
   createdAt: Date;
@@ -85,12 +86,14 @@ export interface UpdateChemicalPlanTemplateRequest {
 export interface CreateChemicalPlanTemplateItemRequest {
   chemicalId: string;
   ratePerAcre: number;
+  rateUnit?: string;  // OZ, PT, QT, GAL, LB - unit for the rate
   notes?: string;
   order?: number;
 }
 
 export interface UpdateChemicalPlanTemplateItemRequest {
   ratePerAcre?: number;
+  rateUnit?: string;  // OZ, PT, QT, GAL, LB - unit for the rate
   notes?: string;
   order?: number;
 }
