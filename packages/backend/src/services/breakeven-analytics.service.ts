@@ -16,17 +16,25 @@ export class BreakEvenAnalyticsService {
     const year = query.year || new Date().getFullYear();
 
     // Get all farms for this business/year
-    // When filtering by entity, also include farms that have that entity as a split owner
+    // When filtering by entity, respect entity splits properly
     const farms = await prisma.farm.findMany({
       where: {
         grainEntity: { businessId },
+        deletedAt: null,  // Exclude soft-deleted farms
         year,
         ...(query.commodityType && { commodityType: query.commodityType }),
-        // If filtering by entity, include farms with that entity as primary OR as a split owner
+        // If filtering by entity, include farms where:
+        // 1. Entity is in the splits (splits take precedence), OR
+        // 2. Entity is primary AND farm has NO splits
         ...(query.grainEntityId && {
           OR: [
-            { grainEntityId: query.grainEntityId },
-            { entitySplits: { some: { grainEntityId: query.grainEntityId } } }
+            // Farm has this entity in its splits
+            { entitySplits: { some: { grainEntityId: query.grainEntityId } } },
+            // Farm has this entity as primary AND has no splits (100% ownership)
+            {
+              grainEntityId: query.grainEntityId,
+              entitySplits: { none: {} }
+            }
           ]
         })
       },

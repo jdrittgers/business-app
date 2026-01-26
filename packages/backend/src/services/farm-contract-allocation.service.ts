@@ -117,12 +117,24 @@ export class FarmContractAllocationService {
     }
 
     // Get all farms matching contract's entity, commodity, and year
+    // Include farms where entity is in splits OR entity is primary with no splits
     const farms = await prisma.farm.findMany({
       where: {
-        grainEntityId: contract.grainEntityId,
         commodityType: contract.commodityType,
         year: contract.year,
-        deletedAt: null
+        deletedAt: null,
+        OR: [
+          // Farm has this entity in its splits
+          { entitySplits: { some: { grainEntityId: contract.grainEntityId } } },
+          // Farm has this entity as primary AND has no splits (100% ownership)
+          {
+            grainEntityId: contract.grainEntityId,
+            entitySplits: { none: {} }
+          }
+        ]
+      },
+      include: {
+        entitySplits: true
       }
     });
 
@@ -130,12 +142,29 @@ export class FarmContractAllocationService {
       return [];
     }
 
-    // Calculate expected bushels for each farm
-    const farmExpectedBushels = farms.map(farm => ({
-      farmId: farm.id,
-      farmName: farm.name,
-      expectedBushels: Number(farm.acres) * Number(farm.projectedYield)
-    }));
+    // Calculate expected bushels for each farm, accounting for entity splits
+    const farmExpectedBushels = farms.map(farm => {
+      const fullBushels = Number(farm.acres) * Number(farm.projectedYield);
+
+      // Check if farm has entity splits
+      if (farm.entitySplits && farm.entitySplits.length > 0) {
+        // Find the split for this entity
+        const split = farm.entitySplits.find(s => s.grainEntityId === contract.grainEntityId);
+        const percentage = split ? Number(split.percentage) / 100 : 0;
+        return {
+          farmId: farm.id,
+          farmName: farm.name,
+          expectedBushels: fullBushels * percentage
+        };
+      }
+
+      // No splits - entity owns 100%
+      return {
+        farmId: farm.id,
+        farmName: farm.name,
+        expectedBushels: fullBushels
+      };
+    });
 
     // Calculate total expected bushels
     const totalExpected = farmExpectedBushels.reduce((sum, f) => sum + f.expectedBushels, 0);
@@ -411,11 +440,20 @@ export class FarmContractAllocationService {
     year: number,
     commodityType?: CommodityType
   ): Promise<FarmAllocationSummary[]> {
+    // Build where clause that respects entity splits
     const whereClause: any = {
-      grainEntityId,
       year,
       deletedAt: null,
-      grainEntity: { businessId }
+      grainEntity: { businessId },
+      OR: [
+        // Farm has this entity in its splits
+        { entitySplits: { some: { grainEntityId } } },
+        // Farm has this entity as primary AND has no splits
+        {
+          grainEntityId,
+          entitySplits: { none: {} }
+        }
+      ]
     };
 
     if (commodityType) {
@@ -425,6 +463,7 @@ export class FarmContractAllocationService {
     const farms = await prisma.farm.findMany({
       where: whereClause,
       include: {
+        entitySplits: true,
         contractAllocations: {
           include: {
             contract: true
@@ -434,7 +473,19 @@ export class FarmContractAllocationService {
     });
 
     return farms.map(farm => {
-      const expectedBushels = Number(farm.acres) * Number(farm.projectedYield);
+      const fullBushels = Number(farm.acres) * Number(farm.projectedYield);
+      const fullAcres = Number(farm.acres);
+
+      // Calculate entity's share based on splits
+      let entityPercentage = 1.0; // Default 100%
+      if (farm.entitySplits && farm.entitySplits.length > 0) {
+        const split = farm.entitySplits.find((s: any) => s.grainEntityId === grainEntityId);
+        entityPercentage = split ? Number(split.percentage) / 100 : 0;
+      }
+
+      const expectedBushels = fullBushels * entityPercentage;
+      const entityAcres = fullAcres * entityPercentage;
+
       const totalContracted = farm.contractAllocations.reduce(
         (sum, a) => sum + Number(a.allocatedBushels),
         0
@@ -462,7 +513,7 @@ export class FarmContractAllocationService {
           id: farm.id,
           grainEntityId: farm.grainEntityId,
           name: farm.name,
-          acres: Number(farm.acres),
+          acres: entityAcres,  // Return entity's share of acres
           commodityType: farm.commodityType as CommodityType,
           year: farm.year,
           projectedYield: Number(farm.projectedYield),
