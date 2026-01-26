@@ -47,25 +47,39 @@ export class FarmService {
       ]
     });
 
-    return farms.map(f => ({
-      ...f,
-      acres: Number(f.acres),
-      projectedYield: Number(f.projectedYield),
-      aph: Number(f.aph),
-      commodityType: f.commodityType as any,
-      grainEntity: f.grainEntity,
-      notes: f.notes || undefined,
-      landParcelId: f.landParcelId || undefined,
-      planApproved: f.planApproved,
-      planApprovedAt: f.planApprovedAt || undefined,
-      planApprovedBy: f.planApprovedBy || undefined,
-      entitySplits: f.entitySplits?.map(s => ({
-        id: s.id,
-        grainEntityId: s.grainEntityId,
-        grainEntityName: s.grainEntity.name,
-        percentage: Number(s.percentage)
-      }))
-    }));
+    return farms.map(f => {
+      const fullAcres = Number(f.acres);
+
+      // Calculate entity's proportional acres when filtering by entity
+      let entityAcres = fullAcres;
+      if (query?.grainEntityId && f.entitySplits && f.entitySplits.length > 0) {
+        const split = f.entitySplits.find(s => s.grainEntityId === query.grainEntityId);
+        if (split) {
+          entityAcres = fullAcres * (Number(split.percentage) / 100);
+        }
+      }
+
+      return {
+        ...f,
+        acres: entityAcres,
+        fullAcres, // Include full acres for reference
+        projectedYield: Number(f.projectedYield),
+        aph: Number(f.aph),
+        commodityType: f.commodityType as any,
+        grainEntity: f.grainEntity,
+        notes: f.notes || undefined,
+        landParcelId: f.landParcelId || undefined,
+        planApproved: f.planApproved,
+        planApprovedAt: f.planApprovedAt || undefined,
+        planApprovedBy: f.planApprovedBy || undefined,
+        entitySplits: f.entitySplits?.map(s => ({
+          id: s.id,
+          grainEntityId: s.grainEntityId,
+          grainEntityName: s.grainEntity.name,
+          percentage: Number(s.percentage)
+        }))
+      };
+    });
   }
 
   async getById(id: string, businessId: string): Promise<Farm | null> {
@@ -297,39 +311,48 @@ export class FarmService {
     // Extract entitySplits from data to handle separately
     const { entitySplits, ...farmData } = data;
 
-    const farm = await prisma.farm.update({
-      where: { id },
-      data: farmData,
-      include: {
-        grainEntity: true,
-        entitySplits: { include: { grainEntity: true } }
-      }
-    });
+    // Use transaction to ensure atomicity when updating splits
+    const updatedFarm = await prisma.$transaction(async (tx) => {
+      // Update the farm data
+      await tx.farm.update({
+        where: { id },
+        data: farmData
+      });
 
-    // Handle entity splits if provided
-    if (entitySplits) {
-      // Delete existing splits
-      await prisma.farmEntitySplit.deleteMany({ where: { farmId: id } });
+      // Handle entity splits if provided
+      if (entitySplits !== undefined) {
+        // Delete ALL existing splits first
+        await tx.farmEntitySplit.deleteMany({ where: { farmId: id } });
 
-      // Create new splits
-      if (entitySplits.length > 0) {
-        await prisma.farmEntitySplit.createMany({
-          data: entitySplits.map(split => ({
-            farmId: id,
-            grainEntityId: split.grainEntityId,
-            percentage: split.percentage
-          }))
-        });
-      }
-    }
+        // Create new splits (if any)
+        if (entitySplits && entitySplits.length > 0) {
+          // Validate no duplicate entity IDs
+          const entityIds = entitySplits.map(s => s.grainEntityId);
+          if (new Set(entityIds).size !== entityIds.length) {
+            throw new Error('Cannot have duplicate entities in splits');
+          }
 
-    // Re-fetch with updated splits
-    const updatedFarm = await prisma.farm.findUnique({
-      where: { id },
-      include: {
-        grainEntity: true,
-        entitySplits: { include: { grainEntity: true } }
+          // Create splits one by one to avoid any race issues
+          for (const split of entitySplits) {
+            await tx.farmEntitySplit.create({
+              data: {
+                farmId: id,
+                grainEntityId: split.grainEntityId,
+                percentage: split.percentage
+              }
+            });
+          }
+        }
       }
+
+      // Re-fetch with updated splits
+      return tx.farm.findUnique({
+        where: { id },
+        include: {
+          grainEntity: true,
+          entitySplits: { include: { grainEntity: true } }
+        }
+      });
     });
 
     return {

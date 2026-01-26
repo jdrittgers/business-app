@@ -136,6 +136,7 @@ export interface Farm {
   landParcelId?: string;
   name: string;
   acres: number;
+  fullAcres?: number; // Full acres before entity split adjustment
   commodityType: CommodityType;
   year: number;
   projectedYield: number;
