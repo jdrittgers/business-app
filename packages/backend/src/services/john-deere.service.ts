@@ -285,28 +285,44 @@ class JohnDeereService {
     const orgData = await orgResponse.json() as { links?: Array<{ rel: string; uri: string }> };
     console.log('[JohnDeere] Organization links available:', orgData.links?.map(l => l.rel).join(', '));
 
-    // Step 2: Look for equipment/machines links
-    const equipmentRels = ['equipment', 'machines', 'contributedEquipment', 'ownedEquipment'];
+    // Step 2: Look for equipment/machines links - try multiple options
+    const equipmentRels = ['equipment', 'implements', 'assets', 'wdtCapableMachines', 'machines', 'contributedEquipment', 'ownedEquipment'];
     let equipmentUrl: string | null = null;
+    let foundRel: string | null = null;
 
     for (const rel of equipmentRels) {
       const link = orgData.links?.find(l => l.rel === rel);
       if (link?.uri) {
         // Convert production URL to sandbox if needed
-        equipmentUrl = link.uri.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
-        console.log('[JohnDeere] Found equipment link:', rel, '->', equipmentUrl);
-        break;
+        let url = link.uri.replace('https://api.deere.com', 'https://sandboxapi.deere.com');
+        console.log('[JohnDeere] Found link:', rel, '->', url);
+
+        // Try fetching to see if it works
+        const testResponse = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/vnd.deere.axiom.v3+json'
+          }
+        });
+
+        if (testResponse.ok) {
+          equipmentUrl = url;
+          foundRel = rel;
+          console.log('[JohnDeere] Successfully accessed:', rel);
+          break;
+        } else {
+          console.log('[JohnDeere] Link', rel, 'returned:', testResponse.status);
+        }
       }
     }
 
     if (!equipmentUrl) {
-      console.log('[JohnDeere] No equipment link found in organization. Available links:',
-        JSON.stringify(orgData.links?.map(l => ({ rel: l.rel, uri: l.uri })), null, 2));
+      console.log('[JohnDeere] No working equipment link found. All links returned errors.');
       return [];
     }
 
-    // Step 3: Fetch equipment from discovered URL
-    console.log('[JohnDeere] Fetching equipment from:', equipmentUrl);
+    // Step 3: Fetch equipment from discovered URL (refetch since we consumed the test response)
+    console.log('[JohnDeere] Using equipment endpoint:', foundRel, '->', equipmentUrl);
     const response = await fetch(equipmentUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
