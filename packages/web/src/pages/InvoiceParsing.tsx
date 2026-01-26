@@ -374,7 +374,10 @@ export default function InvoiceParsing() {
       const productData = {
         name: lineItem.productName,
         pricePerUnit: Number(lineItem.pricePerUnit),
-        unit: normalizedUnit
+        unit: normalizedUnit,
+        // Include rate info from invoice
+        defaultRatePerAcre: lineItem.ratePerAcre ? Number(lineItem.ratePerAcre) : undefined,
+        rateUnit: lineItem.rateUnit || (lineItem.ratePerAcre ? lineItem.unit : undefined)
       };
 
       if (lineItem.productType === InvoiceProductType.FERTILIZER) {
@@ -433,7 +436,10 @@ export default function InvoiceParsing() {
         const productData = {
           name: item.productName,
           pricePerUnit: Number(item.pricePerUnit),
-          unit: normalizedUnit
+          unit: normalizedUnit,
+          // Include rate info from invoice
+          defaultRatePerAcre: item.ratePerAcre ? Number(item.ratePerAcre) : undefined,
+          rateUnit: item.rateUnit || (item.ratePerAcre ? item.unit : undefined)
         };
 
         if (item.productType === InvoiceProductType.FERTILIZER) {

@@ -54,6 +54,8 @@ export interface Fertilizer {
   name: string;
   pricePerUnit: number;
   unit: UnitType;
+  defaultRatePerAcre?: number; // Default application rate per acre
+  rateUnit?: string; // Unit for the rate (may differ from purchase unit)
   isActive: boolean;
   needsPricing: boolean;
   createdAt: Date;
@@ -64,12 +66,16 @@ export interface CreateFertilizerRequest {
   name: string;
   pricePerUnit: number;
   unit: UnitType;
+  defaultRatePerAcre?: number;
+  rateUnit?: string;
 }
 
 export interface UpdateFertilizerRequest {
   name?: string;
   pricePerUnit?: number;
   unit?: UnitType;
+  defaultRatePerAcre?: number;
+  rateUnit?: string;
   isActive?: boolean;
 }
 
@@ -79,6 +85,8 @@ export interface Chemical {
   name: string;
   pricePerUnit: number;
   unit: UnitType;
+  defaultRatePerAcre?: number; // Default application rate per acre
+  rateUnit?: string; // Unit for the rate (may differ from purchase unit)
   category: ChemicalCategory;
   isActive: boolean;
   needsPricing: boolean;
@@ -90,6 +98,8 @@ export interface CreateChemicalRequest {
   name: string;
   pricePerUnit: number;
   unit: UnitType;
+  defaultRatePerAcre?: number;
+  rateUnit?: string;
   category?: ChemicalCategory;
 }
 
@@ -97,6 +107,8 @@ export interface UpdateChemicalRequest {
   name?: string;
   pricePerUnit?: number;
   unit?: UnitType;
+  defaultRatePerAcre?: number;
+  rateUnit?: string;
   category?: ChemicalCategory;
   isActive?: boolean;
 }

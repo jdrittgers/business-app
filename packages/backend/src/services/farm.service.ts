@@ -143,7 +143,9 @@ export class FarmService {
           ...fu.fertilizer,
           pricePerUnit: Number(fu.fertilizer.pricePerUnit),
           unit: fu.fertilizer.unit as any,
-          needsPricing: fu.fertilizer.needsPricing
+          needsPricing: fu.fertilizer.needsPricing,
+          defaultRatePerAcre: fu.fertilizer.defaultRatePerAcre ? Number(fu.fertilizer.defaultRatePerAcre) : undefined,
+          rateUnit: fu.fertilizer.rateUnit || undefined
         } : undefined
       })),
       chemicalUsage: farm.chemicalUsage?.map(cu => ({
@@ -164,7 +166,9 @@ export class FarmService {
           pricePerUnit: Number(cu.chemical.pricePerUnit),
           unit: cu.chemical.unit as any,
           category: cu.chemical.category as ChemicalCategory,
-          needsPricing: cu.chemical.needsPricing
+          needsPricing: cu.chemical.needsPricing,
+          defaultRatePerAcre: cu.chemical.defaultRatePerAcre ? Number(cu.chemical.defaultRatePerAcre) : undefined,
+          rateUnit: cu.chemical.rateUnit || undefined
         } : undefined
       })),
       seedUsage: farm.seedUsage?.map(su => ({

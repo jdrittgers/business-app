@@ -11,7 +11,9 @@ export class FertilizerService {
     return fertilizers.map(f => ({
       ...f,
       pricePerUnit: Number(f.pricePerUnit),
-      unit: f.unit as UnitType
+      unit: f.unit as UnitType,
+      defaultRatePerAcre: f.defaultRatePerAcre ? Number(f.defaultRatePerAcre) : undefined,
+      rateUnit: f.rateUnit || undefined
     }));
   }
 
@@ -25,7 +27,9 @@ export class FertilizerService {
     return {
       ...fertilizer,
       pricePerUnit: Number(fertilizer.pricePerUnit),
-      unit: fertilizer.unit as UnitType
+      unit: fertilizer.unit as UnitType,
+      defaultRatePerAcre: fertilizer.defaultRatePerAcre ? Number(fertilizer.defaultRatePerAcre) : undefined,
+      rateUnit: fertilizer.rateUnit || undefined
     };
   }
 
@@ -35,14 +39,18 @@ export class FertilizerService {
         businessId,
         name: data.name,
         pricePerUnit: data.pricePerUnit,
-        unit: data.unit
+        unit: data.unit,
+        defaultRatePerAcre: data.defaultRatePerAcre,
+        rateUnit: data.rateUnit
       }
     });
 
     return {
       ...fertilizer,
       pricePerUnit: Number(fertilizer.pricePerUnit),
-      unit: fertilizer.unit as UnitType
+      unit: fertilizer.unit as UnitType,
+      defaultRatePerAcre: fertilizer.defaultRatePerAcre ? Number(fertilizer.defaultRatePerAcre) : undefined,
+      rateUnit: fertilizer.rateUnit || undefined
     };
   }
 
@@ -61,7 +69,9 @@ export class FertilizerService {
     return {
       ...fertilizer,
       pricePerUnit: Number(fertilizer.pricePerUnit),
-      unit: fertilizer.unit as UnitType
+      unit: fertilizer.unit as UnitType,
+      defaultRatePerAcre: fertilizer.defaultRatePerAcre ? Number(fertilizer.defaultRatePerAcre) : undefined,
+      rateUnit: fertilizer.rateUnit || undefined
     };
   }
 
@@ -94,7 +104,9 @@ export class FertilizerService {
     return {
       ...fertilizer,
       pricePerUnit: Number(fertilizer.pricePerUnit),
-      unit: fertilizer.unit as UnitType
+      unit: fertilizer.unit as UnitType,
+      defaultRatePerAcre: fertilizer.defaultRatePerAcre ? Number(fertilizer.defaultRatePerAcre) : undefined,
+      rateUnit: fertilizer.rateUnit || undefined
     };
   }
 
@@ -110,7 +122,9 @@ export class FertilizerService {
     return fertilizers.map(f => ({
       ...f,
       pricePerUnit: Number(f.pricePerUnit),
-      unit: f.unit as UnitType
+      unit: f.unit as UnitType,
+      defaultRatePerAcre: f.defaultRatePerAcre ? Number(f.defaultRatePerAcre) : undefined,
+      rateUnit: f.rateUnit || undefined
     }));
   }
 
@@ -131,7 +145,9 @@ export class FertilizerService {
     return {
       ...fertilizer,
       pricePerUnit: Number(fertilizer.pricePerUnit),
-      unit: fertilizer.unit as UnitType
+      unit: fertilizer.unit as UnitType,
+      defaultRatePerAcre: fertilizer.defaultRatePerAcre ? Number(fertilizer.defaultRatePerAcre) : undefined,
+      rateUnit: fertilizer.rateUnit || undefined
     };
   }
 

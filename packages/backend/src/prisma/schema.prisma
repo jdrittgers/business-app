@@ -585,15 +585,17 @@ model PriceAlert {
 // ===== Break-Even Calculator Models =====
 
 model Fertilizer {
-  id          String   @id @default(uuid())
-  businessId  String   @map("business_id")
-  name        String   // MAP, DAP, MESZ, POTASH, LIME, UREA, UAN(32%), SULFUR, etc.
-  pricePerUnit Decimal @map("price_per_unit") @db.Decimal(10, 2) // Price per lb or gallon
-  unit        String   // "LB" or "GAL"
-  isActive    Boolean  @default(true) @map("is_active")
-  needsPricing Boolean @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(uuid())
+  businessId         String   @map("business_id")
+  name               String   // MAP, DAP, MESZ, POTASH, LIME, UREA, UAN(32%), SULFUR, etc.
+  pricePerUnit       Decimal  @map("price_per_unit") @db.Decimal(10, 2) // Price per lb or gallon
+  unit               String   // "LB" or "GAL"
+  defaultRatePerAcre Decimal? @map("default_rate_per_acre") @db.Decimal(10, 4) // Default application rate per acre
+  rateUnit           String?  @map("rate_unit") // Unit for the rate (may differ from purchase unit)
+  isActive           Boolean  @default(true) @map("is_active")
+  needsPricing       Boolean  @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   // Relations
   business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -605,16 +607,18 @@ model Fertilizer {
 }
 
 model Chemical {
-  id          String           @id @default(uuid())
-  businessId  String           @map("business_id")
-  name        String
-  pricePerUnit Decimal         @map("price_per_unit") @db.Decimal(10, 2) // Price per gallon or lb
-  unit        String           // "LB" or "GAL"
-  category    ChemicalCategory @default(HERBICIDE)  // HERBICIDE, IN_FURROW, FUNGICIDE
-  isActive    Boolean          @default(true) @map("is_active")
-  needsPricing Boolean         @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
+  id                 String           @id @default(uuid())
+  businessId         String           @map("business_id")
+  name               String
+  pricePerUnit       Decimal          @map("price_per_unit") @db.Decimal(10, 2) // Price per gallon or lb
+  unit               String           // "LB" or "GAL"
+  defaultRatePerAcre Decimal?         @map("default_rate_per_acre") @db.Decimal(10, 4) // Default application rate per acre
+  rateUnit           String?          @map("rate_unit") // Unit for the rate (may differ from purchase unit)
+  category           ChemicalCategory @default(HERBICIDE)  // HERBICIDE, IN_FURROW, FUNGICIDE
+  isActive           Boolean          @default(true) @map("is_active")
+  needsPricing       Boolean          @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
 
   // Relations
   business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)

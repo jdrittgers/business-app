@@ -15,7 +15,9 @@ export class ChemicalService {
       ...c,
       pricePerUnit: Number(c.pricePerUnit),
       unit: c.unit as UnitType,
-      category: c.category as ChemicalCategory
+      category: c.category as ChemicalCategory,
+      defaultRatePerAcre: c.defaultRatePerAcre ? Number(c.defaultRatePerAcre) : undefined,
+      rateUnit: c.rateUnit || undefined
     }));
   }
 
@@ -30,7 +32,9 @@ export class ChemicalService {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
       unit: chemical.unit as UnitType,
-      category: chemical.category as ChemicalCategory
+      category: chemical.category as ChemicalCategory,
+      defaultRatePerAcre: chemical.defaultRatePerAcre ? Number(chemical.defaultRatePerAcre) : undefined,
+      rateUnit: chemical.rateUnit || undefined
     };
   }
 
@@ -41,7 +45,9 @@ export class ChemicalService {
         name: data.name,
         pricePerUnit: data.pricePerUnit,
         unit: data.unit,
-        category: data.category || ChemicalCategory.HERBICIDE
+        category: data.category || ChemicalCategory.HERBICIDE,
+        defaultRatePerAcre: data.defaultRatePerAcre,
+        rateUnit: data.rateUnit
       }
     });
 
@@ -49,7 +55,9 @@ export class ChemicalService {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
       unit: chemical.unit as UnitType,
-      category: chemical.category as ChemicalCategory
+      category: chemical.category as ChemicalCategory,
+      defaultRatePerAcre: chemical.defaultRatePerAcre ? Number(chemical.defaultRatePerAcre) : undefined,
+      rateUnit: chemical.rateUnit || undefined
     };
   }
 
@@ -69,7 +77,9 @@ export class ChemicalService {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
       unit: chemical.unit as UnitType,
-      category: chemical.category as ChemicalCategory
+      category: chemical.category as ChemicalCategory,
+      defaultRatePerAcre: chemical.defaultRatePerAcre ? Number(chemical.defaultRatePerAcre) : undefined,
+      rateUnit: chemical.rateUnit || undefined
     };
   }
 
@@ -104,7 +114,9 @@ export class ChemicalService {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
       unit: chemical.unit as UnitType,
-      category: chemical.category as ChemicalCategory
+      category: chemical.category as ChemicalCategory,
+      defaultRatePerAcre: chemical.defaultRatePerAcre ? Number(chemical.defaultRatePerAcre) : undefined,
+      rateUnit: chemical.rateUnit || undefined
     };
   }
 
@@ -121,7 +133,9 @@ export class ChemicalService {
       ...c,
       pricePerUnit: Number(c.pricePerUnit),
       unit: c.unit as UnitType,
-      category: c.category as ChemicalCategory
+      category: c.category as ChemicalCategory,
+      defaultRatePerAcre: c.defaultRatePerAcre ? Number(c.defaultRatePerAcre) : undefined,
+      rateUnit: c.rateUnit || undefined
     }));
   }
 
@@ -143,7 +157,9 @@ export class ChemicalService {
       ...chemical,
       pricePerUnit: Number(chemical.pricePerUnit),
       unit: chemical.unit as UnitType,
-      category: chemical.category as ChemicalCategory
+      category: chemical.category as ChemicalCategory,
+      defaultRatePerAcre: chemical.defaultRatePerAcre ? Number(chemical.defaultRatePerAcre) : undefined,
+      rateUnit: chemical.rateUnit || undefined
     };
   }
 
