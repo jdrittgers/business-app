@@ -352,7 +352,7 @@ export default function BreakEven() {
           <select
             value={filterYear}
             onChange={(e) => setFilterYear(parseInt(e.target.value))}
-            className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            className="rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
           >
             <option value={2023}>2023</option>
             <option value={2024}>2024</option>
@@ -362,7 +362,7 @@ export default function BreakEven() {
           </select>
           <button
             onClick={() => navigate('/breakeven/farms')}
-            className="px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700"
+            className="px-4 py-2 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800"
           >
             Manage Farms
           </button>
@@ -385,7 +385,7 @@ export default function BreakEven() {
       {/* Loading State */}
       {isLoading && (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           <p className="mt-2 text-gray-600">Loading break-even analysis...</p>
         </div>
       )}
@@ -433,7 +433,7 @@ export default function BreakEven() {
                     type="checkbox"
                     checked={useMarketedGrain}
                     onChange={(e) => setUseMarketedGrain(e.target.checked)}
-                    className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                    className="w-4 h-4 text-gray-900 rounded focus:ring-gray-900"
                   />
                   <span className="text-sm text-gray-700">Include contracted grain</span>
                 </label>
@@ -514,7 +514,7 @@ export default function BreakEven() {
                                 ...prev,
                                 [commodity]: parseFloat(e.target.value) || 0
                               }))}
-                              className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"
+                              className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-gray-900 focus:border-gray-900 text-sm"
                             />
                           </div>
                         </td>
@@ -528,12 +528,12 @@ export default function BreakEven() {
                                 ...prev,
                                 [commodity]: parseFloat(e.target.value) || 0
                               }))}
-                              className="w-full pl-3 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"
+                              className="w-full pl-3 pr-2 py-1.5 border border-gray-300 rounded-md focus:ring-gray-900 focus:border-gray-900 text-sm"
                             />
                           </div>
                         </td>
                         <td className="py-3 pl-4">
-                          <span className="font-bold text-teal-600">
+                          <span className="font-bold text-gray-900">
                             ${cashPrices[commodity]?.toFixed(2)}/bu
                           </span>
                         </td>
@@ -788,7 +788,7 @@ export default function BreakEven() {
                           </div>
                           <div className="flex justify-between border-t border-gray-200 pt-2">
                             <span className="text-gray-700 font-medium">Blended Price:</span>
-                            <span className="font-bold text-teal-600">${commodity.blendedPrice.toFixed(2)}/bu</span>
+                            <span className="font-bold text-gray-900">${commodity.blendedPrice.toFixed(2)}/bu</span>
                           </div>
                         </div>
                       )}
@@ -896,7 +896,7 @@ export default function BreakEven() {
                 onClick={() => setShowHistorical(!showHistorical)}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   showHistorical
-                    ? 'bg-teal-600 text-white'
+                    ? 'bg-gray-900 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -924,11 +924,11 @@ export default function BreakEven() {
                       const costPerAcre = yearData.totalAcres > 0 ? yearData.totalCost / yearData.totalAcres : 0;
 
                       return (
-                        <tr key={yearData.year} className={yearData.year === filterYear ? 'bg-teal-50' : ''}>
+                        <tr key={yearData.year} className={yearData.year === filterYear ? 'bg-gray-50' : ''}>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">
                             {yearData.year}
                             {yearData.year === filterYear && (
-                              <span className="ml-2 text-xs text-teal-600">(current)</span>
+                              <span className="ml-2 text-xs text-gray-900">(current)</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600">
@@ -1062,7 +1062,7 @@ export default function BreakEven() {
           <div className="flex justify-center gap-3">
             <button
               onClick={() => navigate('/breakeven/products')}
-              className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+              className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
             >
               Set Up Products
             </button>

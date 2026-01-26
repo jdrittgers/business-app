@@ -45,41 +45,49 @@ export default function MarketPriceWidget() {
 
   if (loading && !lastUpdated) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="glass-card p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Market Prices</h3>
         <div className="animate-pulse space-y-3">
-          <div className="h-12 bg-gray-200 rounded"></div>
-          <div className="h-12 bg-gray-200 rounded"></div>
-          <div className="h-12 bg-gray-200 rounded"></div>
+          <div className="h-12 bg-gray-200/50 rounded-xl"></div>
+          <div className="h-12 bg-gray-200/50 rounded-xl"></div>
+          <div className="h-12 bg-gray-200/50 rounded-xl"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="glass-card p-6 animate-fade-in-up">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Live Market Prices</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-900">Live Market Prices</h3>
+          {/* Live indicator */}
+          <span className="flex items-center gap-1 text-xs text-green-600">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            Live
+          </span>
+        </div>
         <button
           onClick={fetchPrices}
           disabled={loading}
-          className="text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+          className="text-sm text-gray-600 hover:text-gray-900 disabled:text-gray-400 transition-colors"
         >
           {loading ? 'Refreshing...' : '↻ Refresh'}
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">
+        <div className="mb-4 p-3 bg-red-50/80 text-red-700 rounded-xl text-sm">
           {error}
         </div>
       )}
 
       <div className="space-y-3">
-        {(['CORN', 'SOYBEANS', 'WHEAT'] as CommodityType[]).map((commodity) => (
+        {(['CORN', 'SOYBEANS', 'WHEAT'] as CommodityType[]).map((commodity, index) => (
           <div
             key={commodity}
-            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+            className="flex items-center justify-between p-3 glass-subtle rounded-xl animate-fade-in-up"
+            style={{ animationDelay: `${index * 100}ms` }}
           >
             <div className="flex items-center space-x-3">
               <span className="text-2xl">{commodityIcons[commodity]}</span>
@@ -88,7 +96,7 @@ export default function MarketPriceWidget() {
             <div className="text-right">
               {prices[commodity] ? (
                 <>
-                  <div className="text-xl font-bold text-gray-900">
+                  <div className="text-xl font-bold text-gray-900 tabular-nums">
                     ${prices[commodity]?.toFixed(2)}
                   </div>
                   <div className="text-xs text-gray-500">/bushel</div>

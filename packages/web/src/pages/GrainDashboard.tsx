@@ -171,7 +171,7 @@ export default function GrainDashboard() {
         <select
           value={filterYear}
           onChange={(e) => setFilterYear(parseInt(e.target.value))}
-          className="rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-4 py-2"
+          className="rounded-lg border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm px-4 py-2"
         >
           <option value={2024}>2024</option>
           <option value={2025}>2025</option>

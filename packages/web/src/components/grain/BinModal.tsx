@@ -102,17 +102,17 @@ export default function BinModal({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        {/* Background overlay */}
+        {/* Background overlay - glass backdrop */}
         <div
-          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+          className="glass-backdrop transition-opacity"
           onClick={onClose}
         />
 
         {/* Center modal */}
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
-        {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+        {/* Modal panel - glass modal */}
+        <div className="inline-block align-bottom glass-modal px-4 pt-5 pb-4 text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
           <div className="sm:flex sm:items-start">
             <div className="w-full mt-3 text-center sm:mt-0 sm:text-left">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">

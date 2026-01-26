@@ -201,7 +201,7 @@ export default function TakeActionModal({
                 <select
                   value={selectedEntityId}
                   onChange={(e) => setSelectedEntityId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                 >
                   {grainEntities.map((entity) => (
                     <option key={entity.id} value={entity.id}>
@@ -219,7 +219,7 @@ export default function TakeActionModal({
                 <select
                   value={contractType}
                   onChange={(e) => setContractType(e.target.value as ContractType)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                 >
                   <option value={ContractType.CASH}>Cash</option>
                   <option value={ContractType.BASIS}>Basis</option>
@@ -236,7 +236,7 @@ export default function TakeActionModal({
                   <select
                     value={cropYear}
                     onChange={(e) => setCropYear(e.target.value as CropYear)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                   >
                     <option value={CropYear.NEW_CROP}>New Crop</option>
                     <option value={CropYear.OLD_CROP}>Old Crop</option>
@@ -250,7 +250,7 @@ export default function TakeActionModal({
                     type="number"
                     value={year}
                     onChange={(e) => setYear(parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                   />
                 </div>
               </div>
@@ -265,7 +265,7 @@ export default function TakeActionModal({
                   value={bushels}
                   onChange={(e) => setBushels(e.target.value)}
                   placeholder="Enter bushels"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                 />
               </div>
 
@@ -279,7 +279,7 @@ export default function TakeActionModal({
                   value={buyer}
                   onChange={(e) => setBuyer(e.target.value)}
                   placeholder="Enter buyer name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                 />
               </div>
 
@@ -294,7 +294,7 @@ export default function TakeActionModal({
                     step="0.01"
                     value={cashPrice}
                     onChange={(e) => setCashPrice(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                   />
                 </div>
               )}
@@ -309,7 +309,7 @@ export default function TakeActionModal({
                     type="date"
                     value={deliveryStartDate}
                     onChange={(e) => setDeliveryStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                   />
                 </div>
                 <div>
@@ -320,7 +320,7 @@ export default function TakeActionModal({
                     type="date"
                     value={deliveryEndDate}
                     onChange={(e) => setDeliveryEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                   />
                 </div>
               </div>
@@ -334,7 +334,7 @@ export default function TakeActionModal({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900"
                 />
               </div>
             </>
@@ -352,7 +352,7 @@ export default function TakeActionModal({
             <button
               type="submit"
               disabled={saving || loading || grainEntities.length === 0}
-              className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-teal-400 transition-colors"
+              className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 transition-colors"
             >
               {saving ? 'Creating...' : 'Create Contract'}
             </button>

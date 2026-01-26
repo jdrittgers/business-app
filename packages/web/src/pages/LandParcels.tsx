@@ -88,9 +88,10 @@ function ParcelModal({ isOpen, onClose, onSave, parcel, entities }: ParcelModalP
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose} />
+        <div className="glass-backdrop transition-opacity" onClick={onClose} />
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+        <div className="inline-block align-bottom glass-modal text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
           <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
             {parcel ? 'Edit Land Parcel' : 'Add Land Parcel'}
           </h3>
@@ -300,6 +301,7 @@ function ParcelModal({ isOpen, onClose, onSave, parcel, entities }: ParcelModalP
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
     </div>
@@ -364,9 +366,10 @@ function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose} />
+        <div className="glass-backdrop transition-opacity" onClick={onClose} />
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 max-h-[90vh] overflow-y-auto">
+        <div className="inline-block align-bottom glass-modal text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-lg sm:w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
           <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
             {loan ? 'Edit Land Loan' : 'Add Land Loan'}
           </h3>
@@ -547,6 +550,7 @@ function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
     </div>
@@ -615,9 +619,10 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose} />
+        <div className="glass-backdrop transition-opacity" onClick={onClose} />
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+        <div className="inline-block align-bottom glass-modal text-left overflow-hidden transform transition-all animate-slide-up sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6">
           <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
             Record Payment - {loan.lender}
           </h3>
@@ -697,6 +702,7 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
     </div>

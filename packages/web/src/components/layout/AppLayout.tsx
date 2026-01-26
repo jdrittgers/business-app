@@ -13,13 +13,13 @@ export default function AppLayout({ children, title, subtitle, actions }: AppLay
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-gradient-mesh">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main content */}
       <div className="lg:pl-56 min-h-screen flex flex-col">
         {/* Top header bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+        <header className="sticky top-0 z-30 glass-subtle border-b border-white/20">
           <div className="flex items-center justify-between h-14 px-4 sm:px-6">
             {/* Mobile menu button */}
             <button

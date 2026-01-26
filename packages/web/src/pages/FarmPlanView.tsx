@@ -522,7 +522,7 @@ export default function FarmPlansPage() {
                       {/* In-Furrow Plan */}
                       <div className="bg-white rounded-lg p-4 shadow-sm">
                         <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                          <span className="w-2 h-2 bg-teal-500 rounded-full mr-2"></span>
+                          <span className="w-2 h-2 bg-gray-900 rounded-full mr-2"></span>
                           In-Furrow Plan
                         </h3>
                         {loadingFarmDetails === plan.farmId ? (
@@ -530,7 +530,7 @@ export default function FarmPlansPage() {
                         ) : farmDetails[plan.farmId]?.chemicalUsage && farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.IN_FURROW).length > 0 ? (
                           <div className="space-y-2">
                             {farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.IN_FURROW).map((usage) => (
-                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-teal-50' : ''}`}>
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-gray-50' : ''}`}>
                                 <button
                                   onClick={() => {
                                     if (usage.completedAt) {
@@ -542,8 +542,8 @@ export default function FarmPlansPage() {
                                   disabled={saving}
                                   className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
                                     usage.completedAt
-                                      ? 'bg-teal-500 border-teal-500 text-white'
-                                      : 'border-gray-300 hover:border-teal-500'
+                                      ? 'bg-gray-900 border-gray-900 text-white'
+                                      : 'border-gray-300 hover:border-gray-900'
                                   }`}
                                 >
                                   {usage.completedAt && (
@@ -559,7 +559,7 @@ export default function FarmPlansPage() {
                                   </p>
                                   <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
                                   {usage.completedAt && (
-                                    <p className="text-xs text-teal-600 mt-1">
+                                    <p className="text-xs text-gray-700 mt-1">
                                       Applied {formatCompletionDate(usage.completedAt)}
                                       {usage.completedByName && ` by ${usage.completedByName}`}
                                     </p>

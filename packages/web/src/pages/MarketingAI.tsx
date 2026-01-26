@@ -302,7 +302,7 @@ export default function MarketingAI() {
         <button
           onClick={handleGenerateSignals}
           disabled={generating}
-          className="px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-teal-400 flex items-center justify-center gap-2 font-medium transition-colors"
+          className="px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 flex items-center justify-center gap-2 font-medium transition-colors"
         >
           {generating ? (
             <>
@@ -349,7 +349,7 @@ export default function MarketingAI() {
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as SignalStatus | 'ALL')}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-teal-500 focus:ring-teal-500"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:ring-gray-900"
         >
           <option value="ALL">All Statuses</option>
           <option value="ACTIVE">Active</option>
@@ -360,7 +360,7 @@ export default function MarketingAI() {
         <select
           value={commodityFilter}
           onChange={e => setCommodityFilter(e.target.value as CommodityType | 'ALL')}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-teal-500 focus:ring-teal-500"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-gray-900 focus:ring-gray-900"
         >
           <option value="ALL">All Commodities</option>
           <option value="CORN">Corn</option>
@@ -382,7 +382,7 @@ export default function MarketingAI() {
 
           {loading ? (
             <div className="text-center py-8 text-gray-500">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-2"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
               Loading signals...
             </div>
           ) : signals.length === 0 ? (
@@ -419,7 +419,7 @@ export default function MarketingAI() {
             <StrategyCard recommendation={strategy} />
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center text-gray-500">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600 mx-auto mb-2"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mb-2"></div>
               <p>Loading strategy...</p>
             </div>
           )}
@@ -430,19 +430,19 @@ export default function MarketingAI() {
             <div className="space-y-2">
               <a
                 href="/grain-contracts/dashboard"
-                className="block text-sm text-teal-600 hover:text-teal-800"
+                className="block text-sm text-gray-700 hover:text-gray-900"
               >
                 View Grain Dashboard
               </a>
               <a
                 href="/breakeven"
-                className="block text-sm text-teal-600 hover:text-teal-800"
+                className="block text-sm text-gray-700 hover:text-gray-900"
               >
                 Break-Even Calculator
               </a>
               <a
                 href="/grain-contracts"
-                className="block text-sm text-teal-600 hover:text-teal-800"
+                className="block text-sm text-gray-700 hover:text-gray-900"
               >
                 Manage Contracts
               </a>

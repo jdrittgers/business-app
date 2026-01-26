@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 interface PieChartData {
   label: string;
   value: number;
@@ -10,11 +12,18 @@ interface PieChartProps {
 }
 
 export default function PieChart({ data, title }: PieChartProps) {
+  const [isVisible, setIsVisible] = useState(false);
   const total = data.reduce((sum, item) => sum + item.value, 0);
+
+  // Trigger animation after mount
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   if (total === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="glass-card p-6">
         {title && <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>}
         <div className="text-center text-gray-500 py-8">No data available</div>
       </div>
@@ -60,26 +69,38 @@ export default function PieChart({ data, title }: PieChartProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="glass-card p-6 animate-fade-in-up">
       {title && <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>}
 
       <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-        {/* SVG Pie Chart */}
+        {/* SVG Pie Chart with animated slices */}
         <svg viewBox="0 0 200 200" className="w-48 h-48">
           {segments.map((segment, index) => (
             <path
               key={index}
               d={createArc(segment.startAngle, segment.endAngle)}
               fill={segment.color}
-              className="hover:opacity-80 transition-opacity cursor-pointer"
+              className={`hover:opacity-80 transition-all duration-500 cursor-pointer origin-center ${
+                isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+              }`}
+              style={{
+                transitionDelay: `${index * 100}ms`,
+                transformOrigin: '100px 100px'
+              }}
             />
           ))}
         </svg>
 
-        {/* Legend */}
+        {/* Legend with staggered animation */}
         <div className="space-y-2">
           {segments.map((segment, index) => (
-            <div key={index} className="flex items-center space-x-3">
+            <div
+              key={index}
+              className={`flex items-center space-x-3 transition-all duration-300 ${
+                isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
+              }`}
+              style={{ transitionDelay: `${(index + segments.length) * 100}ms` }}
+            >
               <div
                 className="w-4 h-4 rounded"
                 style={{ backgroundColor: segment.color }}

@@ -480,7 +480,7 @@ export default function FarmPlanEdit() {
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                <span className="w-3 h-3 bg-teal-500 rounded-full mr-2"></span>
+                <span className="w-3 h-3 bg-gray-900 rounded-full mr-2"></span>
                 In-Furrow Plan
               </h3>
               <button
@@ -498,7 +498,7 @@ export default function FarmPlanEdit() {
                 {farm.chemicalUsage
                   .filter(usage => usage.chemical?.category === ChemicalCategory.IN_FURROW)
                   .map((usage) => (
-                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-teal-100 border border-teal-300' : 'bg-teal-50'}`}>
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-gray-100 border border-gray-300' : 'bg-gray-50'}`}>
                     <button
                       onClick={() => {
                         if (usage.completedAt) {
@@ -510,8 +510,8 @@ export default function FarmPlanEdit() {
                       disabled={saving}
                       className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
                         usage.completedAt
-                          ? 'bg-teal-500 border-teal-500 text-white'
-                          : 'border-gray-300 hover:border-teal-500'
+                          ? 'bg-gray-900 border-gray-900 text-white'
+                          : 'border-gray-300 hover:border-gray-900'
                       }`}
                     >
                       {usage.completedAt && (
@@ -525,7 +525,7 @@ export default function FarmPlanEdit() {
                       <p className="text-sm text-gray-600">{usage.ratePerAcre} {usage.chemical?.unit}/acre</p>
                       <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
                       {usage.completedAt && (
-                        <p className="text-xs text-teal-600 mt-1">
+                        <p className="text-xs text-gray-700 mt-1">
                           Applied {formatCompletionDate(usage.completedAt)}
                           {usage.completedByName && ` by ${usage.completedByName}`}
                         </p>

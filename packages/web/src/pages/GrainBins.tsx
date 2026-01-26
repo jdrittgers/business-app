@@ -62,7 +62,7 @@ function AssignBinModal({ isOpen, onClose, ticket, bins, onAssign }: AssignBinMo
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose} />
+        <div className="glass-backdrop transition-opacity" onClick={onClose} />
 
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
@@ -360,7 +360,7 @@ export default function GrainBins() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mb-4"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900 mb-4"></div>
         <div className="text-gray-500">Loading grain bins...</div>
       </div>
     );
@@ -379,7 +379,7 @@ export default function GrainBins() {
             setSelectedBin(null);
             setShowBinModal(true);
           }}
-          className="inline-flex items-center justify-center px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium shadow-sm transition-colors whitespace-nowrap"
+          className="inline-flex items-center justify-center px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium shadow-sm transition-colors whitespace-nowrap"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -403,7 +403,7 @@ export default function GrainBins() {
                 setSelectedBin(null);
                 setShowBinModal(true);
               }}
-              className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium transition-colors"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -439,7 +439,7 @@ export default function GrainBins() {
           <div
             className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-all duration-200 ${
               dragActive
-                ? 'border-teal-500 bg-teal-50'
+                ? 'border-gray-900 bg-gray-50'
                 : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
             }`}
             onDragEnter={handleDrag}
@@ -462,7 +462,7 @@ export default function GrainBins() {
             >
               <div className="flex flex-col items-center">
                 {uploading ? (
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-teal-600 mb-3"></div>
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900 mb-3"></div>
                 ) : (
                   <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
                     <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

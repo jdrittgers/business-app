@@ -179,29 +179,29 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-56 bg-slate-800 transition-transform duration-300 flex flex-col
+        className={`fixed top-0 left-0 z-50 h-full w-56 bg-white border-r border-gray-200 transition-transform duration-300 flex flex-col
           lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Logo/Brand */}
-        <div className="h-14 flex items-center px-4 border-b border-slate-700">
+        <div className="h-14 flex items-center px-4 border-b border-gray-100">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span className="font-semibold text-white text-lg">KernelAG</span>
+            <span className="font-semibold text-gray-900 text-lg">KernelAG</span>
           </div>
         </div>
 
         {/* Business/Farm selector */}
-        <div className="px-3 py-3 border-b border-slate-700">
-          <div className="flex items-center space-x-3 px-2 py-2 rounded-lg bg-slate-700/50">
-            <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+        <div className="px-3 py-3 border-b border-gray-100">
+          <div className="flex items-center space-x-3 px-2 py-2 rounded-lg bg-gray-50 hover:bg-gray-200 transition-colors cursor-pointer">
+            <div className="w-8 h-8 bg-gray-900 rounded-full flex items-center justify-center text-white text-sm font-medium">
               {businessName.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{businessName}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{businessName}</p>
             </div>
           </div>
         </div>
@@ -217,8 +217,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                       onClick={() => toggleExpanded(item.label)}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors
                         ${isParentActive(item)
-                          ? 'bg-teal-600 text-white'
-                          : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                          ? 'bg-gray-200 text-gray-900 font-medium'
+                          : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`}
                     >
                       <div className="flex items-center space-x-3">
                         {item.icon}
@@ -234,7 +234,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                       </svg>
                     </button>
                     {expandedItems.includes(item.label) && (
-                      <ul className="mt-1 ml-3 pl-3 border-l border-slate-600 space-y-0.5">
+                      <ul className="mt-1 ml-3 pl-3 border-l border-gray-200 space-y-0.5">
                         {item.children.map((child) => (
                           <li key={child.path}>
                             <NavLink
@@ -242,8 +242,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                               onClick={handleNavClick}
                               className={`block px-3 py-1.5 rounded-lg text-sm transition-colors
                                 ${isActive(child.path)
-                                  ? 'bg-teal-600/50 text-teal-300 font-medium'
-                                  : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}
+                                  ? 'bg-gray-200 text-gray-900 font-medium'
+                                  : 'text-gray-500 hover:bg-gray-200 hover:text-gray-900'}`}
                             >
                               {child.label}
                             </NavLink>
@@ -258,8 +258,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                     onClick={handleNavClick}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors
                       ${isActive(item.path)
-                        ? 'bg-teal-600 text-white'
-                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                        ? 'bg-gray-200 text-gray-900 font-medium'
+                        : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`}
                   >
                     {item.icon}
                     <span>{item.label}</span>
@@ -271,7 +271,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         {/* Bottom navigation */}
-        <div className="border-t border-slate-700 py-3 px-3">
+        <div className="border-t border-gray-200 py-3 px-3">
           <ul className="space-y-0.5">
             {bottomNavItems.map((item) => (
               <li key={item.label}>
@@ -280,8 +280,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   onClick={handleNavClick}
                   className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors
                     ${isActive(item.path)
-                      ? 'bg-teal-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                      ? 'bg-gray-200 text-gray-900 font-medium'
+                      : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`}
                 >
                   {item.icon}
                   <span>{item.label}</span>
@@ -291,7 +291,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <li>
               <button
                 onClick={logout}
-                className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

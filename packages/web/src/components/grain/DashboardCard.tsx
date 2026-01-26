@@ -10,6 +10,7 @@ interface DashboardCardProps {
     value: number;
     label: string;
   };
+  index?: number; // For staggered animations
 }
 
 export default function DashboardCard({
@@ -18,7 +19,8 @@ export default function DashboardCard({
   subtitle,
   icon,
   color = 'blue',
-  trend
+  trend,
+  index = 0
 }: DashboardCardProps) {
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
@@ -29,10 +31,13 @@ export default function DashboardCard({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-card border border-gray-100 p-5 sm:p-6 hover:shadow-card-hover hover:border-gray-200 transition-all duration-200">
+    <div
+      className="glass-card p-5 sm:p-6 animate-fade-in-up"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide truncate">{title}</p>
+          <p className="text-xs sm:text-sm font-medium text-gray-500/80 uppercase tracking-wide truncate">{title}</p>
           <p className="mt-2 text-2xl sm:text-3xl font-bold text-gray-900 truncate">{value}</p>
           {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
           {trend && (
@@ -45,7 +50,7 @@ export default function DashboardCard({
           )}
         </div>
         {icon && (
-          <div className={`p-3 rounded-xl flex-shrink-0 ${colorClasses[color]}`}>
+          <div className={`p-3 rounded-xl flex-shrink-0 glass-subtle ${colorClasses[color]}`}>
             {icon}
           </div>
         )}

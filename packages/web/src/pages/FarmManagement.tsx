@@ -348,7 +348,7 @@ export default function FarmManagement() {
           </button>
           <button
             onClick={handleAdd}
-            className="px-4 py-2 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700"
+            className="px-4 py-2 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800"
           >
             Add Farm
           </button>
@@ -395,7 +395,7 @@ export default function FarmManagement() {
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(parseInt(e.target.value))}
-              className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+              className="rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm"
             >
               <option value={2024}>2024</option>
               <option value={2025}>2025</option>
@@ -408,7 +408,7 @@ export default function FarmManagement() {
             <select
               value={filterEntity}
               onChange={(e) => setFilterEntity(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+              className="rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm"
             >
               <option value="ALL">All Entities</option>
               {entities.map(entity => (
@@ -421,7 +421,7 @@ export default function FarmManagement() {
             <select
               value={filterCommodity}
               onChange={(e) => setFilterCommodity(e.target.value)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+              className="rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm"
             >
               <option value="ALL">All Commodities</option>
               <option value="CORN">Corn</option>
@@ -433,7 +433,7 @@ export default function FarmManagement() {
             <label className="text-xs font-medium text-gray-500">View:</label>
             <button
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded ${viewMode === 'cards' ? 'bg-teal-100 text-teal-700' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded ${viewMode === 'cards' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}
               title="Card view"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -442,7 +442,7 @@ export default function FarmManagement() {
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded ${viewMode === 'table' ? 'bg-teal-100 text-teal-700' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded ${viewMode === 'table' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600'}`}
               title="Table view"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -463,7 +463,7 @@ export default function FarmManagement() {
       {/* Loading State */}
       {isLoading && (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           <p className="mt-2 text-gray-600">Loading farms...</p>
         </div>
       )}
@@ -479,7 +479,7 @@ export default function FarmManagement() {
                 </svg>
               </div>
               <p className="text-gray-500 mb-4">No farms found for {filterYear}</p>
-              <button onClick={handleAdd} className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700">
+              <button onClick={handleAdd} className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800">
                 Add Your First Farm
               </button>
             </div>
@@ -565,7 +565,7 @@ export default function FarmManagement() {
                   <div className="flex gap-2 pt-2 border-t">
                     <button
                       onClick={() => navigate(`/breakeven/farms/${farm.id}/costs`)}
-                      className="flex-1 px-3 py-2 text-xs font-medium text-teal-700 bg-teal-50 rounded hover:bg-teal-100"
+                      className="flex-1 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 rounded hover:bg-gray-100"
                     >
                       Manage Costs
                     </button>
@@ -614,7 +614,7 @@ export default function FarmManagement() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <button
                         onClick={() => navigate(`/breakeven/farms/${farm.id}/costs`)}
-                        className="font-medium text-teal-600 hover:text-teal-900"
+                        className="font-medium text-gray-900 hover:text-gray-700"
                       >
                         {farm.name}
                       </button>
@@ -655,7 +655,7 @@ export default function FarmManagement() {
                       {farm.profit >= 0 ? '+' : ''}${farm.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm space-x-2">
-                      <button onClick={() => handleEdit(farm)} className="text-teal-600 hover:text-teal-900">Edit</button>
+                      <button onClick={() => handleEdit(farm)} className="text-gray-900 hover:text-gray-700">Edit</button>
                       <button onClick={() => handleDelete(farm.id)} className="text-red-600 hover:text-red-900">Delete</button>
                     </td>
                   </tr>
@@ -696,7 +696,7 @@ export default function FarmManagement() {
                             });
                           }
                         }}
-                        className="mr-2 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        className="mr-2 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                       />
                       Split between entities
                     </label>
@@ -708,7 +708,7 @@ export default function FarmManagement() {
                         <select
                           value={formData.grainEntityId}
                           onChange={(e) => setFormData({ ...formData, grainEntityId: e.target.value })}
-                          className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                          className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                           required
                         >
                           <option value="">Select Entity</option>
@@ -719,7 +719,7 @@ export default function FarmManagement() {
                         <button
                           type="button"
                           onClick={() => setShowQuickEntityForm(!showQuickEntityForm)}
-                          className="px-3 py-2 text-teal-600 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100"
+                          className="px-3 py-2 text-gray-900 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
                           title="Add new entity"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -728,13 +728,13 @@ export default function FarmManagement() {
                         </button>
                       </div>
                       {showQuickEntityForm && (
-                        <div className="flex gap-2 p-2 bg-teal-50 rounded-lg border border-teal-200">
+                        <div className="flex gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
                           <input
                             type="text"
                             value={newEntityName}
                             onChange={(e) => setNewEntityName(e.target.value)}
                             placeholder="New entity name"
-                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -745,7 +745,7 @@ export default function FarmManagement() {
                           <button
                             type="button"
                             onClick={handleQuickEntityCreate}
-                            className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                            className="px-3 py-1.5 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800"
                           >
                             Add
                           </button>
@@ -773,7 +773,7 @@ export default function FarmManagement() {
                               newSplits[index].grainEntityId = e.target.value;
                               setFormData({ ...formData, entitySplits: newSplits });
                             }}
-                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm"
                             required
                           >
                             <option value="">Select Entity</option>
@@ -793,7 +793,7 @@ export default function FarmManagement() {
                                 newSplits[index].percentage = parseFloat(e.target.value) || 0;
                                 setFormData({ ...formData, entitySplits: newSplits });
                               }}
-                              className="w-20 rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm"
+                              className="w-20 rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 text-sm"
                               required
                             />
                             <span className="text-sm text-gray-500">%</span>
@@ -823,7 +823,7 @@ export default function FarmManagement() {
                               entitySplits: [...formData.entitySplits, { grainEntityId: '', percentage: 0 }]
                             });
                           }}
-                          className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                          className="text-sm text-gray-900 hover:text-gray-700 font-medium"
                         >
                           + Add Entity
                         </button>
@@ -847,7 +847,7 @@ export default function FarmManagement() {
                   <select
                     value={formData.landParcelId || ''}
                     onChange={(e) => setFormData({ ...formData, landParcelId: e.target.value || null })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                   >
                     <option value="">No Land Parcel</option>
                     {landParcels.map(parcel => (
@@ -867,7 +867,7 @@ export default function FarmManagement() {
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                     placeholder="e.g., North 40"
                     required
                   />
@@ -881,7 +881,7 @@ export default function FarmManagement() {
                       step="0.01"
                       value={formData.acres}
                       onChange={(e) => setFormData({ ...formData, acres: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                       required
                     />
                   </div>
@@ -890,7 +890,7 @@ export default function FarmManagement() {
                     <select
                       value={formData.year}
                       onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                     >
                       <option value={2024}>2024</option>
                       <option value={2025}>2025</option>
@@ -905,7 +905,7 @@ export default function FarmManagement() {
                   <select
                     value={formData.commodityType}
                     onChange={(e) => handleCommodityChange(e.target.value as CommodityType)}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                   >
                     <option value="CORN">🌽 Corn</option>
                     <option value="SOYBEANS">🫘 Soybeans</option>
@@ -921,7 +921,7 @@ export default function FarmManagement() {
                       step="0.1"
                       value={formData.projectedYield}
                       onChange={(e) => setFormData({ ...formData, projectedYield: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                       required
                     />
                   </div>
@@ -932,7 +932,7 @@ export default function FarmManagement() {
                       step="0.1"
                       value={formData.aph}
                       onChange={(e) => setFormData({ ...formData, aph: e.target.value })}
-                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                       required
                     />
                   </div>
@@ -943,7 +943,7 @@ export default function FarmManagement() {
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
                     rows={2}
                     placeholder="Optional notes"
                   />
@@ -960,7 +960,7 @@ export default function FarmManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700"
+                  className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
                 >
                   {editingFarm ? 'Update' : 'Create'}
                 </button>

@@ -4,6 +4,7 @@ import { GrainBin } from '@business-app/shared';
 interface GrainBinVisualProps {
   bin: GrainBin;
   onClick?: () => void;
+  index?: number; // For staggered animations
 }
 
 // Commodity colors and patterns
@@ -31,7 +32,7 @@ const COMMODITY_COLORS = {
   }
 };
 
-export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick }) => {
+export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick, index = 0 }) => {
   const fillPercentage = bin.fillPercentage || Math.round((bin.currentBushels / bin.capacity) * 100);
   const colors = COMMODITY_COLORS[bin.commodityType];
 
@@ -49,9 +50,9 @@ export const GrainBinVisual: React.FC<GrainBinVisualProps> = ({ bin, onClick }) 
 
   return (
     <div
-      className={`flex flex-col items-center p-4 rounded-xl bg-white border border-gray-100
-        ${onClick ? 'cursor-pointer hover:shadow-card-hover hover:scale-[1.02] hover:border-gray-200' : ''}
-        transition-all duration-200 shadow-card`}
+      className={`flex flex-col items-center p-4 glass-card animate-fade-in-up
+        ${onClick ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+      style={{ animationDelay: `${index * 50}ms` }}
       onClick={onClick}
     >
       {/* Bin name and crop year */}
