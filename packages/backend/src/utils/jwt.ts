@@ -3,7 +3,7 @@ import { AuthTokenPayload } from '@business-app/shared';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'default-access-secret';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret';
-const ACCESS_EXPIRES_IN: string | number = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+const ACCESS_EXPIRES_IN: string | number = process.env.JWT_ACCESS_EXPIRES_IN || '8h';
 const REFRESH_EXPIRES_IN: string | number = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 export function generateAccessToken(payload: AuthTokenPayload): string {
