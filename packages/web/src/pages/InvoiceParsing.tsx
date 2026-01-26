@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { invoiceApi } from '../api/invoice.api';
 import { breakevenApi } from '../api/breakeven.api';
+import { chemicalPlanTemplateApi } from '../api/chemical-plan-template.api';
 import {
   Invoice,
   InvoiceStatus,
@@ -10,7 +11,9 @@ import {
   InvoiceProductType,
   UpdateInvoiceLineItemRequest,
   UnitType,
-  CommodityType
+  CommodityType,
+  ChemicalPlanTemplate,
+  PassType
 } from '@business-app/shared';
 
 export default function InvoiceParsing() {
@@ -36,6 +39,12 @@ export default function InvoiceParsing() {
     commodityType: CommodityType.CORN,
     seedsPerBag: ''
   });
+
+  // Add to Template modal
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState<ChemicalPlanTemplate[]>([]);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
+  const [chemicalsToImport, setChemicalsToImport] = useState<InvoiceLineItem[]>([]);
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
 
@@ -391,6 +400,73 @@ export default function InvoiceParsing() {
     }
   };
 
+  // Add to Template handlers
+  const loadTemplates = async () => {
+    if (!businessId) return;
+    try {
+      const data = await chemicalPlanTemplateApi.getAll(businessId, { isActive: true });
+      setTemplates(data);
+    } catch (error) {
+      console.error('Failed to load templates:', error);
+    }
+  };
+
+  const handleAddToTemplate = (item: InvoiceLineItem) => {
+    setChemicalsToImport([item]);
+    loadTemplates();
+    setSelectedTemplateIds([]);
+    setShowTemplateModal(true);
+  };
+
+  const handleBulkAddToTemplate = () => {
+    const chemicals = editingLineItems.filter(i => i.productType === InvoiceProductType.CHEMICAL);
+    if (chemicals.length === 0) {
+      alert('No chemicals found to add');
+      return;
+    }
+    setChemicalsToImport(chemicals);
+    loadTemplates();
+    setSelectedTemplateIds([]);
+    setShowTemplateModal(true);
+  };
+
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplateIds(prev =>
+      prev.includes(templateId)
+        ? prev.filter(id => id !== templateId)
+        : [...prev, templateId]
+    );
+  };
+
+  const getPassTypeLabel = (type: PassType | undefined): string => {
+    if (!type) return '';
+    switch (type) {
+      case 'PRE': return 'Pre';
+      case 'POST': return 'Post';
+      case 'FUNGICIDE': return 'Fungicide';
+      case 'IN_FURROW': return 'In-Furrow';
+      default: return type;
+    }
+  };
+
+  const handleConfirmAddToTemplate = async () => {
+    if (!businessId || !selectedInvoice || selectedTemplateIds.length === 0) return;
+
+    try {
+      const result = await chemicalPlanTemplateApi.importFromInvoice(businessId, {
+        invoiceId: selectedInvoice.id,
+        lineItemIds: chemicalsToImport.map(c => c.id),
+        templateIds: selectedTemplateIds
+      });
+
+      alert(`Added ${result.imported} chemical(s) to template(s). ${result.skipped} skipped (already in template).`);
+      setShowTemplateModal(false);
+    } catch (error: any) {
+      console.error('Failed to add to template:', error);
+      alert(error.response?.data?.error || 'Failed to add chemicals to template');
+    }
+  };
+
   const handleDeleteInvoice = async (invoiceId: string) => {
     if (!businessId) return;
 
@@ -676,14 +752,26 @@ export default function InvoiceParsing() {
                         ${Number(item.totalPrice).toFixed(2)}
                       </td>
                       <td className="px-2 py-3">
-                        <button
-                          onClick={() => handleAddToProducts(item)}
-                          className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded"
-                          disabled={!!item.priceLockedAt}
-                          title="Add to product catalog"
-                        >
-                          Add to Products
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleAddToProducts(item)}
+                            className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded"
+                            disabled={!!item.priceLockedAt}
+                            title="Add to product catalog"
+                          >
+                            Add to Products
+                          </button>
+                          {item.productType === InvoiceProductType.CHEMICAL && (
+                            <button
+                              onClick={() => handleAddToTemplate(item)}
+                              className="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-600 rounded"
+                              disabled={!!item.priceLockedAt}
+                              title="Add to chemical plan template"
+                            >
+                              To Template
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -729,6 +817,14 @@ export default function InvoiceParsing() {
                     </button>
                   </>
                 )}
+
+                <button
+                  onClick={handleBulkAddToTemplate}
+                  disabled={editingLineItems.filter(i => i.productType === InvoiceProductType.CHEMICAL).length === 0}
+                  className="px-4 py-2 border border-purple-600 text-sm font-medium rounded-md text-purple-600 hover:bg-purple-50 disabled:opacity-50"
+                >
+                  Add Chemicals to Template
+                </button>
 
                 <button
                   onClick={handleCreateBidRequest}
@@ -805,6 +901,76 @@ export default function InvoiceParsing() {
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
               >
                 Add to Catalog
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add to Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Add to Chemical Plan Template
+            </h3>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                {chemicalsToImport.length} chemical(s) selected:
+              </p>
+              <ul className="text-sm bg-gray-50 rounded p-2 max-h-32 overflow-y-auto">
+                {chemicalsToImport.map(c => (
+                  <li key={c.id} className="py-0.5">{c.productName}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Template(s)
+              </label>
+              {templates.length === 0 ? (
+                <p className="text-gray-500 text-sm py-4">
+                  No templates found. Create a template first in Chemical Plan Templates.
+                </p>
+              ) : (
+                <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                  {templates.map(template => (
+                    <label key={template.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedTemplateIds.includes(template.id)}
+                        onChange={() => toggleTemplateSelection(template.id)}
+                        className="text-blue-600 focus:ring-blue-500 rounded"
+                      />
+                      <div>
+                        <div className="font-medium text-gray-900">{template.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {template.commodityType || 'All commodities'}
+                          {template.passType && ` | ${getPassTypeLabel(template.passType)}`}
+                          {template.year && ` | ${template.year}`}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowTemplateModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAddToTemplate}
+                disabled={selectedTemplateIds.length === 0}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+              >
+                Add to {selectedTemplateIds.length} Template(s)
               </button>
             </div>
           </div>

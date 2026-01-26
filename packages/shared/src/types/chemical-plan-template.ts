@@ -1,6 +1,15 @@
 import { CommodityType } from './grain';
 import { Chemical } from './breakeven';
 
+// ===== Pass Type Enum =====
+
+export enum PassType {
+  PRE = 'PRE',
+  POST = 'POST',
+  FUNGICIDE = 'FUNGICIDE',
+  IN_FURROW = 'IN_FURROW'
+}
+
 // ===== Chemical Plan Template Types =====
 
 export interface ChemicalPlanTemplate {
@@ -9,6 +18,7 @@ export interface ChemicalPlanTemplate {
   name: string;
   description?: string;
   commodityType?: CommodityType;
+  passType?: PassType;
   year?: number;
   isActive: boolean;
   createdAt: Date;
@@ -58,6 +68,7 @@ export interface CreateChemicalPlanTemplateRequest {
   name: string;
   description?: string;
   commodityType?: CommodityType;
+  passType?: PassType;
   year?: number;
   items?: CreateChemicalPlanTemplateItemRequest[];
 }
@@ -66,6 +77,7 @@ export interface UpdateChemicalPlanTemplateRequest {
   name?: string;
   description?: string;
   commodityType?: CommodityType;
+  passType?: PassType;
   year?: number;
   isActive?: boolean;
 }
@@ -105,6 +117,7 @@ export interface RemoveTemplateRequest {
 
 export interface GetChemicalPlanTemplatesQuery {
   commodityType?: CommodityType;
+  passType?: PassType;
   year?: number;
   isActive?: boolean;
 }
@@ -127,4 +140,30 @@ export interface FarmTemplateInfo {
   templateName: string;
   appliedAt: Date;
   hasOverrides: boolean;
+}
+
+// ===== Invoice Import Types =====
+
+export interface ImportInvoiceToTemplateRequest {
+  invoiceId: string;
+  lineItemIds: string[];    // Which line items to import
+  templateIds: string[];    // Target template(s)
+  defaultRatePerAcre?: number;  // Optional default if not on invoice
+}
+
+export interface ImportInvoiceToTemplateResponse {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface InvoiceChemicalForImport {
+  lineItemId: string;
+  productName: string;
+  pricePerUnit: number;
+  unit: string;
+  ratePerAcre?: number;
+  rateUnit?: string;
+  matchedChemicalId?: string;
+  matchedChemicalName?: string;
 }

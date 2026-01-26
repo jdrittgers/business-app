@@ -10,7 +10,10 @@ import {
   ApplyTemplateRequest,
   ApplyTemplateResponse,
   GetChemicalPlanTemplatesQuery,
-  FarmWithTemplateApplication
+  FarmWithTemplateApplication,
+  ImportInvoiceToTemplateRequest,
+  ImportInvoiceToTemplateResponse,
+  InvoiceChemicalForImport
 } from '@business-app/shared';
 
 export const chemicalPlanTemplateApi = {
@@ -81,5 +84,17 @@ export const chemicalPlanTemplateApi = {
 
   resetToTemplate: async (businessId: string, farmId: string, templateId: string): Promise<void> => {
     await apiClient.post(`/api/businesses/${businessId}/farms/${farmId}/reset-to-template/${templateId}`);
+  },
+
+  // ===== Invoice Import =====
+
+  getImportableChemicals: async (businessId: string, invoiceId: string): Promise<InvoiceChemicalForImport[]> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/invoices/${invoiceId}/importable-chemicals`);
+    return response.data;
+  },
+
+  importFromInvoice: async (businessId: string, request: ImportInvoiceToTemplateRequest): Promise<ImportInvoiceToTemplateResponse> => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/chemical-plan-templates/import-from-invoice`, request);
+    return response.data;
   }
 };

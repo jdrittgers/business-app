@@ -101,6 +101,14 @@ enum ChemicalCategory {
   FUNGICIDE   // Fungicide applications
 }
 
+// Pass type for chemical plan templates
+enum PassType {
+  PRE         // Pre-emergence herbicides
+  POST        // Post-emergence herbicides
+  FUNGICIDE   // Fungicide applications
+  IN_FURROW   // In-furrow treatments
+}
+
 enum TrialType {
   SEED
   FERTILIZER
@@ -2555,6 +2563,7 @@ model ChemicalPlanTemplate {
   name          String        // e.g., "2025 Corn Herbicide Program"
   description   String?
   commodityType CommodityType? @map("commodity_type") // Optional: for filtering (CORN, SOYBEANS, WHEAT)
+  passType      PassType?     @map("pass_type") // Optional: PRE, POST, FUNGICIDE, IN_FURROW
   year          Int?          // Optional: crop year this plan is for
   isActive      Boolean       @default(true) @map("is_active")
   createdAt     DateTime      @default(now()) @map("created_at")
@@ -2568,6 +2577,7 @@ model ChemicalPlanTemplate {
   @@unique([businessId, name])
   @@index([businessId])
   @@index([commodityType])
+  @@index([passType])
   @@index([year])
   @@map("chemical_plan_templates")
 }

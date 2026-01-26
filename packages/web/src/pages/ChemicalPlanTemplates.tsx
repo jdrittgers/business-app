@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { chemicalPlanTemplateApi } from '../api/chemical-plan-template.api';
 import { breakevenApi } from '../api/breakeven.api';
+import { invoiceApi } from '../api/invoice.api';
 import {
   ChemicalPlanTemplate,
   ChemicalPlanTemplateItem,
   Chemical,
   CommodityType,
-  Farm
+  Farm,
+  PassType,
+  InvoiceChemicalForImport,
+  Invoice
 } from '@business-app/shared';
 
 const COMMODITY_OPTIONS = [
@@ -16,6 +20,14 @@ const COMMODITY_OPTIONS = [
   { value: 'CORN', label: 'Corn' },
   { value: 'SOYBEANS', label: 'Soybeans' },
   { value: 'WHEAT', label: 'Wheat' }
+];
+
+const PASS_TYPE_OPTIONS = [
+  { value: '', label: 'All Pass Types' },
+  { value: 'PRE', label: 'Pre-Emergence' },
+  { value: 'POST', label: 'Post-Emergence' },
+  { value: 'FUNGICIDE', label: 'Fungicide' },
+  { value: 'IN_FURROW', label: 'In-Furrow' }
 ];
 
 export default function ChemicalPlanTemplates() {
@@ -37,8 +49,17 @@ export default function ChemicalPlanTemplates() {
     name: '',
     description: '',
     commodityType: '' as CommodityType | '',
+    passType: '' as PassType | '',
     year: new Date().getFullYear()
   });
+
+  // Import from Invoice Modal
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importTargetTemplateId, setImportTargetTemplateId] = useState<string | null>(null);
+  const [availableInvoices, setAvailableInvoices] = useState<Invoice[]>([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [importableChemicals, setImportableChemicals] = useState<InvoiceChemicalForImport[]>([]);
+  const [selectedChemicalIds, setSelectedChemicalIds] = useState<string[]>([]);
 
   // Item Modal
   const [showItemModal, setShowItemModal] = useState(false);
@@ -111,6 +132,7 @@ export default function ChemicalPlanTemplates() {
       name: '',
       description: '',
       commodityType: '',
+      passType: '',
       year: new Date().getFullYear()
     });
     setShowTemplateModal(true);
@@ -122,6 +144,7 @@ export default function ChemicalPlanTemplates() {
       name: template.name,
       description: template.description || '',
       commodityType: template.commodityType || '',
+      passType: template.passType || '',
       year: template.year || new Date().getFullYear()
     });
     setShowTemplateModal(true);
@@ -135,6 +158,7 @@ export default function ChemicalPlanTemplates() {
         name: templateForm.name.trim(),
         description: templateForm.description.trim() || undefined,
         commodityType: templateForm.commodityType || undefined,
+        passType: templateForm.passType || undefined,
         year: templateForm.year || undefined
       };
 
@@ -304,6 +328,76 @@ export default function ChemicalPlanTemplates() {
     }
   };
 
+  const getPassTypeLabel = (type: PassType | undefined): string => {
+    if (!type) return '';
+    switch (type) {
+      case 'PRE': return 'Pre';
+      case 'POST': return 'Post';
+      case 'FUNGICIDE': return 'Fungicide';
+      case 'IN_FURROW': return 'In-Furrow';
+      default: return type;
+    }
+  };
+
+  // Import from Invoice handlers
+  const openImportModal = async (templateId: string) => {
+    setImportTargetTemplateId(templateId);
+    setSelectedInvoiceId(null);
+    setImportableChemicals([]);
+    setSelectedChemicalIds([]);
+
+    try {
+      const invoices = await invoiceApi.getInvoices(selectedBusinessId!);
+      setAvailableInvoices(invoices.filter((inv: Invoice) => inv.status === 'PARSED' || inv.status === 'REVIEWED'));
+      setShowImportModal(true);
+    } catch (err: any) {
+      setError('Failed to load invoices');
+    }
+  };
+
+  const handleInvoiceSelect = async (invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setSelectedChemicalIds([]);
+
+    if (!invoiceId) {
+      setImportableChemicals([]);
+      return;
+    }
+
+    try {
+      const chemicals = await chemicalPlanTemplateApi.getImportableChemicals(selectedBusinessId!, invoiceId);
+      setImportableChemicals(chemicals);
+    } catch (err: any) {
+      setError('Failed to load chemicals from invoice');
+    }
+  };
+
+  const toggleChemicalSelection = (lineItemId: string) => {
+    setSelectedChemicalIds(prev =>
+      prev.includes(lineItemId)
+        ? prev.filter(id => id !== lineItemId)
+        : [...prev, lineItemId]
+    );
+  };
+
+  const handleImportChemicals = async () => {
+    if (!selectedBusinessId || !importTargetTemplateId || selectedChemicalIds.length === 0) return;
+
+    try {
+      const result = await chemicalPlanTemplateApi.importFromInvoice(selectedBusinessId, {
+        invoiceId: selectedInvoiceId!,
+        lineItemIds: selectedChemicalIds,
+        templateIds: [importTargetTemplateId]
+      });
+
+      showSuccess(`Imported ${result.imported} chemical(s). ${result.skipped} skipped.`);
+      setShowImportModal(false);
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to import chemicals');
+    }
+  };
+
   if (!user || user.businessMemberships.length === 0) {
     return (
       <div className="p-4">
@@ -391,6 +485,16 @@ export default function ChemicalPlanTemplates() {
                         {getCommodityLabel(template.commodityType)}
                       </span>
                     )}
+                    {template.passType && (
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        template.passType === 'PRE' ? 'bg-blue-100 text-blue-800' :
+                        template.passType === 'POST' ? 'bg-purple-100 text-purple-800' :
+                        template.passType === 'FUNGICIDE' ? 'bg-teal-100 text-teal-800' :
+                        'bg-orange-100 text-orange-800'
+                      }`}>
+                        {getPassTypeLabel(template.passType)}
+                      </span>
+                    )}
                     {template.year && (
                       <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
                         {template.year}
@@ -444,15 +548,26 @@ export default function ChemicalPlanTemplates() {
               <div className="px-6 py-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="font-medium text-gray-700">Chemicals</h4>
-                  <button
-                    onClick={() => openAddItemModal(template.id)}
-                    className="text-green-600 hover:text-green-800 text-sm flex items-center gap-1"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Chemical
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => openImportModal(template.id)}
+                      className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Import from Invoice
+                    </button>
+                    <button
+                      onClick={() => openAddItemModal(template.id)}
+                      className="text-green-600 hover:text-green-800 text-sm flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add Chemical
+                    </button>
+                  </div>
                 </div>
 
                 {(!template.items || template.items.length === 0) ? (
@@ -564,14 +679,27 @@ export default function ChemicalPlanTemplates() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                  <input
-                    type="number"
-                    value={templateForm.year}
-                    onChange={e => setTemplateForm(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pass Type</label>
+                  <select
+                    value={templateForm.passType}
+                    onChange={e => setTemplateForm(prev => ({ ...prev, passType: e.target.value as PassType | '' }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
+                  >
+                    {PASS_TYPE_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                <input
+                  type="number"
+                  value={templateForm.year}
+                  onChange={e => setTemplateForm(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
               </div>
             </div>
 
@@ -798,6 +926,102 @@ export default function ChemicalPlanTemplates() {
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Apply Template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import from Invoice Modal */}
+      {showImportModal && importTargetTemplateId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6 max-h-[80vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Import Chemicals from Invoice</h2>
+
+            {/* Step 1: Select Invoice */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Invoice</label>
+              <select
+                value={selectedInvoiceId || ''}
+                onChange={e => handleInvoiceSelect(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                <option value="">Choose an invoice...</option>
+                {availableInvoices.map(inv => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.vendorName || inv.fileName} - {new Date(inv.createdAt).toLocaleDateString()}
+                  </option>
+                ))}
+              </select>
+              {availableInvoices.length === 0 && (
+                <p className="text-gray-500 text-sm mt-2">No parsed invoices found. Upload and parse an invoice first.</p>
+              )}
+            </div>
+
+            {/* Step 2: Select Chemicals */}
+            {selectedInvoiceId && importableChemicals.length > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Select Chemicals to Import</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedChemicalIds(importableChemicals.map(c => c.lineItemId))}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button
+                      onClick={() => setSelectedChemicalIds([])}
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
+                  {importableChemicals.map(chem => (
+                    <label key={chem.lineItemId} className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedChemicalIds.includes(chem.lineItemId)}
+                        onChange={() => toggleChemicalSelection(chem.lineItemId)}
+                        className="text-green-600 focus:ring-green-500 rounded"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{chem.productName}</div>
+                        <div className="text-sm text-gray-500">
+                          ${chem.pricePerUnit}/{chem.unit}
+                          {chem.ratePerAcre && ` | ${chem.ratePerAcre} ${chem.rateUnit || chem.unit}/acre`}
+                          {chem.matchedChemicalName && (
+                            <span className="text-green-600 ml-2">Matched: {chem.matchedChemicalName}</span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedInvoiceId && importableChemicals.length === 0 && (
+              <p className="text-gray-500 text-sm py-4">No chemicals found in this invoice.</p>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportChemicals}
+                disabled={selectedChemicalIds.length === 0}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Import {selectedChemicalIds.length} Chemical(s)
               </button>
             </div>
           </div>

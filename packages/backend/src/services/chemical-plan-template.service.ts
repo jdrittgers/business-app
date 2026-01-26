@@ -13,7 +13,11 @@ import {
   FarmWithTemplateApplication,
   CommodityType,
   UnitType,
-  ChemicalCategory
+  ChemicalCategory,
+  PassType,
+  ImportInvoiceToTemplateRequest,
+  ImportInvoiceToTemplateResponse,
+  InvoiceChemicalForImport
 } from '@business-app/shared';
 
 export class ChemicalPlanTemplateService {
@@ -25,6 +29,7 @@ export class ChemicalPlanTemplateService {
       where: {
         businessId,
         ...(query.commodityType && { commodityType: query.commodityType }),
+        ...(query.passType && { passType: query.passType }),
         ...(query.year && { year: query.year }),
         ...(query.isActive !== undefined && { isActive: query.isActive })
       },
@@ -94,6 +99,7 @@ export class ChemicalPlanTemplateService {
         name: data.name,
         description: data.description,
         commodityType: data.commodityType,
+        passType: data.passType,
         year: data.year,
         items: data.items ? {
           create: data.items.map((item, index) => ({
@@ -144,6 +150,7 @@ export class ChemicalPlanTemplateService {
         name: data.name,
         description: data.description,
         commodityType: data.commodityType,
+        passType: data.passType,
         year: data.year,
         isActive: data.isActive
       },
@@ -599,6 +606,203 @@ export class ChemicalPlanTemplateService {
     });
   }
 
+  // ===== Invoice Import Methods =====
+
+  /**
+   * Get chemicals from a parsed invoice that can be imported
+   */
+  async getImportableChemicalsFromInvoice(
+    businessId: string,
+    invoiceId: string
+  ): Promise<InvoiceChemicalForImport[]> {
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        businessId,
+        status: { in: ['PARSED', 'REVIEWED'] }
+      },
+      include: { lineItems: true }
+    });
+
+    if (!invoice) {
+      throw new Error('Invoice not found or not parsed');
+    }
+
+    const result: InvoiceChemicalForImport[] = [];
+
+    for (const item of invoice.lineItems || []) {
+      if (item.productType !== 'CHEMICAL') continue;
+
+      // Check if there's already a matched chemical
+      let matchedChemical = null;
+      if (item.matchedProductId && item.matchedProductType === 'CHEMICAL') {
+        matchedChemical = await prisma.chemical.findUnique({
+          where: { id: item.matchedProductId }
+        });
+      }
+
+      // Try to find by name if not matched
+      if (!matchedChemical) {
+        matchedChemical = await prisma.chemical.findFirst({
+          where: {
+            businessId,
+            name: { equals: item.productName, mode: 'insensitive' }
+          }
+        });
+      }
+
+      result.push({
+        lineItemId: item.id,
+        productName: item.productName,
+        pricePerUnit: Number(item.pricePerUnit),
+        unit: item.unit,
+        ratePerAcre: item.ratePerAcre ? Number(item.ratePerAcre) : undefined,
+        rateUnit: item.rateUnit || undefined,
+        matchedChemicalId: matchedChemical?.id,
+        matchedChemicalName: matchedChemical?.name
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Import chemicals from an invoice to one or more templates
+   */
+  async importFromInvoice(
+    businessId: string,
+    request: ImportInvoiceToTemplateRequest
+  ): Promise<ImportInvoiceToTemplateResponse> {
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    // Fetch the invoice line items
+    const lineItems = await prisma.invoiceLineItem.findMany({
+      where: {
+        id: { in: request.lineItemIds },
+        invoice: { businessId },
+        productType: 'CHEMICAL'
+      }
+    });
+
+    // Verify templates belong to business
+    const templates = await prisma.chemicalPlanTemplate.findMany({
+      where: {
+        id: { in: request.templateIds },
+        businessId
+      },
+      include: { items: true }
+    });
+
+    if (templates.length === 0) {
+      throw new Error('No valid templates found');
+    }
+
+    for (const lineItem of lineItems) {
+      // Find or create the chemical in the business
+      const chemical = await this.findOrCreateChemicalFromLineItem(businessId, lineItem);
+
+      if (!chemical) {
+        errors.push(`Could not create chemical for: ${lineItem.productName}`);
+        skipped++;
+        continue;
+      }
+
+      // Add to each selected template
+      for (const template of templates) {
+        // Check if chemical already exists in template
+        const existing = template.items.find(i => i.chemicalId === chemical.id);
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        // Determine rate per acre
+        const ratePerAcre = lineItem.ratePerAcre
+          ? Number(lineItem.ratePerAcre)
+          : request.defaultRatePerAcre || 1;
+
+        // Get max order
+        const maxOrder = template.items.length > 0
+          ? Math.max(...template.items.map(i => i.order)) + 1
+          : 0;
+
+        await prisma.chemicalPlanTemplateItem.create({
+          data: {
+            templateId: template.id,
+            chemicalId: chemical.id,
+            ratePerAcre: ratePerAcre,
+            notes: `Imported from invoice`,
+            order: maxOrder
+          }
+        });
+
+        // Update template items array for subsequent iterations (to detect duplicates in same batch)
+        template.items.push({
+          id: '',
+          templateId: template.id,
+          chemicalId: chemical.id,
+          ratePerAcre: ratePerAcre as any,
+          notes: null,
+          order: maxOrder,
+          createdAt: new Date()
+        } as any);
+
+        imported++;
+      }
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  /**
+   * Helper: Find or create chemical from invoice line item
+   */
+  private async findOrCreateChemicalFromLineItem(
+    businessId: string,
+    lineItem: any
+  ): Promise<{ id: string; name: string } | null> {
+    // Try to find existing chemical
+    let chemical = await prisma.chemical.findFirst({
+      where: {
+        businessId,
+        name: { equals: lineItem.productName, mode: 'insensitive' },
+        unit: lineItem.unit
+      }
+    });
+
+    if (chemical) {
+      return chemical;
+    }
+
+    // Try to find by name only (different unit)
+    chemical = await prisma.chemical.findFirst({
+      where: {
+        businessId,
+        name: { equals: lineItem.productName, mode: 'insensitive' }
+      }
+    });
+
+    if (chemical) {
+      return chemical;
+    }
+
+    // Create new chemical
+    chemical = await prisma.chemical.create({
+      data: {
+        businessId,
+        name: lineItem.productName,
+        pricePerUnit: lineItem.pricePerUnit || 0,
+        unit: lineItem.unit === 'GAL' || lineItem.unit === 'LB' ? lineItem.unit : 'GAL',
+        category: 'HERBICIDE', // Default, user can change later
+        needsPricing: !lineItem.pricePerUnit || lineItem.pricePerUnit === 0
+      }
+    });
+
+    return chemical;
+  }
+
   // ===== Helper Methods =====
 
   private mapTemplate(t: any): ChemicalPlanTemplate {
@@ -608,6 +812,7 @@ export class ChemicalPlanTemplateService {
       name: t.name,
       description: t.description || undefined,
       commodityType: t.commodityType as CommodityType | undefined,
+      passType: t.passType as PassType | undefined,
       year: t.year || undefined,
       isActive: t.isActive,
       createdAt: t.createdAt,

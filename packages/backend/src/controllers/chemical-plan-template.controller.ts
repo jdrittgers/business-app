@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { AuthRequest, authenticate } from '../middleware/auth';
 import { requireGrainAccess } from '../middleware/grain-access';
 import { ChemicalPlanTemplateService } from '../services/chemical-plan-template.service';
-import { CommodityType } from '@business-app/shared';
+import { CommodityType, PassType } from '@business-app/shared';
 
 const router = Router();
 const templateService = new ChemicalPlanTemplateService();
@@ -16,9 +16,10 @@ router.use(requireGrainAccess);
 // Get all templates for a business
 router.get('/businesses/:businessId/chemical-plan-templates', async (req: AuthRequest, res: Response) => {
   try {
-    const { commodityType, year, isActive } = req.query;
+    const { commodityType, passType, year, isActive } = req.query;
     const templates = await templateService.getAll(req.params.businessId, {
       commodityType: commodityType as CommodityType | undefined,
+      passType: passType as PassType | undefined,
       year: year ? parseInt(year as string) : undefined,
       isActive: isActive !== undefined ? isActive === 'true' : undefined
     });
@@ -213,6 +214,39 @@ router.post('/businesses/:businessId/farms/:farmId/reset-to-template/:templateId
   } catch (error: any) {
     console.error('Error resetting farm to template:', error);
     if (error.message.includes('not found') || error.message.includes('not applied')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== Invoice Import =====
+
+// Get importable chemicals from an invoice
+router.get('/businesses/:businessId/invoices/:invoiceId/importable-chemicals', async (req: AuthRequest, res: Response) => {
+  try {
+    const chemicals = await templateService.getImportableChemicalsFromInvoice(
+      req.params.businessId,
+      req.params.invoiceId
+    );
+    res.json(chemicals);
+  } catch (error: any) {
+    console.error('Error getting importable chemicals:', error);
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import chemicals from invoice to template(s)
+router.post('/businesses/:businessId/chemical-plan-templates/import-from-invoice', async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await templateService.importFromInvoice(req.params.businessId, req.body);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error importing from invoice:', error);
+    if (error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
