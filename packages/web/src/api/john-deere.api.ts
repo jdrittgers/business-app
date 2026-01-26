@@ -66,8 +66,14 @@ export const johnDeereApi = {
   },
 
   // Get fields from John Deere
-  getFields: async (businessId: string): Promise<Array<{ id: string; name: string; acres?: number }>> => {
+  getFields: async (businessId: string): Promise<Array<{ id: string; name: string; acres?: number; farmName?: string }>> => {
     const response = await apiClient.get(`/api/businesses/${businessId}/john-deere/fields`);
+    return response.data;
+  },
+
+  // Get farms from John Deere (JD's organizational structure)
+  getJDFarms: async (businessId: string): Promise<Array<{ id: string; name: string }>> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/john-deere/farms`);
     return response.data;
   }
 };

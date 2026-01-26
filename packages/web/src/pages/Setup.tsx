@@ -266,7 +266,7 @@ export default function Setup() {
   const [jdStatus, setJdStatus] = useState<JohnDeereConnectionStatus | null>(null);
   const [jdOrganizations, setJdOrganizations] = useState<JohnDeereOrganization[]>([]);
   const [jdLoading, setJdLoading] = useState(false);
-  const [jdFields, setJdFields] = useState<Array<{ id: string; name: string; acres?: number }>>([]);
+  const [jdFields, setJdFields] = useState<Array<{ id: string; name: string; acres?: number; farmName?: string }>>([]);
   const [loadingFields, setLoadingFields] = useState(false);
   const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());
   const [importingFields, setImportingFields] = useState(false);
@@ -777,7 +777,10 @@ export default function Setup() {
                         />
                         <div className="ml-3 flex-1">
                           <p className="text-sm font-medium text-gray-900">{field.name}</p>
-                          <p className="text-sm text-gray-500">{field.acres?.toFixed(1)} acres</p>
+                          <p className="text-sm text-gray-500">
+                            {field.acres ? `${field.acres.toFixed(1)} acres` : 'Acres unknown'}
+                            {field.farmName && <span className="ml-2 text-gray-400">({field.farmName})</span>}
+                          </p>
                         </div>
                       </label>
                     ))}

@@ -419,9 +419,9 @@ class JohnDeereService {
   }
 
   /**
-   * Get fields from John Deere organization
+   * Get fields from John Deere organization (with pagination)
    */
-  async getFields(businessId: string): Promise<Array<{ id: string; name: string; acres?: number }>> {
+  async getFields(businessId: string): Promise<Array<{ id: string; name: string; acres?: number; farmName?: string }>> {
     const connection = await prisma.johnDeereConnection.findUnique({
       where: { businessId }
     });
@@ -433,54 +433,113 @@ class JohnDeereService {
     const accessToken = await this.getValidAccessToken(businessId);
     const orgId = connection.organizationId;
 
-    // Try to get fields from the organization
-    const possibleUrls = [
-      `${JD_API_BASE}/organizations/${orgId}/fields`,
-      `${JD_API_BASE}/fields?organizationId=${orgId}`,
-    ];
+    // Use the documented Fields Read endpoint
+    const fieldsUrl = `${JD_API_BASE}/organizations/${orgId}/fields`;
+    console.log('[JohnDeere] Fetching fields from:', fieldsUrl);
 
-    let response: Response | null = null;
-    let lastError = '';
+    const allFields: Array<{ id: string; name: string; acres?: number; farmName?: string }> = [];
+    let nextUrl: string | null = fieldsUrl;
 
-    for (const url of possibleUrls) {
-      console.log('[JohnDeere] Trying fields endpoint:', url);
-      try {
-        response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/vnd.deere.axiom.v3+json'
-          }
-        });
-
-        if (response.ok) {
-          console.log('[JohnDeere] Fields success with:', url);
-          break;
-        } else {
-          lastError = `${response.status} ${response.statusText}`;
-          console.log('[JohnDeere] Fields failed:', url, '-', lastError);
-          response = null;
+    while (nextUrl) {
+      console.log('[JohnDeere] Fetching:', nextUrl);
+      const response = await fetch(nextUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/vnd.deere.axiom.v3+json'
         }
-      } catch (e: any) {
-        lastError = e.message;
-        console.log('[JohnDeere] Fields error:', url, '-', lastError);
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('[JohnDeere] Fields request failed:', response.status, response.statusText, errorText);
+        if (allFields.length === 0) {
+          // Only return empty if we got nothing
+          return [];
+        }
+        break;
+      }
+
+      const data = await response.json() as { values?: Array<any>; links?: Array<{ rel: string; uri: string }> };
+      console.log('[JohnDeere] Fields page - found', data.values?.length || 0, 'fields');
+
+      // Log first field for debugging structure
+      if (data.values && data.values.length > 0 && allFields.length === 0) {
+        console.log('[JohnDeere] Sample field structure:', JSON.stringify(data.values[0], null, 2));
+      }
+
+      const fields = data.values || [];
+      for (const field of fields) {
+        // Parse acres - JD typically uses 'area' with value and unitOfMeasure
+        let acres: number | undefined;
+        if (field.area?.value !== undefined) {
+          acres = parseFloat(field.area.value);
+          // Convert from hectares if needed (JD often uses hectares)
+          if (field.area?.unitOfMeasure === 'ha' || field.area?.unitOfMeasure === 'hectare') {
+            acres = acres * 2.47105;
+          }
+        } else if (field.acres !== undefined) {
+          acres = parseFloat(field.acres);
+        } else if (field.totalArea !== undefined) {
+          acres = parseFloat(field.totalArea);
+        }
+
+        allFields.push({
+          id: field.id,
+          name: field.name || 'Unnamed Field',
+          acres: acres && !isNaN(acres) ? Math.round(acres * 100) / 100 : undefined,
+          farmName: field.farm?.name || undefined
+        });
+      }
+
+      // Check for next page - JD uses HATEOAS links
+      const nextLink = data.links?.find(l => l.rel === 'nextPage');
+      nextUrl = nextLink?.uri || null;
+
+      if (nextUrl) {
+        console.log('[JohnDeere] More fields available, fetching next page...');
       }
     }
 
-    if (!response || !response.ok) {
-      console.log('[JohnDeere] Could not access fields. Last error:', lastError);
-      // Return empty array instead of throwing - fields access may not be approved yet
+    console.log('[JohnDeere] Total fields retrieved:', allFields.length);
+    return allFields;
+  }
+
+  /**
+   * Get farms from John Deere organization
+   */
+  async getFarms(businessId: string): Promise<Array<{ id: string; name: string }>> {
+    const connection = await prisma.johnDeereConnection.findUnique({
+      where: { businessId }
+    });
+
+    if (!connection?.organizationId) {
+      throw new Error('No organization selected');
+    }
+
+    const accessToken = await this.getValidAccessToken(businessId);
+    const orgId = connection.organizationId;
+
+    const farmsUrl = `${JD_API_BASE}/organizations/${orgId}/farms`;
+    console.log('[JohnDeere] Fetching farms from:', farmsUrl);
+
+    const response = await fetch(farmsUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.deere.axiom.v3+json'
+      }
+    });
+
+    if (!response.ok) {
+      console.log('[JohnDeere] Farms request failed:', response.status, response.statusText);
       return [];
     }
 
-    const data = await response.json() as { values?: Array<any>; links?: Array<any> };
-    console.log('[JohnDeere] Fields response - found', data.values?.length || 0, 'fields');
+    const data = await response.json() as { values?: Array<any> };
+    console.log('[JohnDeere] Found', data.values?.length || 0, 'farms');
 
-    const fields = data.values || [];
-
-    return fields.map((field: any) => ({
-      id: field.id,
-      name: field.name || 'Unnamed Field',
-      acres: field.area?.value || field.acres || field.totalArea || undefined
+    return (data.values || []).map((farm: any) => ({
+      id: farm.id,
+      name: farm.name || 'Unnamed Farm'
     }));
   }
 

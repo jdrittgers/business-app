@@ -157,6 +157,23 @@ router.get('/businesses/:businessId/john-deere/fields', async (req: AuthRequest,
   }
 });
 
+// Get John Deere farms (JD's organizational structure)
+router.get('/businesses/:businessId/john-deere/farms', async (req: AuthRequest, res: Response) => {
+  try {
+    // Verify user has access to this business
+    if (!await verifyBusinessAccess(req.user!.userId, req.params.businessId)) {
+      res.status(403).json({ error: 'Access denied to this business' });
+      return;
+    }
+
+    const farms = await johnDeereService.getFarms(req.params.businessId);
+    res.json(farms);
+  } catch (error: any) {
+    console.error('Error getting JD farms:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get John Deere machines
 router.get('/businesses/:businessId/john-deere/machines', async (req: AuthRequest, res: Response) => {
   try {
