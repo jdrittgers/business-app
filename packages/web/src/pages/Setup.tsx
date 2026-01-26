@@ -264,7 +264,7 @@ export default function Setup() {
   const [showFarmModal, setShowFarmModal] = useState(false);
 
   // Inline editing state - tracks changes to farms before saving
-  const [pendingChanges, setPendingChanges] = useState<Record<string, { grainEntityId?: string; acres?: number; entitySplits?: CreateEntitySplitRequest[] }>>({});
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { grainEntityId?: string; acres?: number; commodityType?: CommodityType; entitySplits?: CreateEntitySplitRequest[] }>>({});
   const [savingFarms, setSavingFarms] = useState<Set<string>>(new Set());
   // Track which farms have split mode expanded
   const [expandedSplits, setExpandedSplits] = useState<Set<string>>(new Set());
@@ -380,7 +380,7 @@ export default function Setup() {
   };
 
   // Inline editing handlers
-  const handleInlineChange = (farmId: string, field: 'grainEntityId' | 'acres', value: string | number) => {
+  const handleInlineChange = (farmId: string, field: 'grainEntityId' | 'acres' | 'commodityType', value: string | number) => {
     setPendingChanges(prev => ({
       ...prev,
       [farmId]: {
@@ -480,7 +480,8 @@ export default function Setup() {
 
     return (
       (changes.grainEntityId !== undefined && changes.grainEntityId !== farm.grainEntityId) ||
-      (changes.acres !== undefined && changes.acres !== farm.acres)
+      (changes.acres !== undefined && changes.acres !== farm.acres) ||
+      (changes.commodityType !== undefined && changes.commodityType !== farm.commodityType)
     );
   };
 
@@ -999,14 +1000,21 @@ export default function Setup() {
                             } disabled:opacity-50`}
                           />
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            farm.commodityType === 'CORN' ? 'bg-yellow-100 text-yellow-800' :
-                            farm.commodityType === 'SOYBEANS' ? 'bg-green-100 text-green-800' :
-                            'bg-amber-100 text-amber-800'
-                          }`}>
-                            {farm.commodityType}
-                          </span>
+                        <td className="px-6 py-3 whitespace-nowrap">
+                          <select
+                            value={farmChanges?.commodityType ?? farm.commodityType}
+                            onChange={(e) => handleInlineChange(farm.id, 'commodityType', e.target.value as CommodityType)}
+                            disabled={isSaving}
+                            className={`block rounded-md text-sm py-1.5 pl-2 pr-8 ${
+                              farmHasChanges && farmChanges?.commodityType !== undefined
+                                ? 'border-yellow-400 bg-yellow-50 focus:border-yellow-500 focus:ring-yellow-500'
+                                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
+                            } disabled:opacity-50`}
+                          >
+                            <option value="CORN">Corn</option>
+                            <option value="SOYBEANS">Soybeans</option>
+                            <option value="WHEAT">Wheat</option>
+                          </select>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{farm.year}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
