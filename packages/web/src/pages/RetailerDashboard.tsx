@@ -9,7 +9,12 @@ import {
   BidRequestStatus,
   CreateRetailerBidItemInput,
   formatDistance,
-  AccessSummary
+  AccessSummary,
+  RetailerAccessRequest,
+  PartnerPermissionLevel,
+  PartnerModule,
+  MODULE_DISPLAY_NAMES,
+  PERMISSION_DISPLAY_NAMES
 } from '@business-app/shared';
 
 // Countdown Timer Component
@@ -64,13 +69,15 @@ export default function RetailerDashboard() {
   const { retailer, user, isAuthenticated } = useRetailerAuthStore();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'available' | 'my-bids' | 'accepted'>('available');
+  const [activeTab, setActiveTab] = useState<'available' | 'my-bids' | 'accepted' | 'farmers'>('available');
   const [openBidRequests, setOpenBidRequests] = useState<BidRequest[]>([]);
   const [myBids, setMyBids] = useState<RetailerBid[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRadius, setSelectedRadius] = useState<number>(50);
   const [accessSummary, setAccessSummary] = useState<AccessSummary | null>(null);
+  const [farmerAccessRequests, setFarmerAccessRequests] = useState<RetailerAccessRequest[]>([]);
+  const [expandedFarmerId, setExpandedFarmerId] = useState<string | null>(null);
 
   // Modal state
   const [showSubmitBidModal, setShowSubmitBidModal] = useState(false);
@@ -100,10 +107,65 @@ export default function RetailerDashboard() {
   useEffect(() => {
     if (activeTab === 'available') {
       loadOpenBidRequests();
+    } else if (activeTab === 'farmers') {
+      loadFarmerAccessRequests();
     } else {
       loadMyBids();
     }
   }, [activeTab, selectedRadius]);
+
+  const loadFarmerAccessRequests = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await retailerAccessApi.getMyAccessRequests();
+      setFarmerAccessRequests(data);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to load farmer access data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to check if retailer has any access to a farmer
+  const hasAnyAccessToFarmer = (request: RetailerAccessRequest): boolean => {
+    const r = request as any;
+    return (
+      r.fertilizerChemicalsAccess !== 'NONE' ||
+      r.seedAccess !== 'NONE' ||
+      r.grainContractsAccess !== 'NONE' ||
+      r.grainBinsAccess !== 'NONE' ||
+      r.landLoansAccess !== 'NONE' ||
+      r.operatingLoansAccess !== 'NONE' ||
+      r.equipmentLoansAccess !== 'NONE'
+    );
+  };
+
+  // Helper to get permission level badge color
+  const getPermissionLevelColor = (level: PartnerPermissionLevel) => {
+    switch (level) {
+      case PartnerPermissionLevel.EDIT:
+        return 'bg-green-100 text-green-800 border-green-300';
+      case PartnerPermissionLevel.ADD:
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case PartnerPermissionLevel.VIEW:
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      default:
+        return 'bg-gray-100 text-gray-500 border-gray-300';
+    }
+  };
+
+  // Module field mapping
+  const MODULE_TO_FIELD: Record<PartnerModule, string> = {
+    [PartnerModule.FERTILIZER_CHEMICALS]: 'fertilizerChemicalsAccess',
+    [PartnerModule.SEED]: 'seedAccess',
+    [PartnerModule.GRAIN_CONTRACTS]: 'grainContractsAccess',
+    [PartnerModule.GRAIN_BINS]: 'grainBinsAccess',
+    [PartnerModule.LAND_LOANS]: 'landLoansAccess',
+    [PartnerModule.OPERATING_LOANS]: 'operatingLoansAccess',
+    [PartnerModule.EQUIPMENT_LOANS]: 'equipmentLoansAccess'
+  };
 
   const loadAccessSummary = async () => {
     try {
@@ -492,6 +554,21 @@ export default function RetailerDashboard() {
               >
                 Accepted Bids
               </button>
+              <button
+                onClick={() => setActiveTab('farmers')}
+                className={`px-6 py-4 text-sm font-medium border-b-2 ${
+                  activeTab === 'farmers'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Farmer Access
+                {accessSummary?.approved ? (
+                  <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                    {accessSummary.approved}
+                  </span>
+                ) : null}
+              </button>
             </nav>
           </div>
 
@@ -669,7 +746,7 @@ export default function RetailerDashboard() {
                   ))}
                 </div>
               )
-            ) : (
+            ) : activeTab === 'accepted' ? (
               // Accepted Bids Tab
               acceptedBids.length === 0 ? (
                 <div className="text-center py-12">
@@ -781,6 +858,240 @@ export default function RetailerDashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )
+            ) : (
+              // Farmer Access Tab
+              farmerAccessRequests.length === 0 ? (
+                <div className="text-center py-12">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <p className="mt-4 text-gray-500">No farmer access requests yet</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Farmers will appear here once they grant you access to their data.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Group farmers by access status */}
+                  {(() => {
+                    const withAccess = farmerAccessRequests.filter(hasAnyAccessToFarmer);
+                    const pending = farmerAccessRequests.filter(r =>
+                      !hasAnyAccessToFarmer(r) && (r.inputsStatus === 'PENDING' || r.grainStatus === 'PENDING')
+                    );
+                    const noAccess = farmerAccessRequests.filter(r =>
+                      !hasAnyAccessToFarmer(r) && r.inputsStatus !== 'PENDING' && r.grainStatus !== 'PENDING'
+                    );
+
+                    return (
+                      <>
+                        {/* Farmers With Access */}
+                        {withAccess.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-semibold text-green-700 mb-3 flex items-center">
+                              <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                              Farmers Who Granted Access ({withAccess.length})
+                            </h3>
+                            <div className="space-y-3">
+                              {withAccess.map((request) => {
+                                const isExpanded = expandedFarmerId === request.id;
+                                return (
+                                  <div
+                                    key={request.id}
+                                    className="border border-green-200 rounded-lg bg-white overflow-hidden"
+                                  >
+                                    <div
+                                      className="p-4 cursor-pointer hover:bg-gray-50"
+                                      onClick={() => setExpandedFarmerId(isExpanded ? null : request.id)}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                            <span className="text-green-700 font-semibold">
+                                              {request.business?.name?.charAt(0) || 'F'}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            <h4 className="font-semibold text-gray-900">
+                                              {request.business?.name || 'Unknown Farm'}
+                                            </h4>
+                                            {request.business && (
+                                              <p className="text-sm text-gray-500">
+                                                {(request.business as any).city}, {(request.business as any).state}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                            Has Access
+                                          </span>
+                                          <svg
+                                            className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </div>
+                                      </div>
+
+                                      {/* Access badges preview (when collapsed) */}
+                                      {!isExpanded && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                          {Object.entries(MODULE_TO_FIELD).map(([module, field]) => {
+                                            const levelStr = (request as any)[field] as string;
+                                            if (!levelStr || levelStr === 'NONE') return null;
+                                            const level = levelStr as PartnerPermissionLevel;
+                                            return (
+                                              <span
+                                                key={module}
+                                                className={`px-2 py-1 text-xs font-medium rounded border ${getPermissionLevelColor(level)}`}
+                                              >
+                                                {MODULE_DISPLAY_NAMES[module as PartnerModule]}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Expanded view with full permission details */}
+                                    {isExpanded && (
+                                      <div className="border-t border-gray-200 bg-gray-50 p-4">
+                                        <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                          Your Access Permissions
+                                        </h5>
+                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                          {Object.entries(MODULE_TO_FIELD).map(([module, field]) => {
+                                            const levelStr = (request as any)[field] as string;
+                                            const hasAccess = levelStr && levelStr !== 'NONE';
+                                            const level = levelStr as PartnerPermissionLevel;
+                                            return (
+                                              <div
+                                                key={module}
+                                                className={`p-3 rounded-lg border ${
+                                                  hasAccess
+                                                    ? 'bg-white border-green-200'
+                                                    : 'bg-gray-100 border-gray-200'
+                                                }`}
+                                              >
+                                                <p className="text-sm font-medium text-gray-700">
+                                                  {MODULE_DISPLAY_NAMES[module as PartnerModule]}
+                                                </p>
+                                                <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded ${
+                                                  hasAccess
+                                                    ? getPermissionLevelColor(level)
+                                                    : 'bg-gray-200 text-gray-500'
+                                                }`}>
+                                                  {hasAccess ? PERMISSION_DISPLAY_NAMES[level] : 'No Access'}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+
+                                        {/* Info about what they can do */}
+                                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                          <p className="text-sm text-blue-800">
+                                            <span className="font-semibold">What can you do?</span>
+                                            <br />
+                                            Based on your permissions, you can view and manage data for the modules listed above.
+                                            Contact the farmer if you need additional access.
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Pending Access Requests */}
+                        {pending.length > 0 && (
+                          <div className="mt-6">
+                            <h3 className="text-sm font-semibold text-yellow-700 mb-3 flex items-center">
+                              <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
+                              Pending Requests ({pending.length})
+                            </h3>
+                            <div className="space-y-3">
+                              {pending.map((request) => (
+                                <div key={request.id} className="border border-yellow-200 rounded-lg bg-yellow-50 p-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                                        <span className="text-yellow-700 font-semibold">
+                                          {request.business?.name?.charAt(0) || 'F'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-semibold text-gray-900">
+                                          {request.business?.name || 'Unknown Farm'}
+                                        </h4>
+                                        {request.business && (
+                                          <p className="text-sm text-gray-500">
+                                            {(request.business as any).city}, {(request.business as any).state}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+                                      Pending Approval
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 text-sm text-yellow-700">
+                                    Waiting for the farmer to configure your access permissions.
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Denied/No Access */}
+                        {noAccess.length > 0 && (
+                          <div className="mt-6">
+                            <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center">
+                              <span className="w-3 h-3 bg-gray-400 rounded-full mr-2"></span>
+                              No Access ({noAccess.length})
+                            </h3>
+                            <div className="space-y-3">
+                              {noAccess.map((request) => (
+                                <div key={request.id} className="border border-gray-200 rounded-lg bg-gray-50 p-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                                        <span className="text-gray-500 font-semibold">
+                                          {request.business?.name?.charAt(0) || 'F'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <h4 className="font-semibold text-gray-700">
+                                          {request.business?.name || 'Unknown Farm'}
+                                        </h4>
+                                        {request.business && (
+                                          <p className="text-sm text-gray-400">
+                                            {(request.business as any).city}, {(request.business as any).state}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full">
+                                      No Access
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )
             )}

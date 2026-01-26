@@ -13,4 +13,5 @@ export * from './types/marketing-ai';
 export * from './types/loans';
 export * from './types/maintenance';
 export * from './types/john-deere';
+export * from './types/partner-access';
 export * from './utils/distance';

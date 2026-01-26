@@ -87,6 +87,14 @@ enum AccessRequestStatus {
   DENIED     // Farmer denied access
 }
 
+// Granular permission levels for partner access to specific modules
+enum PartnerPermissionLevel {
+  NONE   // No access to this module
+  VIEW   // Can view data only
+  ADD    // Can view and add new records
+  EDIT   // Can view, add, and edit existing records
+}
+
 enum ChemicalCategory {
   HERBICIDE   // General chemicals/herbicides
   IN_FURROW   // In-furrow treatments
@@ -982,13 +990,23 @@ model RetailerAccessRequest {
   retailerId          String              @map("retailer_id")
   businessId          String              @map("business_id")
 
-  // Separate permissions for inputs and grain
+  // Legacy: Separate permissions for inputs and grain (kept for backwards compatibility)
   inputsStatus        AccessRequestStatus @default(PENDING) @map("inputs_status")
   grainStatus         AccessRequestStatus @default(PENDING) @map("grain_status")
+
+  // NEW: Granular module permissions (set by farmer)
+  fertilizerChemicalsAccess  PartnerPermissionLevel @default(NONE) @map("fertilizer_chemicals_access")
+  seedAccess                 PartnerPermissionLevel @default(NONE) @map("seed_access")
+  grainContractsAccess       PartnerPermissionLevel @default(NONE) @map("grain_contracts_access")
+  grainBinsAccess            PartnerPermissionLevel @default(NONE) @map("grain_bins_access")
+  landLoansAccess            PartnerPermissionLevel @default(NONE) @map("land_loans_access")
+  operatingLoansAccess       PartnerPermissionLevel @default(NONE) @map("operating_loans_access")
+  equipmentLoansAccess       PartnerPermissionLevel @default(NONE) @map("equipment_loans_access")
 
   // Timestamps for audit trail
   inputsRespondedAt   DateTime?           @map("inputs_responded_at")
   grainRespondedAt    DateTime?           @map("grain_responded_at")
+  permissionsUpdatedAt DateTime?          @map("permissions_updated_at")
   respondedBy         String?             @map("responded_by")
 
   // Notification tracking

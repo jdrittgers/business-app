@@ -2,7 +2,9 @@ import apiClient from './client';
 import {
   RetailerAccessRequest,
   RespondToAccessRequestData,
-  AccessSummary
+  AccessSummary,
+  PartnerPermissions,
+  PartnerModule
 } from '@business-app/shared';
 
 export const retailerAccessApi = {
@@ -62,6 +64,69 @@ export const retailerAccessApi = {
    */
   getMyAccessSummary: async (): Promise<AccessSummary> => {
     const response = await apiClient.get('/api/retailer/access-summary');
+    return response.data;
+  },
+
+  // ===== Granular Permissions Endpoints =====
+
+  /**
+   * Update granular permissions for a retailer (farmer action)
+   */
+  updatePermissions: async (
+    businessId: string,
+    requestId: string,
+    permissions: Partial<PartnerPermissions>
+  ): Promise<RetailerAccessRequest> => {
+    const response = await apiClient.put(
+      `/api/businesses/${businessId}/retailer-access/${requestId}/permissions`,
+      { permissions }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get granular permissions for a specific access request
+   */
+  getPermissions: async (
+    businessId: string,
+    requestId: string
+  ): Promise<PartnerPermissions> => {
+    const response = await apiClient.get(
+      `/api/businesses/${businessId}/retailer-access/${requestId}/permissions`
+    );
+    return response.data;
+  },
+
+  /**
+   * Get all partners that have any level of access to the business
+   */
+  getPartnersWithAccess: async (businessId: string) => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/partners-with-access`);
+    return response.data;
+  },
+
+  /**
+   * (Retailer) Get permissions for a specific business
+   */
+  getMyPermissionsForBusiness: async (businessId: string): Promise<PartnerPermissions> => {
+    const response = await apiClient.get(`/api/retailer/permissions/${businessId}`);
+    return response.data;
+  },
+
+  /**
+   * (Retailer) Get detailed access summary for a specific business
+   */
+  getMyAccessSummaryForBusiness: async (businessId: string) => {
+    const response = await apiClient.get(`/api/retailer/access-summary/${businessId}`);
+    return response.data;
+  },
+
+  /**
+   * (Retailer) Get all businesses accessible for a specific module
+   */
+  getAccessibleBusinesses: async (module: PartnerModule, minLevel?: string) => {
+    const params = minLevel ? `?minLevel=${minLevel}` : '';
+    const response = await apiClient.get(`/api/retailer/accessible-businesses/${module}${params}`);
     return response.data;
   }
 };
