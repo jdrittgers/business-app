@@ -321,6 +321,25 @@ export default function InvoiceParsing() {
     navigate('/input-bids');
   };
 
+  // Normalize invoice unit to allowed UnitType values
+  const normalizeUnit = (unit: string): UnitType => {
+    const upperUnit = unit?.toUpperCase() || 'GAL';
+
+    // Map common variations to allowed values
+    if (['LB', 'LBS', 'POUND', 'POUNDS', 'TON', 'TONS'].includes(upperUnit)) {
+      return UnitType.LB;
+    }
+    if (['GAL', 'GALLON', 'GALLONS', 'OZ', 'OUNCE', 'OUNCES', 'QT', 'QUART', 'QUARTS', 'PT', 'PINT', 'PINTS', 'L', 'LITER', 'LITERS'].includes(upperUnit)) {
+      return UnitType.GAL;
+    }
+    if (['BAG', 'BAGS', 'UNIT', 'UNITS', 'EA', 'EACH'].includes(upperUnit)) {
+      return UnitType.BAG;
+    }
+
+    // Default to GAL for liquids (most chemicals)
+    return UnitType.GAL;
+  };
+
   const handleAddToProducts = (lineItem: InvoiceLineItem) => {
     if (lineItem.productType === InvoiceProductType.SEED) {
       // Seeds need additional info
@@ -333,11 +352,11 @@ export default function InvoiceParsing() {
     }
   };
 
-  const addFertilizerOrChemical = async (lineItem: InvoiceLineItem) => {
-    if (!businessId) return;
+  const addFertilizerOrChemical = async (lineItem: InvoiceLineItem, silent = false): Promise<boolean> => {
+    if (!businessId) return false;
 
-    // Check if ratePerAcre is available - if so, ask user to confirm
-    if (lineItem.ratePerAcre && lineItem.ratePerAcre > 0) {
+    // Check if ratePerAcre is available - if so, ask user to confirm (unless silent mode)
+    if (!silent && lineItem.ratePerAcre && lineItem.ratePerAcre > 0) {
       const rateUnit = lineItem.rateUnit || lineItem.unit;
       const confirmed = window.confirm(
         `Using Rate per Acre for product pricing:\n\n` +
@@ -347,28 +366,95 @@ export default function InvoiceParsing() {
         `This will add the product with rate-based pricing for breakeven calculations.\n\n` +
         `Continue?`
       );
-      if (!confirmed) return;
+      if (!confirmed) return false;
     }
 
     try {
+      const normalizedUnit = normalizeUnit(lineItem.unit);
       const productData = {
         name: lineItem.productName,
         pricePerUnit: Number(lineItem.pricePerUnit),
-        unit: lineItem.unit as UnitType
+        unit: normalizedUnit
       };
 
       if (lineItem.productType === InvoiceProductType.FERTILIZER) {
         await breakevenApi.createFertilizer(businessId, productData);
-        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.rateUnit || lineItem.unit}/acre)` : '';
-        alert(`✅ Added "${lineItem.productName}" to Fertilizers!${rateInfo}`);
+        if (!silent) {
+          const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.rateUnit || lineItem.unit}/acre)` : '';
+          alert(`Added "${lineItem.productName}" to Fertilizers!${rateInfo}`);
+        }
       } else if (lineItem.productType === InvoiceProductType.CHEMICAL) {
         await breakevenApi.createChemical(businessId, productData);
-        const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.rateUnit || lineItem.unit}/acre)` : '';
-        alert(`✅ Added "${lineItem.productName}" to Chemicals!${rateInfo}`);
+        if (!silent) {
+          const rateInfo = lineItem.ratePerAcre ? ` (${lineItem.ratePerAcre} ${lineItem.rateUnit || lineItem.unit}/acre)` : '';
+          alert(`Added "${lineItem.productName}" to Chemicals!${rateInfo}`);
+        }
       }
+      return true;
     } catch (error: any) {
       console.error('Failed to add product:', error);
-      alert(error.response?.data?.error || 'Failed to add product to catalog');
+      if (!silent) {
+        alert(error.response?.data?.error || 'Failed to add product to catalog');
+      }
+      return false;
+    }
+  };
+
+  // Bulk add all products from invoice
+  const handleAddAllProducts = async () => {
+    if (!businessId || !selectedInvoice?.lineItems) return;
+
+    const itemsToAdd = editingLineItems.filter(
+      item => !item.priceLockedAt &&
+              (item.productType === InvoiceProductType.FERTILIZER ||
+               item.productType === InvoiceProductType.CHEMICAL)
+    );
+
+    if (itemsToAdd.length === 0) {
+      alert('No fertilizers or chemicals to add (seeds require manual entry)');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Add ${itemsToAdd.length} product(s) to your catalog?\n\n` +
+      itemsToAdd.map(i => `• ${i.productName} (${i.productType})`).join('\n') +
+      '\n\nNote: Seeds must be added individually.'
+    );
+
+    if (!confirmed) return;
+
+    let added = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const item of itemsToAdd) {
+      try {
+        const normalizedUnit = normalizeUnit(item.unit);
+        const productData = {
+          name: item.productName,
+          pricePerUnit: Number(item.pricePerUnit),
+          unit: normalizedUnit
+        };
+
+        if (item.productType === InvoiceProductType.FERTILIZER) {
+          await breakevenApi.createFertilizer(businessId, productData);
+        } else if (item.productType === InvoiceProductType.CHEMICAL) {
+          await breakevenApi.createChemical(businessId, productData);
+        }
+        added++;
+      } catch (error: any) {
+        failed++;
+        errors.push(`${item.productName}: ${error.response?.data?.error || error.message}`);
+      }
+    }
+
+    if (failed === 0) {
+      alert(`Successfully added ${added} product(s) to your catalog!`);
+    } else {
+      alert(
+        `Added ${added} product(s), ${failed} failed.\n\n` +
+        (errors.length > 0 ? `Errors:\n${errors.join('\n')}` : '')
+      );
     }
   };
 
@@ -806,6 +892,18 @@ export default function InvoiceParsing() {
                       className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                     >
                       {saving ? 'Saving...' : 'Save Changes'}
+                    </button>
+
+                    <button
+                      onClick={handleAddAllProducts}
+                      disabled={editingLineItems.filter(i =>
+                        !i.priceLockedAt &&
+                        (i.productType === InvoiceProductType.FERTILIZER || i.productType === InvoiceProductType.CHEMICAL)
+                      ).length === 0}
+                      className="px-4 py-2 border border-green-600 text-sm font-medium rounded-md text-green-600 hover:bg-green-50 disabled:opacity-50"
+                      title="Add all fertilizers and chemicals to product catalog"
+                    >
+                      Add All Products
                     </button>
 
                     <button
