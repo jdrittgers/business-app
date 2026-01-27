@@ -67,8 +67,12 @@ export default function ProductCatalog() {
     updatedProducts: any[];
   } | null>(null);
 
-  // Seed discount state (for scan modal)
-  const [seedDiscounts, setSeedDiscounts] = useState({ corn: 0, soybeans: 0, wheat: 0 });
+  // Post-import discount state
+  const [postImportDiscounts, setPostImportDiscounts] = useState({
+    corn: { type: 'flat' as 'flat' | 'percent', value: 0 },
+    soybeans: { type: 'flat' as 'flat' | 'percent', value: 0 }
+  });
+  const [isApplyingDiscounts, setIsApplyingDiscounts] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -399,11 +403,8 @@ export default function ProductCatalog() {
     try {
       let result;
       if (activeTab === 'seedHybrids') {
-        // Pass discounts for seed bill scanning
-        const discountsToApply = (seedDiscounts.corn > 0 || seedDiscounts.soybeans > 0 || seedDiscounts.wheat > 0)
-          ? seedDiscounts
-          : undefined;
-        result = await breakevenApi.scanSeedBillToCatalog(selectedBusinessId, scanFile, discountsToApply);
+        // Scan without discounts - discounts applied after import
+        result = await breakevenApi.scanSeedBillToCatalog(selectedBusinessId, scanFile);
       } else if (activeTab === 'fertilizers') {
         result = await breakevenApi.scanFertilizerBillToCatalog(selectedBusinessId, scanFile);
       } else if (activeTab === 'chemicals') {
@@ -426,7 +427,59 @@ export default function ProductCatalog() {
     setShowScanModal(false);
     setScanFile(null);
     setScanResult(null);
-    setSeedDiscounts({ corn: 0, soybeans: 0, wheat: 0 });
+    setPostImportDiscounts({
+      corn: { type: 'flat', value: 0 },
+      soybeans: { type: 'flat', value: 0 }
+    });
+  };
+
+  // Apply discounts to imported seed hybrids
+  const handleApplyDiscounts = async () => {
+    if (!selectedBusinessId || !scanResult) return;
+
+    const allProducts = [...scanResult.addedProducts, ...scanResult.updatedProducts];
+    if (allProducts.length === 0) return;
+
+    setIsApplyingDiscounts(true);
+    try {
+      const updates = allProducts.map(async (product) => {
+        const commodity = product.commodityType?.toUpperCase();
+        let discount = { type: 'flat' as 'flat' | 'percent', value: 0 };
+
+        if (commodity === 'CORN') {
+          discount = postImportDiscounts.corn;
+        } else if (commodity === 'SOYBEANS') {
+          discount = postImportDiscounts.soybeans;
+        }
+
+        if (discount.value > 0) {
+          let newPrice = product.pricePerBag;
+          if (discount.type === 'flat') {
+            newPrice = product.pricePerBag - discount.value;
+          } else {
+            newPrice = product.pricePerBag * (1 - discount.value / 100);
+          }
+          // Ensure price doesn't go below 0
+          newPrice = Math.max(0, newPrice);
+
+          await breakevenApi.updateSeedHybrid(selectedBusinessId, product.id, {
+            pricePerBag: newPrice
+          });
+        }
+      });
+
+      await Promise.all(updates);
+
+      // Reload products to show updated prices
+      await loadProducts();
+
+      // Close modal
+      closeScanModal();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to apply discounts');
+    } finally {
+      setIsApplyingDiscounts(false);
+    }
   };
 
   if (!user) return null;
@@ -984,46 +1037,6 @@ export default function ProductCatalog() {
                     </label>
                   </div>
 
-                  {/* Seed Discounts - only show for seed hybrids tab */}
-                  {activeTab === 'seedHybrids' && (
-                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <h4 className="text-sm font-semibold text-blue-800 mb-3">Apply Discounts ($/bag)</h4>
-                      <p className="text-xs text-blue-600 mb-3">Enter discount amounts to subtract from scanned prices</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Corn</label>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={seedDiscounts.corn || ''}
-                              onChange={(e) => setSeedDiscounts({ ...seedDiscounts, corn: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Soybeans</label>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={seedDiscounts.soybeans || ''}
-                              onChange={(e) => setSeedDiscounts({ ...seedDiscounts, soybeans: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex justify-end gap-3">
                     <button
                       onClick={closeScanModal}
@@ -1111,13 +1124,113 @@ export default function ProductCatalog() {
                     </div>
                   )}
 
-                  <div className="flex justify-end">
+                  {/* Post-import discount section - only for seed hybrids with products */}
+                  {activeTab === 'seedHybrids' && (scanResult.addedProducts.length > 0 || scanResult.updatedProducts.length > 0) && (
+                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="text-sm font-semibold text-blue-800 mb-3">Apply Discounts (Optional)</h4>
+                      <p className="text-xs text-blue-600 mb-3">Apply discounts to the imported products</p>
+
+                      <div className="space-y-4">
+                        {/* Corn Discount */}
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-700 w-20">Corn:</span>
+                          <select
+                            value={postImportDiscounts.corn.type}
+                            onChange={(e) => setPostImportDiscounts({
+                              ...postImportDiscounts,
+                              corn: { ...postImportDiscounts.corn, type: e.target.value as 'flat' | 'percent' }
+                            })}
+                            className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="flat">$/bag</option>
+                            <option value="percent">% off</option>
+                          </select>
+                          <div className="relative flex-1">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                              {postImportDiscounts.corn.type === 'flat' ? '$' : ''}
+                            </span>
+                            <input
+                              type="number"
+                              step={postImportDiscounts.corn.type === 'flat' ? '0.01' : '1'}
+                              min="0"
+                              max={postImportDiscounts.corn.type === 'percent' ? '100' : undefined}
+                              value={postImportDiscounts.corn.value || ''}
+                              onChange={(e) => setPostImportDiscounts({
+                                ...postImportDiscounts,
+                                corn: { ...postImportDiscounts.corn, value: parseFloat(e.target.value) || 0 }
+                              })}
+                              className={`w-full ${postImportDiscounts.corn.type === 'flat' ? 'pl-6' : 'pl-3'} pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500`}
+                              placeholder="0"
+                            />
+                            {postImportDiscounts.corn.type === 'percent' && (
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Soybeans Discount */}
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-700 w-20">Soybeans:</span>
+                          <select
+                            value={postImportDiscounts.soybeans.type}
+                            onChange={(e) => setPostImportDiscounts({
+                              ...postImportDiscounts,
+                              soybeans: { ...postImportDiscounts.soybeans, type: e.target.value as 'flat' | 'percent' }
+                            })}
+                            className="px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="flat">$/bag</option>
+                            <option value="percent">% off</option>
+                          </select>
+                          <div className="relative flex-1">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+                              {postImportDiscounts.soybeans.type === 'flat' ? '$' : ''}
+                            </span>
+                            <input
+                              type="number"
+                              step={postImportDiscounts.soybeans.type === 'flat' ? '0.01' : '1'}
+                              min="0"
+                              max={postImportDiscounts.soybeans.type === 'percent' ? '100' : undefined}
+                              value={postImportDiscounts.soybeans.value || ''}
+                              onChange={(e) => setPostImportDiscounts({
+                                ...postImportDiscounts,
+                                soybeans: { ...postImportDiscounts.soybeans, value: parseFloat(e.target.value) || 0 }
+                              })}
+                              className={`w-full ${postImportDiscounts.soybeans.type === 'flat' ? 'pl-6' : 'pl-3'} pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500`}
+                              placeholder="0"
+                            />
+                            {postImportDiscounts.soybeans.type === 'percent' && (
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3">
                     <button
                       onClick={closeScanModal}
-                      className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700"
+                      className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 border border-gray-300 rounded-md"
                     >
-                      Done
+                      {activeTab === 'seedHybrids' && (scanResult.addedProducts.length > 0 || scanResult.updatedProducts.length > 0) ? 'Skip Discounts' : 'Done'}
                     </button>
+                    {activeTab === 'seedHybrids' && (scanResult.addedProducts.length > 0 || scanResult.updatedProducts.length > 0) && (
+                      <button
+                        onClick={handleApplyDiscounts}
+                        disabled={isApplyingDiscounts || (postImportDiscounts.corn.value === 0 && postImportDiscounts.soybeans.value === 0)}
+                        className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isApplyingDiscounts ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Applying...
+                          </>
+                        ) : (
+                          'Apply Discounts'
+                        )}
+                      </button>
+                    )}
                   </div>
                 </>
               )}
