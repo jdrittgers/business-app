@@ -352,10 +352,20 @@ export class BreakEvenAnalyticsService {
     const totalCost = totalCostExcludingInterest + totalLoanCost;
     const costPerAcre = acres > 0 ? totalCost / acres : 0;
 
-    // Get expected yield from production data
+    // Get expected yield from production data, with default fallbacks
     const productionKey = `${farm.grainEntityId}-${farm.commodityType}`;
     const production = productionMap.get(productionKey);
-    const expectedYield = production ? Number(production.bushelsPerAcre) : 0;
+
+    // Default yields by commodity type (used when no production record exists)
+    const defaultYields: Record<string, number> = {
+      'CORN': 180,
+      'SOYBEANS': 55,
+      'WHEAT': 60
+    };
+
+    const expectedYield = production
+      ? Number(production.bushelsPerAcre)
+      : (defaultYields[farm.commodityType] || 0);
     const expectedBushels = expectedYield * acres;
     const breakEvenPrice = expectedBushels > 0 ? totalCost / expectedBushels : 0;
 
