@@ -685,6 +685,7 @@ model Farm {
   otherCosts               FarmOtherCost[]
   trials                   FarmTrial[]
   chemicalPlanApplications ChemicalPlanApplication[]
+  invoices                 Invoice[]  // Field-specific invoices/bills
 
   @@map("farms")
   @@index([grainEntityId])
@@ -1114,6 +1115,7 @@ model Invoice {
   parsedAt            DateTime?       @map("parsed_at")
 
   createdBidRequestId String?         @map("created_bid_request_id")
+  farmId              String?         @map("farm_id")  // Optional: for field-specific bills
   createdAt           DateTime        @default(now()) @map("created_at")
   updatedAt           DateTime        @updatedAt @map("updated_at")
 
@@ -1122,6 +1124,7 @@ model Invoice {
   uploader            User            @relation("InvoiceUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
   lineItems           InvoiceLineItem[]
   createdBidRequest   BidRequest?     @relation(fields: [createdBidRequestId], references: [id], onDelete: SetNull)
+  farm                Farm?           @relation(fields: [farmId], references: [id], onDelete: SetNull)
 
   @@map("invoices")
   @@index([businessId, status])

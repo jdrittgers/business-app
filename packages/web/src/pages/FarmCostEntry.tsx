@@ -89,6 +89,12 @@ export default function FarmCostEntry() {
   const [editingOtherCost, setEditingOtherCost] = useState<any | null>(null);
   const [showTrialForm, setShowTrialForm] = useState(false);
 
+  // Bulk selection states
+  const [selectedFertilizerIds, setSelectedFertilizerIds] = useState<string[]>([]);
+  const [selectedChemicalIds, setSelectedChemicalIds] = useState<string[]>([]);
+  const [selectedSeedIds, setSelectedSeedIds] = useState<string[]>([]);
+  const [selectedOtherCostIds, setSelectedOtherCostIds] = useState<string[]>([]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -434,6 +440,92 @@ export default function FarmCostEntry() {
     }
   };
 
+  // Bulk delete handlers
+  const handleBulkDeleteFertilizers = async () => {
+    if (!selectedBusinessId || selectedFertilizerIds.length === 0) return;
+    if (!confirm(`Delete ${selectedFertilizerIds.length} fertilizer usage(s)?`)) return;
+
+    try {
+      for (const id of selectedFertilizerIds) {
+        await breakevenApi.deleteFertilizerUsage(selectedBusinessId, id);
+      }
+      setSelectedFertilizerIds([]);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete fertilizer usages');
+    }
+  };
+
+  const handleBulkDeleteChemicals = async () => {
+    if (!selectedBusinessId || selectedChemicalIds.length === 0) return;
+    if (!confirm(`Delete ${selectedChemicalIds.length} chemical usage(s)?`)) return;
+
+    try {
+      for (const id of selectedChemicalIds) {
+        await breakevenApi.deleteChemicalUsage(selectedBusinessId, id);
+      }
+      setSelectedChemicalIds([]);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete chemical usages');
+    }
+  };
+
+  const handleBulkDeleteSeeds = async () => {
+    if (!selectedBusinessId || selectedSeedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedSeedIds.length} seed usage(s)?`)) return;
+
+    try {
+      for (const id of selectedSeedIds) {
+        await breakevenApi.deleteSeedUsage(selectedBusinessId, id);
+      }
+      setSelectedSeedIds([]);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete seed usages');
+    }
+  };
+
+  const handleBulkDeleteOtherCosts = async () => {
+    if (!selectedBusinessId || selectedOtherCostIds.length === 0) return;
+    if (!confirm(`Delete ${selectedOtherCostIds.length} cost(s)?`)) return;
+
+    try {
+      for (const id of selectedOtherCostIds) {
+        await breakevenApi.deleteOtherCost(selectedBusinessId, id);
+      }
+      setSelectedOtherCostIds([]);
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete costs');
+    }
+  };
+
+  // Toggle selection helpers
+  const toggleFertilizerSelection = (id: string) => {
+    setSelectedFertilizerIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleChemicalSelection = (id: string) => {
+    setSelectedChemicalIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSeedSelection = (id: string) => {
+    setSelectedSeedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleOtherCostSelection = (id: string) => {
+    setSelectedOtherCostIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
   // Helper to filter chemicals by category
   const getChemicalsByCategory = (category: ChemicalCategory) => {
     return chemicals.filter(c => c.category === category);
@@ -600,10 +692,46 @@ export default function FarmCostEntry() {
 
             {farm.fertilizerUsage && farm.fertilizerUsage.length > 0 && (
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Current Usage:</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-medium text-gray-700">Current Usage:</h3>
+                  {canEdit() && (
+                    <label className="flex items-center text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedFertilizerIds.length === (farm.fertilizerUsage?.length || 0) && (farm.fertilizerUsage?.length || 0) > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFertilizerIds(farm.fertilizerUsage?.map((u: any) => u.id) || []);
+                          } else {
+                            setSelectedFertilizerIds([]);
+                          }
+                        }}
+                        className="mr-1 rounded text-blue-600"
+                      />
+                      Select All
+                    </label>
+                  )}
+                </div>
+                {selectedFertilizerIds.length > 0 && (
+                  <div className="flex items-center gap-3 py-2 px-3 bg-blue-50 border border-blue-200 rounded mb-2">
+                    <span className="text-sm text-blue-700">{selectedFertilizerIds.length} selected</span>
+                    <button
+                      onClick={handleBulkDeleteFertilizers}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Delete Selected
+                    </button>
+                    <button
+                      onClick={() => setSelectedFertilizerIds([])}
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {farm.fertilizerUsage.map((usage: any) => (
-                    <div key={usage.id} className="text-sm p-2 bg-gray-50 rounded">
+                    <div key={usage.id} className={`text-sm p-2 rounded ${selectedFertilizerIds.includes(usage.id) ? 'bg-blue-50' : 'bg-gray-50'}`}>
                       {editingFertilizer?.id === usage.id ? (
                         <form onSubmit={handleUpdateFertilizer} className="space-y-2">
                           <div>
@@ -637,7 +765,17 @@ export default function FarmCostEntry() {
                         </form>
                       ) : (
                         <div className="flex justify-between items-center">
-                          <span>{usage.fertilizer.name}: {usage.amountUsed} {usage.fertilizer.unit}</span>
+                          <div className="flex items-center">
+                            {canEdit() && (
+                              <input
+                                type="checkbox"
+                                checked={selectedFertilizerIds.includes(usage.id)}
+                                onChange={() => toggleFertilizerSelection(usage.id)}
+                                className="mr-2 rounded text-blue-600"
+                              />
+                            )}
+                            <span>{usage.fertilizer.name}: {usage.amountUsed} {usage.fertilizer.unit}</span>
+                          </div>
                           <div className="flex items-center space-x-3">
                             <span className="font-semibold">${(usage.amountUsed * usage.fertilizer.pricePerUnit).toFixed(2)}</span>
                             {canEdit() && (
@@ -840,13 +978,58 @@ export default function FarmCostEntry() {
 
             {farm.chemicalUsage && farm.chemicalUsage.filter((u: any) => u.chemical?.category === chemicalTab).length > 0 && (
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">
-                  Current {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
-                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow' : 'Fungicide'} Usage:
-                </h3>
+                {(() => {
+                  const filteredChemicals = farm.chemicalUsage.filter((u: any) => u.chemical?.category === chemicalTab);
+                  const filteredIds = filteredChemicals.map((u: any) => u.id);
+                  const selectedInTab = selectedChemicalIds.filter((id: string) => filteredIds.includes(id));
+                  return (
+                    <>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-sm font-medium text-gray-700">
+                          Current {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
+                           chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow' : 'Fungicide'} Usage:
+                        </h3>
+                        {canEdit() && (
+                          <label className="flex items-center text-xs text-gray-600">
+                            <input
+                              type="checkbox"
+                              checked={selectedInTab.length === filteredChemicals.length && filteredChemicals.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedChemicalIds(prev => [...new Set([...prev, ...filteredIds])]);
+                                } else {
+                                  setSelectedChemicalIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                                }
+                              }}
+                              className="mr-1 rounded text-green-600"
+                            />
+                            Select All
+                          </label>
+                        )}
+                      </div>
+                      {selectedInTab.length > 0 && (
+                        <div className="flex items-center gap-3 py-2 px-3 bg-green-50 border border-green-200 rounded mb-2">
+                          <span className="text-sm text-green-700">{selectedInTab.length} selected</span>
+                          <button
+                            onClick={handleBulkDeleteChemicals}
+                            className="text-sm text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Delete Selected
+                          </button>
+                          <button
+                            onClick={() => setSelectedChemicalIds(prev => prev.filter(id => !filteredIds.includes(id)))}
+                            className="text-sm text-gray-600 hover:text-gray-800"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 <div className="space-y-2">
                   {farm.chemicalUsage.filter((u: any) => u.chemical?.category === chemicalTab).map((usage: any) => (
-                    <div key={usage.id} className="text-sm p-2 bg-gray-50 rounded">
+                    <div key={usage.id} className={`text-sm p-2 rounded ${selectedChemicalIds.includes(usage.id) ? 'bg-green-50' : 'bg-gray-50'}`}>
                       {editingChemical?.id === usage.id ? (
                         <form onSubmit={handleUpdateChemical} className="space-y-2">
                           <div>
@@ -880,7 +1063,17 @@ export default function FarmCostEntry() {
                         </form>
                       ) : (
                         <div className="flex justify-between items-center">
-                          <span>{usage.chemical.name}: {usage.amountUsed} {usage.chemical.unit}</span>
+                          <div className="flex items-center">
+                            {canEdit() && (
+                              <input
+                                type="checkbox"
+                                checked={selectedChemicalIds.includes(usage.id)}
+                                onChange={() => toggleChemicalSelection(usage.id)}
+                                className="mr-2 rounded text-green-600"
+                              />
+                            )}
+                            <span>{usage.chemical.name}: {usage.amountUsed} {usage.chemical.unit}</span>
+                          </div>
                           <div className="flex items-center space-x-3">
                             <span className="font-semibold">${(usage.amountUsed * usage.chemical.pricePerUnit).toFixed(2)}</span>
                             {canEdit() && (
@@ -1055,10 +1248,46 @@ export default function FarmCostEntry() {
 
             {farm.seedUsage && farm.seedUsage.length > 0 && (
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Current Usage:</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-medium text-gray-700">Current Usage:</h3>
+                  {canEdit() && (
+                    <label className="flex items-center text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedSeedIds.length === (farm.seedUsage?.length || 0) && (farm.seedUsage?.length || 0) > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSeedIds(farm.seedUsage?.map((u: any) => u.id) || []);
+                          } else {
+                            setSelectedSeedIds([]);
+                          }
+                        }}
+                        className="mr-1 rounded text-purple-600"
+                      />
+                      Select All
+                    </label>
+                  )}
+                </div>
+                {selectedSeedIds.length > 0 && (
+                  <div className="flex items-center gap-3 py-2 px-3 bg-purple-50 border border-purple-200 rounded mb-2">
+                    <span className="text-sm text-purple-700">{selectedSeedIds.length} selected</span>
+                    <button
+                      onClick={handleBulkDeleteSeeds}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Delete Selected
+                    </button>
+                    <button
+                      onClick={() => setSelectedSeedIds([])}
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {farm.seedUsage.map((usage: any) => (
-                    <div key={usage.id} className="text-sm p-2 bg-gray-50 rounded">
+                    <div key={usage.id} className={`text-sm p-2 rounded ${selectedSeedIds.includes(usage.id) ? 'bg-purple-50' : 'bg-gray-50'}`}>
                       {editingSeed?.id === usage.id ? (
                         <form onSubmit={handleUpdateSeed} className="space-y-2">
                           <div>
@@ -1093,7 +1322,17 @@ export default function FarmCostEntry() {
                       ) : (
                         <div>
                           <div className="flex justify-between items-center">
-                            <span>{usage.seedHybrid.name}: {usage.bagsUsed} bags</span>
+                            <div className="flex items-center">
+                              {canEdit() && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSeedIds.includes(usage.id)}
+                                  onChange={() => toggleSeedSelection(usage.id)}
+                                  className="mr-2 rounded text-purple-600"
+                                />
+                              )}
+                              <span>{usage.seedHybrid.name}: {usage.bagsUsed} bags</span>
+                            </div>
                             <div className="flex items-center space-x-3">
                               <span className="font-semibold">
                                 ${(usage.bagsUsed * usage.seedHybrid.pricePerBag).toFixed(2)}
@@ -1118,12 +1357,12 @@ export default function FarmCostEntry() {
                             </div>
                           </div>
                           {usage.isVRT && (
-                            <div className="mt-1 text-xs text-purple-600">
+                            <div className="mt-1 text-xs text-purple-600 ml-6">
                               VRT: {usage.vrtMinRate?.toLocaleString()} - {usage.vrtMaxRate?.toLocaleString()} seeds/acre
                             </div>
                           )}
                           {usage.ratePerAcre && (
-                            <div className="mt-1 text-xs text-gray-500">
+                            <div className="mt-1 text-xs text-gray-500 ml-6">
                               Population: {usage.ratePerAcre.toLocaleString()} seeds/acre
                             </div>
                           )}
@@ -1229,10 +1468,46 @@ export default function FarmCostEntry() {
 
             {farm.otherCosts && farm.otherCosts.length > 0 && (
               <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Current Costs:</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-medium text-gray-700">Current Costs:</h3>
+                  {canEdit() && (
+                    <label className="flex items-center text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedOtherCostIds.length === (farm.otherCosts?.length || 0) && (farm.otherCosts?.length || 0) > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedOtherCostIds(farm.otherCosts?.map((c: any) => c.id) || []);
+                          } else {
+                            setSelectedOtherCostIds([]);
+                          }
+                        }}
+                        className="mr-1 rounded text-orange-600"
+                      />
+                      Select All
+                    </label>
+                  )}
+                </div>
+                {selectedOtherCostIds.length > 0 && (
+                  <div className="flex items-center gap-3 py-2 px-3 bg-orange-50 border border-orange-200 rounded mb-2">
+                    <span className="text-sm text-orange-700">{selectedOtherCostIds.length} selected</span>
+                    <button
+                      onClick={handleBulkDeleteOtherCosts}
+                      className="text-sm text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Delete Selected
+                    </button>
+                    <button
+                      onClick={() => setSelectedOtherCostIds([])}
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {farm.otherCosts.map((cost: any) => (
-                    <div key={cost.id} className="text-sm p-2 bg-gray-50 rounded">
+                    <div key={cost.id} className={`text-sm p-2 rounded ${selectedOtherCostIds.includes(cost.id) ? 'bg-orange-50' : 'bg-gray-50'}`}>
                       {editingOtherCost?.id === cost.id ? (
                         <form onSubmit={handleUpdateOtherCost} className="space-y-2">
                           <div>
@@ -1290,7 +1565,17 @@ export default function FarmCostEntry() {
                       ) : (
                         <>
                           <div className="flex justify-between items-center">
-                            <span className="font-medium">{cost.costType.replace('_', ' ')}</span>
+                            <div className="flex items-center">
+                              {canEdit() && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedOtherCostIds.includes(cost.id)}
+                                  onChange={() => toggleOtherCostSelection(cost.id)}
+                                  className="mr-2 rounded text-orange-600"
+                                />
+                              )}
+                              <span className="font-medium">{cost.costType.replace('_', ' ')}</span>
+                            </div>
                             <div className="flex items-center space-x-3">
                               <span className="font-semibold">
                                 ${(cost.isPerAcre ? cost.amount * farm.acres : cost.amount).toFixed(2)}
@@ -1315,7 +1600,7 @@ export default function FarmCostEntry() {
                             </div>
                           </div>
                           {cost.description && (
-                            <p className="text-xs text-gray-600 mt-1">{cost.description}</p>
+                            <p className="text-xs text-gray-600 mt-1 ml-6">{cost.description}</p>
                           )}
                         </>
                       )}
