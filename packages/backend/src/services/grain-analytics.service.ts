@@ -10,6 +10,13 @@ import {
 } from '@business-app/shared';
 
 export class GrainAnalyticsService {
+  // Default yields by commodity type (used when farm has no projectedYield)
+  private defaultYields: Record<string, number> = {
+    'CORN': 180,
+    'SOYBEANS': 55,
+    'WHEAT': 60
+  };
+
   // Get comprehensive dashboard summary
   async getDashboardSummary(
     businessId: string,
@@ -18,12 +25,15 @@ export class GrainAnalyticsService {
     const year = query.year || new Date().getFullYear();
     const entityFilter = query.grainEntityId ? { id: query.grainEntityId } : {};
 
-    // Get all entities for this business
+    // Get all entities with their farms and contracts
     const entities = await prisma.grainEntity.findMany({
       where: { businessId, ...entityFilter },
       include: {
-        productions: {
-          where: { year }
+        farms: {
+          where: { year, deletedAt: null },
+          include: {
+            entitySplits: true
+          }
         },
         contracts: {
           where: { year },
@@ -47,10 +57,40 @@ export class GrainAnalyticsService {
     const byContractTypeMap = new Map<ContractType, number>();
     const byCommodityPriceMap = new Map<CommodityType, { totalValue: number; totalBushels: number }>();
 
+    // Track production per entity/commodity to handle entity splits
+    const entityCommodityProduction = new Map<string, number>();
+
     for (const entity of entities) {
-      for (const production of entity.productions) {
-        const commodityType = production.commodityType as CommodityType;
-        const totalProjected = Number(production.totalProjected);
+      // Group farms by commodity type
+      const farmsByCommodity = new Map<CommodityType, any[]>();
+
+      for (const farm of entity.farms) {
+        const commodityType = farm.commodityType as CommodityType;
+        const farms = farmsByCommodity.get(commodityType) || [];
+        farms.push(farm);
+        farmsByCommodity.set(commodityType, farms);
+      }
+
+      // Calculate production for each commodity from farms
+      for (const [commodityType, farms] of farmsByCommodity) {
+        let totalProjected = 0;
+
+        for (const farm of farms) {
+          const acres = Number(farm.acres);
+          const projectedYield = Number(farm.projectedYield) || this.defaultYields[commodityType] || 0;
+          const farmBushels = acres * projectedYield;
+
+          // Handle entity splits - if farm has splits, check if this entity gets a portion
+          if (farm.entitySplits && farm.entitySplits.length > 0) {
+            const split = farm.entitySplits.find((s: any) => s.grainEntityId === entity.id);
+            if (split) {
+              totalProjected += farmBushels * (Number(split.percentage) / 100);
+            }
+          } else {
+            // No splits - full production goes to this entity
+            totalProjected += farmBushels;
+          }
+        }
 
         // Calculate total sold for this entity/commodity/year
         const relevantContracts = entity.contracts.filter(

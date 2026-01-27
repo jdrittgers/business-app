@@ -30,7 +30,6 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Overview', path: '/grain-contracts/dashboard' },
       { label: 'Contracts', path: '/grain-contracts' },
-      { label: 'Production', path: '/grain-contracts/production' },
       { label: 'Grain Bins', path: '/grain-contracts/bins' }
     ]
   },

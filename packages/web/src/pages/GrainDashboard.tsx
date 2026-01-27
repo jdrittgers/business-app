@@ -594,7 +594,7 @@ export default function GrainDashboard() {
                 ))}
                 {summary.byEntity.length === 0 && (
                   <p className="text-center text-gray-500 py-8">
-                    No production data available. Add production records to see entity progress.
+                    No production data available. Add farms in Break-Even Analysis to see entity progress.
                   </p>
                 )}
               </div>
@@ -652,12 +652,12 @@ export default function GrainDashboard() {
         {/* Empty State */}
         {!isLoading && !summary && !error && (
           <div className="text-center py-12">
-            <p className="text-gray-500 mb-4">No dashboard data available</p>
+            <p className="text-gray-500 mb-4">No dashboard data available. Production is calculated from your break-even farms.</p>
             <button
-              onClick={() => navigate('/grain-contracts/production')}
+              onClick={() => navigate('/breakeven/farms')}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              Add Production Data
+              Manage Farms
             </button>
           </div>
         )}

@@ -15,7 +15,6 @@ import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calendar';
 import Tasks from './pages/Tasks';
 import GrainContracts from './pages/GrainContracts';
-import GrainProduction from './pages/GrainProduction';
 import GrainDashboard from './pages/GrainDashboard';
 import BreakEven from './pages/BreakEven';
 import ProductCatalog from './pages/ProductCatalog';
@@ -93,7 +92,6 @@ function App() {
       <Route path="/calendar" element={<AuthRoute><Calendar /></AuthRoute>} />
       <Route path="/tasks" element={<AuthRoute><Tasks /></AuthRoute>} />
       <Route path="/grain-contracts" element={<AuthRoute><GrainContracts /></AuthRoute>} />
-      <Route path="/grain-contracts/production" element={<AuthRoute><GrainProduction /></AuthRoute>} />
       <Route path="/grain-contracts/dashboard" element={<AuthRoute><GrainDashboard /></AuthRoute>} />
       <Route path="/breakeven" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><BreakEven /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/products" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole></AuthRoute>} />
