@@ -338,8 +338,8 @@ export class InvoiceService {
     businessId: string,
     lineItem: any
   ): Promise<string> {
-    // Infer commodity type from product name
-    const commodityType = this.inferSeedCommodity(lineItem.productName);
+    // Use parsed commodity type if available, otherwise infer from product name
+    const commodityType = lineItem.commodityType || this.inferSeedCommodity(lineItem.productName);
 
     const existing = await tx.seedHybrid.findFirst({
       where: {
@@ -667,7 +667,8 @@ export class InvoiceService {
   async parseSeedBillToCatalog(
     businessId: string,
     userId: string,
-    file: Express.Multer.File
+    file: Express.Multer.File,
+    discounts?: { corn: number; soybeans: number; wheat: number }
   ): Promise<{
     invoice: any;
     addedProducts: any[];
@@ -733,8 +734,17 @@ export class InvoiceService {
       // Process seed items
       await prisma.$transaction(async (tx) => {
         for (const item of seedItems) {
-          // Infer commodity type from product name
-          const commodityType = this.inferSeedCommodity(item.productName) as 'CORN' | 'SOYBEANS' | 'WHEAT';
+          // Use parsed commodity type if available, otherwise infer from product name
+          const commodityType = (item.commodityType || this.inferSeedCommodity(item.productName)) as 'CORN' | 'SOYBEANS' | 'WHEAT';
+
+          // Apply discount based on commodity type
+          let discount = 0;
+          if (discounts) {
+            if (commodityType === 'CORN') discount = discounts.corn || 0;
+            else if (commodityType === 'SOYBEANS') discount = discounts.soybeans || 0;
+            else if (commodityType === 'WHEAT') discount = discounts.wheat || 0;
+          }
+          const finalPrice = Math.max(0, item.pricePerUnit - discount);
 
           const existingSeed = await tx.seedHybrid.findFirst({
             where: {
@@ -748,14 +758,16 @@ export class InvoiceService {
             await tx.seedHybrid.update({
               where: { id: existingSeed.id },
               data: {
-                pricePerBag: new Decimal(item.pricePerUnit),
+                pricePerBag: new Decimal(finalPrice),
                 needsPricing: false
               }
             });
             updatedProducts.push({
               id: existingSeed.id,
               name: item.productName,
-              pricePerBag: item.pricePerUnit,
+              pricePerBag: finalPrice,
+              originalPrice: item.pricePerUnit,
+              discountApplied: discount,
               commodityType,
               isNew: false
             });
@@ -769,7 +781,7 @@ export class InvoiceService {
                 businessId,
                 name: item.productName,
                 commodityType,
-                pricePerBag: new Decimal(item.pricePerUnit),
+                pricePerBag: new Decimal(finalPrice),
                 seedsPerBag: defaultSeedsPerBag,
                 needsPricing: false
               }
@@ -777,7 +789,9 @@ export class InvoiceService {
             addedProducts.push({
               id: newSeed.id,
               name: item.productName,
-              pricePerBag: item.pricePerUnit,
+              pricePerBag: finalPrice,
+              originalPrice: item.pricePerUnit,
+              discountApplied: discount,
               commodityType,
               isNew: true
             });

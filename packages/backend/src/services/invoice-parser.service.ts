@@ -18,6 +18,7 @@ interface ParsedLineItem {
   totalPrice: number;
   ratePerAcre?: number;  // Application rate (e.g., 2 oz/acre)
   rateUnit?: string;     // Unit for rate (OZ, PT, QT, GAL, LB)
+  commodityType?: 'CORN' | 'SOYBEANS' | 'WHEAT';  // For SEED items only
 }
 
 export class InvoiceParserService {
@@ -147,13 +148,14 @@ Extract:
   "lineItems": [
     {
       "productType": "FERTILIZER|CHEMICAL|SEED",
-      "productName": "Product name",
+      "productName": "Product name/hybrid number",
       "quantity": 1000,
       "unit": "TON|LB|GAL|BAG",
       "pricePerUnit": 0.50,
       "totalPrice": 500.00,
       "ratePerAcre": 2.5,
-      "rateUnit": "OZ|PT|QT|GAL|LB"
+      "rateUnit": "OZ|PT|QT|GAL|LB",
+      "commodityType": "CORN|SOYBEANS|WHEAT"
     }
   ]
 }
@@ -175,6 +177,19 @@ CRITICAL - PRICING:
 - If you see both a list price and a discounted/net price, USE THE LOWER DISCOUNTED PRICE
 - For seed invoices, use the price AFTER any early order discounts, replant discounts, volume discounts, or dealer discounts
 - The pricePerUnit should be calculated from the net/discounted total, not the list price
-- If totalPrice shows a discounted amount, calculate pricePerUnit = totalPrice / quantity`;
+- If totalPrice shows a discounted amount, calculate pricePerUnit = totalPrice / quantity
+
+CRITICAL - SEED COMMODITY TYPE:
+For SEED items, you MUST identify the commodityType field as CORN, SOYBEANS, or WHEAT.
+Look for these clues on the invoice:
+- Section headers like "CORN SEED", "SOYBEAN SEED", "SOY", "WHEAT SEED"
+- Product descriptions containing "corn", "soybean", "soy", "wheat"
+- Brand patterns:
+  * CORN: DeKalb (DKC62-08), Pioneer 4-digit (P1197, P0987), NK corn, LG corn
+  * SOYBEANS: Asgrow (AG36X6), Pioneer with X trait (P21A50X), NK soybeans (NKS30-T8), Credenz, Xitavo, Golden Harvest soybeans
+  * WHEAT: Any wheat variety names
+- Seed count per bag: Corn ~80,000 seeds/bag, Soybeans ~140,000 seeds/bag
+- Invoice sections or groupings that indicate the crop type
+- ALWAYS set commodityType for SEED items - never leave it blank`;
   }
 }

@@ -67,6 +67,9 @@ export default function ProductCatalog() {
     updatedProducts: any[];
   } | null>(null);
 
+  // Seed discount state (for scan modal)
+  const [seedDiscounts, setSeedDiscounts] = useState({ corn: 0, soybeans: 0, wheat: 0 });
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -396,7 +399,11 @@ export default function ProductCatalog() {
     try {
       let result;
       if (activeTab === 'seedHybrids') {
-        result = await breakevenApi.scanSeedBillToCatalog(selectedBusinessId, scanFile);
+        // Pass discounts for seed bill scanning
+        const discountsToApply = (seedDiscounts.corn > 0 || seedDiscounts.soybeans > 0 || seedDiscounts.wheat > 0)
+          ? seedDiscounts
+          : undefined;
+        result = await breakevenApi.scanSeedBillToCatalog(selectedBusinessId, scanFile, discountsToApply);
       } else if (activeTab === 'fertilizers') {
         result = await breakevenApi.scanFertilizerBillToCatalog(selectedBusinessId, scanFile);
       } else if (activeTab === 'chemicals') {
@@ -419,6 +426,7 @@ export default function ProductCatalog() {
     setShowScanModal(false);
     setScanFile(null);
     setScanResult(null);
+    setSeedDiscounts({ corn: 0, soybeans: 0, wheat: 0 });
   };
 
   if (!user) return null;
@@ -976,6 +984,61 @@ export default function ProductCatalog() {
                       )}
                     </label>
                   </div>
+
+                  {/* Seed Discounts - only show for seed hybrids tab */}
+                  {activeTab === 'seedHybrids' && (
+                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="text-sm font-semibold text-blue-800 mb-3">Apply Discounts ($/bag)</h4>
+                      <p className="text-xs text-blue-600 mb-3">Enter discount amounts to subtract from scanned prices</p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Corn</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={seedDiscounts.corn || ''}
+                              onChange={(e) => setSeedDiscounts({ ...seedDiscounts, corn: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Soybeans</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={seedDiscounts.soybeans || ''}
+                              onChange={(e) => setSeedDiscounts({ ...seedDiscounts, soybeans: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Wheat</label>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={seedDiscounts.wheat || ''}
+                              onChange={(e) => setSeedDiscounts({ ...seedDiscounts, wheat: parseFloat(e.target.value) || 0 })}
+                              className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex justify-end gap-3">
                     <button

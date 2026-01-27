@@ -188,10 +188,18 @@ export const scanSeedBillToCatalog = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Parse discount parameters from form data
+    const discounts = {
+      corn: req.body.cornDiscount ? parseFloat(req.body.cornDiscount) : 0,
+      soybeans: req.body.soybeansDiscount ? parseFloat(req.body.soybeansDiscount) : 0,
+      wheat: req.body.wheatDiscount ? parseFloat(req.body.wheatDiscount) : 0
+    };
+
     const result = await invoiceService.parseSeedBillToCatalog(
       businessId,
       userId,
-      req.file
+      req.file,
+      discounts
     );
 
     res.status(201).json(result);

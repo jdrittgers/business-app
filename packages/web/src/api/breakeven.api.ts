@@ -371,12 +371,18 @@ export const breakevenApi = {
   },
 
   // Scan seed bill and add to catalog
-  scanSeedBillToCatalog: async (businessId: string, file: File): Promise<{
+  scanSeedBillToCatalog: async (
+    businessId: string,
+    file: File,
+    discounts?: { corn: number; soybeans: number; wheat: number }
+  ): Promise<{
     invoice: any;
     addedProducts: Array<{
       id: string;
       name: string;
       pricePerBag: number;
+      originalPrice?: number;
+      discountApplied?: number;
       commodityType: string;
       isNew: boolean;
     }>;
@@ -384,12 +390,19 @@ export const breakevenApi = {
       id: string;
       name: string;
       pricePerBag: number;
+      originalPrice?: number;
+      discountApplied?: number;
       commodityType: string;
       isNew: boolean;
     }>;
   }> => {
     const formData = new FormData();
     formData.append('file', file);
+    if (discounts) {
+      if (discounts.corn) formData.append('cornDiscount', discounts.corn.toString());
+      if (discounts.soybeans) formData.append('soybeansDiscount', discounts.soybeans.toString());
+      if (discounts.wheat) formData.append('wheatDiscount', discounts.wheat.toString());
+    }
     const response = await apiClient.post(
       `/api/businesses/${businessId}/catalog/scan-seed-bill`,
       formData,
