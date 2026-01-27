@@ -175,3 +175,59 @@ export const scanFertilizerBill = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Scan a seed bill and add seed hybrids to the catalog
+ */
+export const scanSeedBillToCatalog = async (req: Request, res: Response) => {
+  try {
+    const { businessId } = req.params;
+    const userId = (req as any).user.userId;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = await invoiceService.parseSeedBillToCatalog(
+      businessId,
+      userId,
+      req.file
+    );
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Scan seed bill error:', error);
+    res.status(500).json({
+      error: 'Failed to scan seed bill',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Scan a fertilizer bill and add products to the catalog
+ */
+export const scanFertilizerBillToCatalog = async (req: Request, res: Response) => {
+  try {
+    const { businessId } = req.params;
+    const userId = (req as any).user.userId;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = await invoiceService.parseFertilizerBillToCatalog(
+      businessId,
+      userId,
+      req.file
+    );
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Scan fertilizer bill to catalog error:', error);
+    res.status(500).json({
+      error: 'Failed to scan fertilizer bill',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

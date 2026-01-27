@@ -64,4 +64,22 @@ router.post(
   invoiceController.scanFertilizerBill
 );
 
+// Scan seed bill and add to catalog
+router.post(
+  '/businesses/:businessId/catalog/scan-seed-bill',
+  authenticate,
+  requireBusinessAccess,
+  upload.single('file'),
+  invoiceController.scanSeedBillToCatalog
+);
+
+// Scan fertilizer bill and add to catalog
+router.post(
+  '/businesses/:businessId/catalog/scan-fertilizer-bill',
+  authenticate,
+  requireBusinessAccess,
+  upload.single('file'),
+  invoiceController.scanFertilizerBillToCatalog
+);
+
 export default router;

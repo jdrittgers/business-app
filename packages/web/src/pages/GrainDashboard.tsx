@@ -6,7 +6,6 @@ import { grainBinsApi } from '../api/grain-bins.api';
 import { oldCropInventoryApi } from '../api/old-crop-inventory.api';
 import { localBasisApi } from '../api/local-basis.api';
 import { DashboardSummary, GrainBin, OldCropInventory, LocalBasis, CommodityType } from '@business-app/shared';
-import DashboardCard from '../components/grain/DashboardCard';
 import ProgressBar from '../components/grain/ProgressBar';
 import PieChart from '../components/grain/PieChart';
 import MarketPriceWidget from '../components/grain/MarketPriceWidget';
@@ -199,49 +198,6 @@ export default function GrainDashboard() {
         {/* Dashboard Content */}
         {!isLoading && summary && (
           <div className="space-y-8">
-            {/* Summary Cards - By Commodity */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {summary.byCommodity.flatMap((commodity) => [
-                <DashboardCard
-                  key={`${commodity.commodityType}-sold`}
-                  title={`${commodity.commodityType} Sold`}
-                  value={commodity.sold.toLocaleString()}
-                  subtitle="bushels"
-                  color="green"
-                  icon={<span className="text-2xl">
-                    {commodity.commodityType === 'CORN' ? '🌽' : commodity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
-                  </span>}
-                />,
-                <DashboardCard
-                  key={`${commodity.commodityType}-remaining`}
-                  title={`${commodity.commodityType} Remaining`}
-                  value={commodity.remaining.toLocaleString()}
-                  subtitle="bushels"
-                  color="yellow"
-                  icon={<span className="text-2xl">📦</span>}
-                />
-              ])}
-            </div>
-
-            {/* Average Price Cards - One per Commodity */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {summary.byCommodity.map((commodity) => (
-                <DashboardCard
-                  key={`avg-price-${commodity.commodityType}`}
-                  title={`Avg ${commodity.commodityType} Price`}
-                  value={commodity.averagePrice > 0
-                    ? `$${commodity.averagePrice.toFixed(2)}`
-                    : 'N/A'}
-                  subtitle="per bushel"
-                  color="purple"
-                  icon={<span className="text-2xl">
-                    {commodity.commodityType === 'CORN' ? '🌽' :
-                     commodity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
-                  </span>}
-                />
-              ))}
-            </div>
-
             {/* Commodity Specific Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {summary.byCommodity.map((commodity) => {

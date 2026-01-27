@@ -57,6 +57,16 @@ export default function ProductCatalog() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
 
+  // Scan bill modal state
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{
+    invoice: any;
+    addedProducts: any[];
+    updatedProducts: any[];
+  } | null>(null);
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -320,6 +330,37 @@ export default function ProductCatalog() {
     navigate('/input-bids');
   };
 
+  // Scan bill handlers
+  const handleScanBill = async () => {
+    if (!selectedBusinessId || !scanFile) return;
+
+    setIsScanning(true);
+    try {
+      let result;
+      if (activeTab === 'seedHybrids') {
+        result = await breakevenApi.scanSeedBillToCatalog(selectedBusinessId, scanFile);
+      } else if (activeTab === 'fertilizers') {
+        result = await breakevenApi.scanFertilizerBillToCatalog(selectedBusinessId, scanFile);
+      } else {
+        throw new Error('Scan not supported for this product type');
+      }
+      setScanResult(result);
+      // Reload products
+      await loadProducts();
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.response?.data?.message || 'Failed to scan bill');
+      setScanResult(null);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const closeScanModal = () => {
+    setShowScanModal(false);
+    setScanFile(null);
+    setScanResult(null);
+  };
+
   if (!user) return null;
 
   return (
@@ -449,6 +490,17 @@ export default function ProductCatalog() {
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                   >
                     Create Bid Request ({selectedProducts.size} selected)
+                  </button>
+                )}
+                {(activeTab === 'fertilizers' || activeTab === 'seedHybrids') && (
+                  <button
+                    onClick={() => setShowScanModal(true)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Scan Bill
                   </button>
                 )}
                 <button
@@ -795,6 +847,162 @@ export default function ProductCatalog() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Scan Bill Modal */}
+      {showScanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Scan {activeTab === 'seedHybrids' ? 'Seed' : 'Fertilizer'} Bill
+                </h3>
+                <button
+                  onClick={closeScanModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {!scanResult ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Upload a {activeTab === 'seedHybrids' ? 'seed' : 'fertilizer'} bill to automatically extract products and add them to your catalog.
+                  </p>
+
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4">
+                    <input
+                      type="file"
+                      id="scanFile"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => setScanFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                    <label htmlFor="scanFile" className="cursor-pointer">
+                      {scanFile ? (
+                        <div>
+                          <svg className="w-12 h-12 mx-auto text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm font-medium text-gray-900">{scanFile.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">Click to change file</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <p className="text-sm text-gray-600">Click to upload or drag and drop</p>
+                          <p className="text-xs text-gray-500 mt-1">PDF, JPG, or PNG</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={closeScanModal}
+                      className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleScanBill}
+                      disabled={!scanFile || isScanning}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isScanning ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Scanning...
+                        </>
+                      ) : (
+                        'Scan & Import'
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-semibold text-green-800">Bill Processed Successfully!</span>
+                    </div>
+                    {scanResult.invoice.vendorName && (
+                      <p className="text-sm text-gray-700">Vendor: {scanResult.invoice.vendorName}</p>
+                    )}
+                  </div>
+
+                  {scanResult.addedProducts.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">New Products Added:</h4>
+                      <div className="space-y-2">
+                        {scanResult.addedProducts.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-blue-50 rounded p-3 text-sm">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{item.name}</span>
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">New</span>
+                            </div>
+                            <div className="text-gray-600 text-xs mt-1">
+                              {activeTab === 'seedHybrids'
+                                ? `$${item.pricePerBag?.toFixed(2)}/bag • ${item.commodityType}`
+                                : `$${item.pricePerUnit?.toFixed(2)}/${item.unit}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {scanResult.updatedProducts.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Existing Products Updated:</h4>
+                      <div className="space-y-2">
+                        {scanResult.updatedProducts.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-gray-50 rounded p-3 text-sm">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{item.name}</span>
+                              <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Updated</span>
+                            </div>
+                            <div className="text-gray-600 text-xs mt-1">
+                              {activeTab === 'seedHybrids'
+                                ? `$${item.pricePerBag?.toFixed(2)}/bag • ${item.commodityType}`
+                                : `$${item.pricePerUnit?.toFixed(2)}/${item.unit}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {scanResult.addedProducts.length === 0 && scanResult.updatedProducts.length === 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+                      <p className="text-sm text-yellow-800">
+                        No {activeTab === 'seedHybrids' ? 'seed' : 'fertilizer'} products were found in this bill.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={closeScanModal}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
