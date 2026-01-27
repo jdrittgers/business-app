@@ -291,6 +291,29 @@ export default function ProductCatalog() {
     setSelectedProducts(newSelection);
   };
 
+  const handleBulkDeleteSeedHybrids = async () => {
+    if (selectedProducts.size === 0) return;
+    if (!selectedBusinessId) return;
+
+    const count = selectedProducts.size;
+    if (!confirm(`Are you sure you want to delete ${count} seed hybrid${count !== 1 ? 's' : ''}?`)) return;
+
+    try {
+      // Delete all selected seed hybrids
+      await Promise.all(
+        Array.from(selectedProducts).map(id =>
+          breakevenApi.deleteSeedHybrid(selectedBusinessId, id)
+        )
+      );
+
+      // Clear selection and reload
+      setSelectedProducts(new Set());
+      loadProducts();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete some items');
+    }
+  };
+
   const handleCreateBidRequestWithSelected = () => {
     if (selectedProducts.size === 0) {
       alert('Please select at least one product');
@@ -494,6 +517,14 @@ export default function ProductCatalog() {
                     Create Bid Request ({selectedProducts.size} selected)
                   </button>
                 )}
+                {selectedProducts.size > 0 && activeTab === 'seedHybrids' && (
+                  <button
+                    onClick={handleBulkDeleteSeedHybrids}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  >
+                    Delete Selected ({selectedProducts.size})
+                  </button>
+                )}
                 <button
                   onClick={() => setShowScanModal(true)}
                   className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center gap-2"
@@ -521,17 +552,15 @@ export default function ProductCatalog() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      {activeTab !== 'seedHybrids' && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <input
-                            type="checkbox"
-                            className="rounded"
-                            checked={false}
-                            onChange={() => {}}
-                            title="Select for bid request"
-                          />
-                        </th>
-                      )}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={false}
+                          onChange={() => {}}
+                          title={activeTab === 'seedHybrids' ? 'Select for bulk delete' : 'Select for bid request'}
+                        />
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Name
                       </th>
@@ -681,6 +710,14 @@ export default function ProductCatalog() {
                       const priceInfo = getPriceComparison(item.name, item.pricePerBag, 'seedHybrid', undefined, item.commodityType);
                       return (
                         <tr key={item.id} className={item.needsPricing ? 'bg-amber-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              className="rounded"
+                              checked={selectedProducts.has(item.id)}
+                              onChange={() => toggleProductSelection(item.id)}
+                            />
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             <div className="flex items-center gap-2">
                               {item.name}

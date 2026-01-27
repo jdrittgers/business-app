@@ -166,6 +166,15 @@ Rules:
 - If information is missing, omit the field or use null
 - For chemicals, look for application rate info (e.g., "2 oz/acre", "1 pt/acre", "32 oz/A")
 - ratePerAcre is the numeric rate, rateUnit is OZ, PT, QT, GAL, or LB
-- Return valid JSON only - NO markdown, NO code blocks, NO explanation text`;
+- Return valid JSON only - NO markdown, NO code blocks, NO explanation text
+
+CRITICAL - PRICING:
+- ALWAYS use the NET/DISCOUNTED price, NOT the list price or MSRP
+- Agricultural invoices often show: List Price -> Discounts -> Net Price
+- Look for columns labeled: "Net", "Net Price", "Extended", "Total", "Amount Due", "Discounted Price", "Your Price", "Final Price"
+- If you see both a list price and a discounted/net price, USE THE LOWER DISCOUNTED PRICE
+- For seed invoices, use the price AFTER any early order discounts, replant discounts, volume discounts, or dealer discounts
+- The pricePerUnit should be calculated from the net/discounted total, not the list price
+- If totalPrice shows a discounted amount, calculate pricePerUnit = totalPrice / quantity`;
   }
 }

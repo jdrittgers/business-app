@@ -360,13 +360,16 @@ export class InvoiceService {
       return existing.id;
     }
 
+    // Default seeds per bag by commodity type
+    const defaultSeedsPerBag = commodityType === 'SOYBEANS' ? 140000 : 80000;
+
     const newProduct = await tx.seedHybrid.create({
       data: {
         businessId,
         hybridName: lineItem.productName,
         commodityType,
         pricePerBag: lineItem.pricePerUnit,
-        seedsPerBag: lineItem.unit === 'BAG' ? 80000 : null // Default assumption
+        seedsPerBag: lineItem.unit === 'BAG' ? defaultSeedsPerBag : null
       }
     });
 
@@ -375,18 +378,76 @@ export class InvoiceService {
 
   private inferSeedCommodity(productName: string): string {
     const name = productName.toLowerCase();
+    const nameUpper = productName.toUpperCase();
 
+    // Direct commodity mentions
     if (name.includes('corn') || name.includes('maize')) {
       return 'CORN';
     }
-    if (name.includes('soybean') || name.includes('soy')) {
+    if (name.includes('soybean') || name.includes('soy ') || name.endsWith('soy')) {
       return 'SOYBEANS';
     }
     if (name.includes('wheat')) {
       return 'WHEAT';
     }
 
-    // Default to CORN if unclear
+    // Soybean brand patterns (Asgrow, NK, etc)
+    // Asgrow soybeans: AG followed by numbers like AG36X6, AG38XF2
+    if (/^AG\s?\d/.test(nameUpper) || /\bAG\d/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+    // NK Soybeans: NK S or NKS patterns like NKS30-T8, NK S30-T8
+    if (/\bNK\s?S/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+    // Xitavo soybeans (LG Seeds)
+    if (name.includes('xitavo')) {
+      return 'SOYBEANS';
+    }
+    // Credenz soybeans
+    if (name.includes('credenz') || /^CZ\s?\d/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+    // Golden Harvest soybeans: GH followed by numbers
+    if (/^GH\s?\d/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+    // REV brand soybeans (Bayer)
+    if (/^REV\s?\d/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+    // Pioneer soybeans usually have X trait marker: P21A50X, P34A97X
+    if (/^P\d{2}[A-Z]\d+X/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+    // LibertyLink soybeans with LL designation
+    if (nameUpper.includes('LL') && /\d{2,}/.test(nameUpper)) {
+      return 'SOYBEANS';
+    }
+
+    // Corn brand patterns
+    // DeKalb corn: DKC followed by numbers like DKC60-12
+    if (/^DKC\s?\d/.test(nameUpper) || /\bDKC\d/.test(nameUpper)) {
+      return 'CORN';
+    }
+    // Pioneer corn: P followed by 4 digits like P1197, P0987
+    if (/^P\d{4}$/.test(nameUpper) || /^P\d{4}\b/.test(nameUpper)) {
+      return 'CORN';
+    }
+    // Pioneer corn with trait package: P1197AM, P1197AMXT
+    if (/^P\d{4}[A-Z]{2,}/.test(nameUpper)) {
+      return 'CORN';
+    }
+    // NK corn: NK followed by numbers (not NKS which is soybeans)
+    if (/\bNK\d/.test(nameUpper) && !nameUpper.includes('NKS')) {
+      return 'CORN';
+    }
+    // LG corn patterns
+    if (/^LG\d{4}/.test(nameUpper)) {
+      return 'CORN';
+    }
+
+    // Default to CORN if unclear (most common crop)
     return 'CORN';
   }
 
@@ -700,13 +761,16 @@ export class InvoiceService {
             });
           } else {
             // Create new seed hybrid
+            // Default seeds per bag by commodity type (soybeans: 140k, corn/wheat: 80k)
+            const defaultSeedsPerBag = commodityType === 'SOYBEANS' ? 140000 : 80000;
+
             const newSeed = await tx.seedHybrid.create({
               data: {
                 businessId,
                 name: item.productName,
                 commodityType,
                 pricePerBag: new Decimal(item.pricePerUnit),
-                seedsPerBag: 80000, // Default
+                seedsPerBag: defaultSeedsPerBag,
                 needsPricing: false
               }
             });

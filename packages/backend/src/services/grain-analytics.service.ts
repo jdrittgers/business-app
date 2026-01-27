@@ -126,8 +126,10 @@ export class GrainAnalyticsService {
     const totalRemainingAll = totalProjectedAll - totalSoldAll;
     const percentageSoldAll = totalProjectedAll > 0 ? (totalSoldAll / totalProjectedAll) * 100 : 0;
 
-    // Format by commodity
-    const byCommodity = Array.from(byCommodityMap.entries()).map(([commodityType, data]) => {
+    // Format by commodity - ensure all three commodities are always included
+    const allCommodities = ['CORN', 'SOYBEANS', 'WHEAT'] as CommodityType[];
+    const byCommodity = allCommodities.map((commodityType) => {
+      const data = byCommodityMap.get(commodityType) || { projected: 0, sold: 0 };
       const priceData = byCommodityPriceMap.get(commodityType);
       const averagePrice = priceData && priceData.totalBushels > 0
         ? priceData.totalValue / priceData.totalBushels
