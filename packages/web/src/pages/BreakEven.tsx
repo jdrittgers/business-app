@@ -1001,88 +1001,107 @@ export default function BreakEven() {
             )}
           </div>
 
-          {/* By Entity */}
+          {/* By Entity - Grouped by entity name */}
           {summary.byEntity.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Break-Even by Entity</h3>
               <div className="space-y-4">
-                {summary.byEntity.map((entity) => {
-                  const price = cashPrices[entity.commodityType] || 0;
-                  const revenue = entity.expectedBushels * price;
-                  const profit = revenue - entity.totalCost;
+                {(() => {
+                  // Group entities by grainEntityId
+                  const groupedEntities = summary.byEntity.reduce((acc, entity) => {
+                    if (!acc[entity.grainEntityId]) {
+                      acc[entity.grainEntityId] = {
+                        grainEntityId: entity.grainEntityId,
+                        grainEntityName: entity.grainEntityName,
+                        commodities: []
+                      };
+                    }
+                    acc[entity.grainEntityId].commodities.push(entity);
+                    return acc;
+                  }, {} as Record<string, { grainEntityId: string; grainEntityName: string; commodities: typeof summary.byEntity }>);
 
-                  return (
-                    <div key={`${entity.grainEntityId}-${entity.commodityType}`} className="border rounded-lg p-4">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">
-                            {entity.commodityType === 'CORN' ? '🌽' : entity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
-                          </span>
-                          <h4 className="font-medium text-gray-900">{entity.grainEntityName}</h4>
-                          <span className="text-sm text-gray-500">• {entity.commodityType}</span>
+                  return Object.values(groupedEntities).map((group) => {
+                    // Calculate totals for the entire entity
+                    const totalAcres = group.commodities.reduce((sum, c) => sum + c.totalAcres, 0);
+                    const totalCost = group.commodities.reduce((sum, c) => sum + c.totalCost, 0);
+                    const totalRevenue = group.commodities.reduce((sum, c) => {
+                      const price = cashPrices[c.commodityType] || 0;
+                      return sum + (c.expectedBushels * price);
+                    }, 0);
+                    const totalProfit = totalRevenue - totalCost;
+
+                    return (
+                      <div key={group.grainEntityId} className="border rounded-lg p-4">
+                        {/* Entity Header */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 pb-3 border-b">
+                          <h4 className="text-lg font-semibold text-gray-900">{group.grainEntityName}</h4>
+                          <div className="flex items-center gap-4">
+                            <span className="text-sm text-gray-600">{totalAcres.toLocaleString()} total acres</span>
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              totalProfit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} total
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-lg font-bold text-purple-600">${entity.breakEvenPrice.toFixed(2)}/bu</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {profit >= 0 ? '+' : ''}${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </span>
+
+                        {/* Commodities Grid */}
+                        <div className={`grid gap-4 ${group.commodities.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+                          {group.commodities.map((entity) => {
+                            const price = cashPrices[entity.commodityType] || 0;
+                            const revenue = entity.expectedBushels * price;
+                            const profit = revenue - entity.totalCost;
+
+                            return (
+                              <div key={entity.commodityType} className="bg-gray-50 rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <span className="text-2xl">
+                                    {entity.commodityType === 'CORN' ? '🌽' : entity.commodityType === 'SOYBEANS' ? '🫘' : '🌾'}
+                                  </span>
+                                  <span className="font-medium text-gray-900">{entity.commodityType}</span>
+                                  <span className="ml-auto text-lg font-bold text-purple-600">${entity.breakEvenPrice.toFixed(2)}/bu</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-gray-500">Acres</span>
+                                    <p className="font-semibold">{entity.totalAcres.toLocaleString()}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Exp. Bushels</span>
+                                    <p className="font-semibold">{entity.expectedBushels.toLocaleString()}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Total Cost</span>
+                                    <p className="font-semibold text-red-600">${entity.totalCost?.toLocaleString() || '0'}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Cost/Acre</span>
+                                    <p className="font-semibold">${entity.costPerAcre.toFixed(2)}</p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Projected P/L</span>
+                                    <p className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {profit >= 0 ? '+' : ''}${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Farms</span>
+                                    <p className="font-semibold">{entity.farms.length}</p>
+                                  </div>
+                                </div>
+                                {entity.totalLoanCost > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">
+                                    Loan costs: ${entity.totalLoanCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-600">Acres:</span>
-                          <p className="font-semibold">{entity.totalAcres.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Total Cost:</span>
-                          <p className="font-semibold text-red-600">${entity.totalCost?.toLocaleString() || '0'}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Cost/Acre:</span>
-                          <p className="font-semibold">${entity.costPerAcre.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Exp. Bushels:</span>
-                          <p className="font-semibold">{entity.expectedBushels.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Farms:</span>
-                          <p className="font-semibold">{entity.farms.length}</p>
-                        </div>
-                      </div>
-                      {entity.totalLoanCost > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500 text-xs">Land Loans:</span>
-                            <p className="font-medium text-red-600">
-                              ${((entity.landLoanInterest || 0) + (entity.landLoanPrincipal || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 text-xs">Operating Loan:</span>
-                            <p className="font-medium text-orange-600">
-                              ${(entity.operatingLoanInterest || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 text-xs">Equipment Loans:</span>
-                            <p className="font-medium text-cyan-600">
-                              ${((entity.equipmentLoanInterest || 0) + (entity.equipmentLoanPrincipal || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 text-xs">Total Loan Cost:</span>
-                            <p className="font-medium text-gray-900">
-                              ${entity.totalLoanCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
