@@ -843,7 +843,6 @@ export default function ProductCatalog() {
                     >
                       <option value="CORN">Corn</option>
                       <option value="SOYBEANS">Soybeans</option>
-                      <option value="WHEAT">Wheat</option>
                     </select>
                   </div>
                 )}
@@ -990,7 +989,7 @@ export default function ProductCatalog() {
                     <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <h4 className="text-sm font-semibold text-blue-800 mb-3">Apply Discounts ($/bag)</h4>
                       <p className="text-xs text-blue-600 mb-3">Enter discount amounts to subtract from scanned prices</p>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">Corn</label>
                           <div className="relative">
@@ -1016,21 +1015,6 @@ export default function ProductCatalog() {
                               min="0"
                               value={seedDiscounts.soybeans || ''}
                               onChange={(e) => setSeedDiscounts({ ...seedDiscounts, soybeans: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Wheat</label>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={seedDiscounts.wheat || ''}
-                              onChange={(e) => setSeedDiscounts({ ...seedDiscounts, wheat: parseFloat(e.target.value) || 0 })}
                               className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
                               placeholder="0.00"
                             />

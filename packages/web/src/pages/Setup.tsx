@@ -232,7 +232,6 @@ function FarmModal({ isOpen, onClose, onSave, entities, defaultYear }: FarmModal
                   >
                     <option value="CORN">Corn</option>
                     <option value="SOYBEANS">Soybeans</option>
-                    <option value="WHEAT">Wheat</option>
                   </select>
                 </div>
               </div>
@@ -1025,7 +1024,6 @@ export default function Setup() {
                           >
                             <option value="CORN">Corn</option>
                             <option value="SOYBEANS">Soybeans</option>
-                            <option value="WHEAT">Wheat</option>
                           </select>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{farm.year}</td>

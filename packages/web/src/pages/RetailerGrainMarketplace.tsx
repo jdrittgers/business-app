@@ -207,7 +207,6 @@ const RetailerGrainMarketplace: React.FC = () => {
               <option value="">All Commodities</option>
               <option value="CORN">Corn</option>
               <option value="SOYBEANS">Soybeans</option>
-              <option value="WHEAT">Wheat</option>
             </select>
           </div>
           <div className="flex items-end">

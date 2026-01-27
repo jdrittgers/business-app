@@ -620,7 +620,6 @@ export default function GrainContracts() {
                 <option value="ALL">All Commodities</option>
                 <option value="CORN">🌽 Corn</option>
                 <option value="SOYBEANS">🫘 Soybeans</option>
-                <option value="WHEAT">🌾 Wheat</option>
               </select>
 
               <select
@@ -853,7 +852,6 @@ export default function GrainContracts() {
                   >
                     <option value="CORN">Corn</option>
                     <option value="SOYBEANS">Soybeans</option>
-                    <option value="WHEAT">Wheat</option>
                   </select>
                 </div>
                 <div>

@@ -426,7 +426,6 @@ export default function FarmManagement() {
               <option value="ALL">All Commodities</option>
               <option value="CORN">Corn</option>
               <option value="SOYBEANS">Soybeans</option>
-              <option value="WHEAT">Wheat</option>
             </select>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -909,7 +908,6 @@ export default function FarmManagement() {
                   >
                     <option value="CORN">🌽 Corn</option>
                     <option value="SOYBEANS">🫘 Soybeans</option>
-                    <option value="WHEAT">🌾 Wheat</option>
                   </select>
                 </div>
 

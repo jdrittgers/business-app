@@ -166,8 +166,8 @@ export class GrainAnalyticsService {
     const totalRemainingAll = totalProjectedAll - totalSoldAll;
     const percentageSoldAll = totalProjectedAll > 0 ? (totalSoldAll / totalProjectedAll) * 100 : 0;
 
-    // Format by commodity - ensure all three commodities are always included
-    const allCommodities = ['CORN', 'SOYBEANS', 'WHEAT'] as CommodityType[];
+    // Format by commodity - only show CORN and SOYBEANS (wheat disabled for now)
+    const allCommodities = ['CORN', 'SOYBEANS'] as CommodityType[];
     const byCommodity = allCommodities.map((commodityType) => {
       const data = byCommodityMap.get(commodityType) || { projected: 0, sold: 0 };
       const priceData = byCommodityPriceMap.get(commodityType);

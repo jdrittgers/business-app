@@ -18,8 +18,7 @@ import {
 const COMMODITY_OPTIONS = [
   { value: '', label: 'All Commodities' },
   { value: 'CORN', label: 'Corn' },
-  { value: 'SOYBEANS', label: 'Soybeans' },
-  { value: 'WHEAT', label: 'Wheat' }
+  { value: 'SOYBEANS', label: 'Soybeans' }
 ];
 
 const PASS_TYPE_OPTIONS = [
@@ -1022,7 +1021,6 @@ export default function ChemicalPlanTemplates() {
                       <option value="">Select commodity...</option>
                       <option value="CORN">Corn</option>
                       <option value="SOYBEANS">Soybeans</option>
-                      <option value="WHEAT">Wheat</option>
                     </select>
                   </div>
                   <div>

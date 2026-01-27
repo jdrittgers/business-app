@@ -371,7 +371,6 @@ export default function MarketingAI() {
           <option value="ALL">All Commodities</option>
           <option value="CORN">Corn</option>
           <option value="SOYBEANS">Soybeans</option>
-          <option value="WHEAT">Wheat</option>
         </select>
       </div>
 

@@ -971,7 +971,6 @@ export default function InvoiceParsing() {
                 >
                   <option value="CORN">Corn</option>
                   <option value="SOYBEANS">Soybeans</option>
-                  <option value="WHEAT">Wheat</option>
                 </select>
               </div>
 

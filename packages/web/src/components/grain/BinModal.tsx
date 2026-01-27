@@ -202,13 +202,12 @@ export default function BinModal({
                   <select
                     id="commodityType"
                     value={commodityType}
-                    onChange={(e) => setCommodityType(e.target.value as 'CORN' | 'SOYBEANS' | 'WHEAT')}
+                    onChange={(e) => setCommodityType(e.target.value as 'CORN' | 'SOYBEANS')}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                     required
                   >
                     <option value="CORN">Corn</option>
                     <option value="SOYBEANS">Soybeans</option>
-                    <option value="WHEAT">Wheat</option>
                   </select>
                 </div>
 
