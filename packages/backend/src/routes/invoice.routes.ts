@@ -82,4 +82,13 @@ router.post(
   invoiceController.scanFertilizerBillToCatalog
 );
 
+// Scan chemical bill and add to catalog
+router.post(
+  '/businesses/:businessId/catalog/scan-chemical-bill',
+  authenticate,
+  requireBusinessAccess,
+  upload.single('file'),
+  invoiceController.scanChemicalBillToCatalog
+);
+
 export default router;

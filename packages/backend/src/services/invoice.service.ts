@@ -891,6 +891,180 @@ export class InvoiceService {
       throw error;
     }
   }
+
+  /**
+   * Parse a chemical bill and add products to the catalog
+   */
+  async parseChemicalBillToCatalog(
+    businessId: string,
+    userId: string,
+    file: Express.Multer.File
+  ): Promise<{
+    invoice: any;
+    addedProducts: any[];
+    updatedProducts: any[];
+  }> {
+    // Create invoice record
+    const invoice = await prisma.invoice.create({
+      data: {
+        businessId,
+        uploadedBy: userId,
+        fileName: file.originalname,
+        filePath: file.path,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        status: InvoiceStatus.PENDING
+      }
+    });
+
+    try {
+      // Parse the invoice
+      const parsedData = await parserService.parseInvoice(file.path, file.mimetype);
+
+      // Update invoice with parsed metadata
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: InvoiceStatus.PARSED,
+          vendorName: parsedData.vendorName,
+          invoiceNumber: parsedData.invoiceNumber,
+          invoiceDate: parsedData.invoiceDate ? new Date(parsedData.invoiceDate) : null,
+          totalAmount: parsedData.totalAmount ? new Decimal(parsedData.totalAmount) : null,
+          parsedData: parsedData as any,
+          parsedAt: new Date()
+        }
+      });
+
+      // Create line items
+      for (const item of parsedData.lineItems) {
+        await prisma.invoiceLineItem.create({
+          data: {
+            invoiceId: invoice.id,
+            productType: item.productType as InvoiceProductType,
+            productName: item.productName,
+            quantity: new Decimal(item.quantity),
+            unit: item.unit,
+            pricePerUnit: new Decimal(item.pricePerUnit),
+            totalPrice: new Decimal(item.totalPrice),
+            isNewProduct: false,
+            ratePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : null,
+            rateUnit: item.rateUnit || null
+          }
+        });
+      }
+
+      // Get chemical line items
+      const chemicalItems = parsedData.lineItems.filter(
+        (item: any) => item.productType === 'CHEMICAL'
+      );
+
+      const addedProducts: any[] = [];
+      const updatedProducts: any[] = [];
+
+      // Process chemical items
+      await prisma.$transaction(async (tx) => {
+        for (const item of chemicalItems) {
+          // Infer category from product name
+          const category = this.inferChemicalCategory(item.productName);
+
+          const existingChemical = await tx.chemical.findFirst({
+            where: {
+              businessId,
+              name: { equals: item.productName, mode: 'insensitive' }
+            }
+          });
+
+          if (existingChemical) {
+            // Update existing chemical
+            await tx.chemical.update({
+              where: { id: existingChemical.id },
+              data: {
+                pricePerUnit: new Decimal(item.pricePerUnit),
+                needsPricing: false,
+                defaultRatePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : undefined,
+                rateUnit: item.rateUnit || undefined
+              }
+            });
+            updatedProducts.push({
+              id: existingChemical.id,
+              name: item.productName,
+              pricePerUnit: item.pricePerUnit,
+              unit: existingChemical.unit,
+              category: existingChemical.category,
+              isNew: false
+            });
+          } else {
+            // Create new chemical
+            const newChemical = await tx.chemical.create({
+              data: {
+                businessId,
+                name: item.productName,
+                pricePerUnit: new Decimal(item.pricePerUnit),
+                unit: item.unit || 'GAL',
+                category,
+                needsPricing: false,
+                defaultRatePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : undefined,
+                rateUnit: item.rateUnit || undefined
+              }
+            });
+            addedProducts.push({
+              id: newChemical.id,
+              name: item.productName,
+              pricePerUnit: item.pricePerUnit,
+              unit: newChemical.unit,
+              category: newChemical.category,
+              isNew: true
+            });
+          }
+        }
+      });
+
+      // Mark invoice as reviewed
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: InvoiceStatus.REVIEWED }
+      });
+
+      const finalInvoice = await this.getById(invoice.id, businessId);
+
+      return {
+        invoice: finalInvoice,
+        addedProducts,
+        updatedProducts
+      };
+    } catch (error) {
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: InvoiceStatus.FAILED,
+          parseError: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Infer chemical category from product name
+   */
+  private inferChemicalCategory(productName: string): 'HERBICIDE' | 'FUNGICIDE' | 'IN_FURROW' {
+    const name = productName.toUpperCase();
+
+    // Fungicide keywords
+    if (name.includes('FUNGICIDE') || name.includes('DELARO') || name.includes('PRIAXOR') ||
+        name.includes('STRATEGO') || name.includes('HEADLINE') || name.includes('QUILT')) {
+      return 'FUNGICIDE';
+    }
+
+    // In-furrow keywords
+    if (name.includes('STARTER') || name.includes('IN-FURROW') || name.includes('INFURROW') ||
+        name.includes('POP-UP') || name.includes('POPUP')) {
+      return 'IN_FURROW';
+    }
+
+    // Default to herbicide
+    return 'HERBICIDE';
+  }
 }
 
 export const invoiceService = new InvoiceService();

@@ -424,5 +424,35 @@ export const breakevenApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return response.data;
+  },
+
+  // Scan chemical bill and add to catalog
+  scanChemicalBillToCatalog: async (businessId: string, file: File): Promise<{
+    invoice: any;
+    addedProducts: Array<{
+      id: string;
+      name: string;
+      pricePerUnit: number;
+      unit: string;
+      category: string;
+      isNew: boolean;
+    }>;
+    updatedProducts: Array<{
+      id: string;
+      name: string;
+      pricePerUnit: number;
+      unit: string;
+      category: string;
+      isNew: boolean;
+    }>;
+  }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post(
+      `/api/businesses/${businessId}/catalog/scan-chemical-bill`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
   }
 };
