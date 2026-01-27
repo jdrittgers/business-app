@@ -588,12 +588,27 @@ model Fertilizer {
   id                 String   @id @default(uuid())
   businessId         String   @map("business_id")
   name               String   // MAP, DAP, MESZ, POTASH, LIME, UREA, UAN(32%), SULFUR, etc.
-  pricePerUnit       Decimal  @map("price_per_unit") @db.Decimal(10, 2) // Price per lb or gallon
-  unit               String   // "LB" or "GAL"
+  pricePerUnit       Decimal  @map("price_per_unit") @db.Decimal(10, 2) // Price per lb or gallon (application unit)
+  unit               String   // "LB" or "GAL" - application unit
   defaultRatePerAcre Decimal? @map("default_rate_per_acre") @db.Decimal(10, 4) // Default application rate per acre
   rateUnit           String?  @map("rate_unit") // Unit for the rate (may differ from purchase unit)
   isActive           Boolean  @default(true) @map("is_active")
   needsPricing       Boolean  @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
+
+  // Nutrient content (percentages)
+  nitrogenPct        Decimal? @map("nitrogen_pct") @db.Decimal(5, 2)     // N%
+  phosphorusPct      Decimal? @map("phosphorus_pct") @db.Decimal(5, 2)   // P2O5%
+  potassiumPct       Decimal? @map("potassium_pct") @db.Decimal(5, 2)    // K2O%
+  sulfurPct          Decimal? @map("sulfur_pct") @db.Decimal(5, 2)       // S%
+
+  // For liquid fertilizers
+  isLiquid           Boolean  @default(false) @map("is_liquid")
+  lbsPerGallon       Decimal? @map("lbs_per_gallon") @db.Decimal(6, 3)   // Weight per gallon (e.g., 11.06 for UAN)
+
+  // Purchase unit (may differ from application unit)
+  purchaseUnit       String?  @map("purchase_unit")                      // TON, LB, GAL
+  pricePerPurchaseUnit Decimal? @map("price_per_purchase_unit") @db.Decimal(10, 2)
+
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -746,6 +761,7 @@ model FarmFertilizerUsage {
   fertilizerId    String    @map("fertilizer_id")
   amountUsed      Decimal   @map("amount_used") @db.Decimal(10, 2) // Total pounds or gallons (calculated from ratePerAcre * acresApplied)
   ratePerAcre     Decimal?  @map("rate_per_acre") @db.Decimal(10, 4) // Application rate per acre (e.g., 150 lbs/acre)
+  rateInputUnit   String?   @map("rate_input_unit") // Unit user entered rate in: "GAL", "LB", "LBS_N", "LBS_P", "LBS_K"
   acresApplied    Decimal?  @map("acres_applied") @db.Decimal(10, 2) // Acres this fertilizer was applied to
   completedAt     DateTime? @map("completed_at")
   completedById   String?   @map("completed_by_id")

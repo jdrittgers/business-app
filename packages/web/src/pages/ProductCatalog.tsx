@@ -201,7 +201,19 @@ export default function ProductCatalog() {
   const handleAdd = () => {
     setEditingItem(null);
     if (activeTab === 'fertilizers') {
-      setFormData({ name: '', pricePerUnit: '', unit: 'LB' });
+      setFormData({
+        name: '',
+        pricePerUnit: '',
+        unit: 'GAL',
+        isLiquid: false,
+        lbsPerGallon: '',
+        purchaseUnit: '',
+        pricePerPurchaseUnit: '',
+        nitrogenPct: '',
+        phosphorusPct: '',
+        potassiumPct: '',
+        sulfurPct: ''
+      });
     } else if (activeTab === 'chemicals') {
       setFormData({ name: '', pricePerUnit: '', unit: 'GAL', category: 'HERBICIDE' });
     } else {
@@ -240,11 +252,26 @@ export default function ProductCatalog() {
 
     try {
       if (activeTab === 'fertilizers') {
-        const data = {
+        const data: any = {
           name: formData.name,
-          pricePerUnit: parseFloat(formData.pricePerUnit),
-          unit: formData.unit as UnitType
+          pricePerUnit: parseFloat(formData.pricePerUnit) || 0,
+          unit: formData.unit as UnitType,
+          isLiquid: formData.isLiquid || false
         };
+        // Add nutrient percentages if provided
+        if (formData.nitrogenPct) data.nitrogenPct = parseFloat(formData.nitrogenPct);
+        if (formData.phosphorusPct) data.phosphorusPct = parseFloat(formData.phosphorusPct);
+        if (formData.potassiumPct) data.potassiumPct = parseFloat(formData.potassiumPct);
+        if (formData.sulfurPct) data.sulfurPct = parseFloat(formData.sulfurPct);
+        // Add liquid properties if applicable
+        if (formData.isLiquid && formData.lbsPerGallon) {
+          data.lbsPerGallon = parseFloat(formData.lbsPerGallon);
+        }
+        // Add purchase unit pricing if provided
+        if (formData.purchaseUnit && formData.pricePerPurchaseUnit) {
+          data.purchaseUnit = formData.purchaseUnit;
+          data.pricePerPurchaseUnit = parseFloat(formData.pricePerPurchaseUnit);
+        }
         if (editingItem) {
           await breakevenApi.updateFertilizer(selectedBusinessId, editingItem.id, data);
         } else {
@@ -919,18 +946,148 @@ export default function ProductCatalog() {
 
                 {activeTab !== 'seedHybrids' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Application Unit</label>
                     <select
-                      value={formData.unit || 'TON'}
+                      value={formData.unit || 'GAL'}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       required
                     >
-                      <option value="TON">TON (Tons)</option>
-                      <option value="LB">LB (Pounds)</option>
                       <option value="GAL">GAL (Gallons)</option>
+                      <option value="LB">LB (Pounds)</option>
                     </select>
                   </div>
+                )}
+
+                {/* Fertilizer-specific fields */}
+                {activeTab === 'fertilizers' && (
+                  <>
+                    {/* Is Liquid toggle */}
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="isLiquid"
+                        checked={formData.isLiquid || false}
+                        onChange={(e) => setFormData({ ...formData, isLiquid: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                      />
+                      <label htmlFor="isLiquid" className="ml-2 text-sm text-gray-700">
+                        Liquid fertilizer (e.g., UAN)
+                      </label>
+                    </div>
+
+                    {/* Lbs per gallon - only show for liquid */}
+                    {formData.isLiquid && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Weight (lbs/gallon)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.lbsPerGallon || ''}
+                          onChange={(e) => setFormData({ ...formData, lbsPerGallon: e.target.value })}
+                          placeholder="e.g., 11.06 for 32% UAN"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </div>
+                    )}
+
+                    {/* Purchase Unit pricing */}
+                    <div className="border-t pt-4 mt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Purchase Pricing (Optional)</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Purchase Unit</label>
+                          <select
+                            value={formData.purchaseUnit || ''}
+                            onChange={(e) => setFormData({ ...formData, purchaseUnit: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          >
+                            <option value="">Same as application</option>
+                            <option value="TON">TON</option>
+                            <option value="LB">LB</option>
+                            <option value="GAL">GAL</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Price per Purchase Unit</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={formData.pricePerPurchaseUnit || ''}
+                            onChange={(e) => setFormData({ ...formData, pricePerPurchaseUnit: e.target.value })}
+                            placeholder="e.g., 400.00"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            disabled={!formData.purchaseUnit}
+                          />
+                        </div>
+                      </div>
+                      {formData.purchaseUnit && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          System will calculate price per {formData.unit || 'application unit'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Nutrient Content */}
+                    <div className="border-t pt-4 mt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nutrient Content (%)</label>
+                      <p className="text-xs text-gray-500 mb-2">Leave blank to auto-detect from product name</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">N</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={formData.nitrogenPct || ''}
+                            onChange={(e) => setFormData({ ...formData, nitrogenPct: e.target.value })}
+                            placeholder="0"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">P₂O₅</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={formData.phosphorusPct || ''}
+                            onChange={(e) => setFormData({ ...formData, phosphorusPct: e.target.value })}
+                            placeholder="0"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">K₂O</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={formData.potassiumPct || ''}
+                            onChange={(e) => setFormData({ ...formData, potassiumPct: e.target.value })}
+                            placeholder="0"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">S</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="100"
+                            value={formData.sulfurPct || ''}
+                            onChange={(e) => setFormData({ ...formData, sulfurPct: e.target.value })}
+                            placeholder="0"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {activeTab === 'chemicals' && (

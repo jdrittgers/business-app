@@ -58,6 +58,17 @@ export interface Fertilizer {
   rateUnit?: string; // Unit for the rate (may differ from purchase unit)
   isActive: boolean;
   needsPricing: boolean;
+  // Nutrient content (percentages)
+  nitrogenPct?: number;    // N%
+  phosphorusPct?: number;  // P2O5%
+  potassiumPct?: number;   // K2O%
+  sulfurPct?: number;      // S%
+  // For liquid fertilizers
+  isLiquid?: boolean;
+  lbsPerGallon?: number;   // Weight per gallon (e.g., 11.06 for UAN)
+  // Purchase unit (may differ from application unit)
+  purchaseUnit?: string;   // TON, LB, GAL
+  pricePerPurchaseUnit?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,6 +79,17 @@ export interface CreateFertilizerRequest {
   unit: UnitType;
   defaultRatePerAcre?: number;
   rateUnit?: string;
+  // Nutrient content (percentages)
+  nitrogenPct?: number;
+  phosphorusPct?: number;
+  potassiumPct?: number;
+  sulfurPct?: number;
+  // Liquid properties
+  isLiquid?: boolean;
+  lbsPerGallon?: number;
+  // Purchase unit
+  purchaseUnit?: string;
+  pricePerPurchaseUnit?: number;
 }
 
 export interface UpdateFertilizerRequest {
@@ -77,6 +99,17 @@ export interface UpdateFertilizerRequest {
   defaultRatePerAcre?: number;
   rateUnit?: string;
   isActive?: boolean;
+  // Nutrient content (percentages)
+  nitrogenPct?: number;
+  phosphorusPct?: number;
+  potassiumPct?: number;
+  sulfurPct?: number;
+  // Liquid properties
+  isLiquid?: boolean;
+  lbsPerGallon?: number;
+  // Purchase unit
+  purchaseUnit?: string;
+  pricePerPurchaseUnit?: number;
 }
 
 export interface Chemical {
@@ -211,6 +244,7 @@ export interface FarmFertilizerUsage {
   fertilizerId: string;
   amountUsed: number;
   ratePerAcre?: number;
+  rateInputUnit?: string; // Unit user entered rate in: "GAL", "LB", "LBS_N", "LBS_P", "LBS_K"
   acresApplied?: number;
   completedAt?: Date;
   completedById?: string;
@@ -226,12 +260,14 @@ export interface CreateFarmFertilizerUsageRequest {
   fertilizerId: string;
   amountUsed?: number;
   ratePerAcre?: number;
+  rateInputUnit?: string; // "GAL", "LB", "LBS_N", "LBS_P", "LBS_K"
   acresApplied?: number;
 }
 
 export interface UpdateFarmFertilizerUsageRequest {
   amountUsed?: number;
   ratePerAcre?: number;
+  rateInputUnit?: string;
   acresApplied?: number;
 }
 
@@ -390,6 +426,7 @@ export interface FarmBreakEven {
     bagsPerAcre: number;
     totalCost: number;
   };
+  nutrientSummary?: NutrientSummary;
 }
 
 export interface EntityBreakEven {
@@ -621,4 +658,24 @@ export interface CreateNotificationRequest {
 
 export interface MarkActivityCompleteRequest {
   completedAt?: Date; // Defaults to today if not provided
+}
+
+// ===== Nutrient Tracking Types =====
+
+export interface NutrientSummary {
+  nitrogenPerAcre: number;    // lbs N/acre
+  phosphorusPerAcre: number;  // lbs P2O5/acre
+  potassiumPerAcre: number;   // lbs K2O/acre
+  sulfurPerAcre: number;      // lbs S/acre
+}
+
+// Preset fertilizer nutrient data
+export interface FertilizerPreset {
+  namePattern: string;        // Regex pattern to match product name
+  nitrogenPct: number;
+  phosphorusPct: number;
+  potassiumPct: number;
+  sulfurPct: number;
+  isLiquid: boolean;
+  lbsPerGallon?: number;
 }

@@ -258,13 +258,39 @@ export class BreakEvenAnalyticsService {
   ): Promise<FarmBreakEven> {
     const acres = Number(farm.acres);
 
-    // Calculate fertilizer cost
+    // Calculate fertilizer cost and nutrient totals
     let fertilizerCost = 0;
+    let totalNitrogen = 0;
+    let totalPhosphorus = 0;
+    let totalPotassium = 0;
+    let totalSulfur = 0;
+
     const fertilizerUsage = farm.fertilizerUsage.map((usage: any) => {
       const amountUsed = Number(usage.amountUsed);
       const pricePerUnit = Number(usage.fertilizer.pricePerUnit);
       const totalCost = amountUsed * pricePerUnit;
       fertilizerCost += totalCost;
+
+      // Calculate lbs of product applied (convert gallons to lbs for liquid)
+      const acresApplied = usage.acresApplied ? Number(usage.acresApplied) : acres;
+      let lbsApplied = amountUsed;
+      if (usage.fertilizer.isLiquid && usage.fertilizer.lbsPerGallon) {
+        lbsApplied = amountUsed * Number(usage.fertilizer.lbsPerGallon);
+      }
+
+      // Calculate nutrients applied (in lbs)
+      if (usage.fertilizer.nitrogenPct) {
+        totalNitrogen += lbsApplied * (Number(usage.fertilizer.nitrogenPct) / 100);
+      }
+      if (usage.fertilizer.phosphorusPct) {
+        totalPhosphorus += lbsApplied * (Number(usage.fertilizer.phosphorusPct) / 100);
+      }
+      if (usage.fertilizer.potassiumPct) {
+        totalPotassium += lbsApplied * (Number(usage.fertilizer.potassiumPct) / 100);
+      }
+      if (usage.fertilizer.sulfurPct) {
+        totalSulfur += lbsApplied * (Number(usage.fertilizer.sulfurPct) / 100);
+      }
 
       return {
         name: usage.fertilizer.name,
@@ -274,6 +300,14 @@ export class BreakEvenAnalyticsService {
         totalCost
       };
     });
+
+    // Calculate nutrient summary (lbs per acre)
+    const nutrientSummary = {
+      nitrogenPerAcre: acres > 0 ? totalNitrogen / acres : 0,
+      phosphorusPerAcre: acres > 0 ? totalPhosphorus / acres : 0,
+      potassiumPerAcre: acres > 0 ? totalPotassium / acres : 0,
+      sulfurPerAcre: acres > 0 ? totalSulfur / acres : 0
+    };
 
     // Calculate chemical cost
     let chemicalCost = 0;
@@ -398,7 +432,8 @@ export class BreakEvenAnalyticsService {
       breakEvenPrice,
       fertilizerUsage,
       chemicalUsage,
-      seedUsage
+      seedUsage,
+      nutrientSummary
     };
   }
 }

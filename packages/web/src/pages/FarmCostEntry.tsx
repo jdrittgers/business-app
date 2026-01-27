@@ -35,10 +35,14 @@ export default function FarmCostEntry() {
   // Chemical category tab
   const [chemicalTab, setChemicalTab] = useState<ChemicalCategory>(ChemicalCategory.HERBICIDE);
 
+  // Cost view toggle (total vs per-acre)
+  const [costView, setCostView] = useState<'total' | 'perAcre'>('total');
+
   // Form states
   const [fertilizerForm, setFertilizerForm] = useState({
     fertilizerId: '',
     ratePerAcre: '',
+    rateInputUnit: '' as '' | 'GAL' | 'LB' | 'LBS_N',
     useAllAcres: true,
     acresApplied: '',
     amountUsed: ''
@@ -176,14 +180,19 @@ export default function FarmCostEntry() {
     try {
       const acresApplied = fertilizerForm.useAllAcres ? farm.acres : parseFloat(fertilizerForm.acresApplied);
       const ratePerAcre = parseFloat(fertilizerForm.ratePerAcre);
+      const selectedFertilizer = fertilizers.find(f => f.id === fertilizerForm.fertilizerId);
+
+      // Determine rate input unit (default to application unit if not specified)
+      const rateInputUnit = fertilizerForm.rateInputUnit || (selectedFertilizer?.isLiquid ? 'GAL' : 'LB');
 
       await breakevenApi.addFertilizerUsage(selectedBusinessId, {
         farmId,
         fertilizerId: fertilizerForm.fertilizerId,
         ratePerAcre,
+        rateInputUnit,
         acresApplied
       });
-      setFertilizerForm({ fertilizerId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', amountUsed: '' });
+      setFertilizerForm({ fertilizerId: '', ratePerAcre: '', rateInputUnit: '', useAllAcres: true, acresApplied: '', amountUsed: '' });
       await loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to add fertilizer usage');
@@ -651,6 +660,36 @@ export default function FarmCostEntry() {
                 </button>
               )}
             </div>
+
+            {/* N-P-K-S Summary Card */}
+            {breakEven?.nutrientSummary && (
+              <div className="grid grid-cols-4 gap-3 mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-green-700">
+                    {breakEven.nutrientSummary.nitrogenPerAcre?.toFixed(1) || '0'}
+                  </div>
+                  <div className="text-xs text-gray-600">lbs N/acre</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-blue-700">
+                    {breakEven.nutrientSummary.phosphorusPerAcre?.toFixed(1) || '0'}
+                  </div>
+                  <div className="text-xs text-gray-600">lbs P₂O₅/acre</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-purple-700">
+                    {breakEven.nutrientSummary.potassiumPerAcre?.toFixed(1) || '0'}
+                  </div>
+                  <div className="text-xs text-gray-600">lbs K₂O/acre</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-yellow-700">
+                    {breakEven.nutrientSummary.sulfurPerAcre?.toFixed(1) || '0'}
+                  </div>
+                  <div className="text-xs text-gray-600">lbs S/acre</div>
+                </div>
+              </div>
+            )}
             {canEdit() && (
               <form onSubmit={handleAddFertilizer} className="space-y-4">
               <div>
@@ -676,15 +715,52 @@ export default function FarmCostEntry() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Rate per Acre
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={fertilizerForm.ratePerAcre}
-                  onChange={(e) => setFertilizerForm({ ...fertilizerForm, ratePerAcre: e.target.value })}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="e.g., 150 (lbs/acre or gal/acre)"
-                  required
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={fertilizerForm.ratePerAcre}
+                    onChange={(e) => setFertilizerForm({ ...fertilizerForm, ratePerAcre: e.target.value })}
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    placeholder={
+                      fertilizerForm.rateInputUnit === 'LBS_N' ? 'lbs N/acre'
+                      : fertilizers.find(f => f.id === fertilizerForm.fertilizerId)?.isLiquid ? 'gal/acre'
+                      : 'lbs/acre'
+                    }
+                    required
+                  />
+                  {/* Rate unit selector for liquid fertilizers with nitrogen */}
+                  {(() => {
+                    const selectedFert = fertilizers.find(f => f.id === fertilizerForm.fertilizerId);
+                    if (selectedFert?.isLiquid && selectedFert?.nitrogenPct && selectedFert.nitrogenPct > 0) {
+                      return (
+                        <select
+                          value={fertilizerForm.rateInputUnit || 'GAL'}
+                          onChange={(e) => setFertilizerForm({ ...fertilizerForm, rateInputUnit: e.target.value as any })}
+                          className="w-28 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                        >
+                          <option value="GAL">gal/acre</option>
+                          <option value="LBS_N">lbs N/acre</option>
+                        </select>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+                {/* Show conversion hint when using lbs N/acre */}
+                {fertilizerForm.rateInputUnit === 'LBS_N' && fertilizerForm.ratePerAcre && (() => {
+                  const selectedFert = fertilizers.find(f => f.id === fertilizerForm.fertilizerId);
+                  if (selectedFert?.lbsPerGallon && selectedFert?.nitrogenPct) {
+                    const lbsN = parseFloat(fertilizerForm.ratePerAcre);
+                    const gallons = lbsN / (selectedFert.lbsPerGallon * (selectedFert.nitrogenPct / 100));
+                    return (
+                      <p className="text-xs text-gray-500 mt-1">
+                        = {gallons.toFixed(1)} gal/acre of {selectedFert.name}
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               <div className="space-y-2">
@@ -2009,27 +2085,78 @@ export default function FarmCostEntry() {
 
               {/* Cost Breakdown */}
               <div className="bg-white rounded-lg p-4 shadow mb-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Cost Breakdown</h3>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Cost Breakdown</h3>
+                  <div className="flex rounded-md shadow-sm">
+                    <button
+                      onClick={() => setCostView('total')}
+                      className={`px-3 py-1 text-xs font-medium rounded-l-md border ${
+                        costView === 'total'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Total
+                    </button>
+                    <button
+                      onClick={() => setCostView('perAcre')}
+                      className={`px-3 py-1 text-xs font-medium rounded-r-md border-t border-r border-b ${
+                        costView === 'perAcre'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      Per Acre
+                    </button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div>
                     <p className="text-xs text-gray-600">Fertilizer</p>
-                    <p className="text-lg font-bold text-blue-600">${breakEven.costs.fertilizer.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-blue-600">
+                      ${costView === 'total'
+                        ? breakEven.costs.fertilizer.toLocaleString()
+                        : (breakEven.costs.fertilizer / breakEven.acres).toFixed(2)}
+                      {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600">Chemical</p>
-                    <p className="text-lg font-bold text-green-600">${breakEven.costs.chemical.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-green-600">
+                      ${costView === 'total'
+                        ? breakEven.costs.chemical.toLocaleString()
+                        : (breakEven.costs.chemical / breakEven.acres).toFixed(2)}
+                      {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600">Seed</p>
-                    <p className="text-lg font-bold text-purple-600">${breakEven.costs.seed.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-purple-600">
+                      ${costView === 'total'
+                        ? breakEven.costs.seed.toLocaleString()
+                        : (breakEven.costs.seed / breakEven.acres).toFixed(2)}
+                      {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600">Other</p>
-                    <p className="text-lg font-bold text-orange-600">${breakEven.costs.other.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-orange-600">
+                      ${costView === 'total'
+                        ? breakEven.costs.other.toLocaleString()
+                        : (breakEven.costs.other / breakEven.acres).toFixed(2)}
+                      {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                    </p>
                   </div>
                   <div className="bg-gray-50 rounded p-2">
-                    <p className="text-xs text-gray-600 font-semibold">Total Cost</p>
-                    <p className="text-xl font-bold text-gray-900">${breakEven.costs.total.toLocaleString()}</p>
+                    <p className="text-xs text-gray-600 font-semibold">
+                      {costView === 'total' ? 'Total Cost' : 'Cost/Acre'}
+                    </p>
+                    <p className="text-xl font-bold text-gray-900">
+                      ${costView === 'total'
+                        ? breakEven.costs.total.toLocaleString()
+                        : (breakEven.costs.total / breakEven.acres).toFixed(2)}
+                      {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                    </p>
                   </div>
                 </div>
               </div>

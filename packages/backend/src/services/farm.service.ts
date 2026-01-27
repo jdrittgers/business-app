@@ -132,6 +132,7 @@ export class FarmService {
         fertilizerId: fu.fertilizerId,
         amountUsed: Number(fu.amountUsed),
         ratePerAcre: fu.ratePerAcre ? Number(fu.ratePerAcre) : undefined,
+        rateInputUnit: fu.rateInputUnit || undefined,
         acresApplied: fu.acresApplied ? Number(fu.acresApplied) : undefined,
         completedAt: fu.completedAt || undefined,
         completedById: fu.completedById || undefined,
@@ -145,7 +146,15 @@ export class FarmService {
           unit: fu.fertilizer.unit as any,
           needsPricing: fu.fertilizer.needsPricing,
           defaultRatePerAcre: fu.fertilizer.defaultRatePerAcre ? Number(fu.fertilizer.defaultRatePerAcre) : undefined,
-          rateUnit: fu.fertilizer.rateUnit || undefined
+          rateUnit: fu.fertilizer.rateUnit || undefined,
+          nitrogenPct: fu.fertilizer.nitrogenPct ? Number(fu.fertilizer.nitrogenPct) : undefined,
+          phosphorusPct: fu.fertilizer.phosphorusPct ? Number(fu.fertilizer.phosphorusPct) : undefined,
+          potassiumPct: fu.fertilizer.potassiumPct ? Number(fu.fertilizer.potassiumPct) : undefined,
+          sulfurPct: fu.fertilizer.sulfurPct ? Number(fu.fertilizer.sulfurPct) : undefined,
+          isLiquid: fu.fertilizer.isLiquid,
+          lbsPerGallon: fu.fertilizer.lbsPerGallon ? Number(fu.fertilizer.lbsPerGallon) : undefined,
+          purchaseUnit: fu.fertilizer.purchaseUnit || undefined,
+          pricePerPurchaseUnit: fu.fertilizer.pricePerPurchaseUnit ? Number(fu.fertilizer.pricePerPurchaseUnit) : undefined
         } : undefined
       })),
       chemicalUsage: farm.chemicalUsage?.map(cu => ({
@@ -405,10 +414,45 @@ export class FarmService {
     });
     if (!fertilizer) throw new Error('Fertilizer not found');
 
+    // Convert rate if entered in nutrient units (lbs N/acre)
+    let ratePerAcre = data.ratePerAcre;
+    const rateInputUnit = data.rateInputUnit || (fertilizer.isLiquid ? 'GAL' : 'LB');
+
+    if (ratePerAcre && data.rateInputUnit === 'LBS_N' && fertilizer.nitrogenPct) {
+      // Convert lbs N/acre to application unit (gallons for liquid, lbs for dry)
+      const nitrogenPct = Number(fertilizer.nitrogenPct) / 100;
+      if (fertilizer.isLiquid && fertilizer.lbsPerGallon) {
+        // gallonsPerAcre = lbsNPerAcre / (lbsPerGallon * nitrogenPct)
+        const lbsPerGallon = Number(fertilizer.lbsPerGallon);
+        ratePerAcre = ratePerAcre / (lbsPerGallon * nitrogenPct);
+      } else {
+        // lbsPerAcre = lbsNPerAcre / nitrogenPct
+        ratePerAcre = ratePerAcre / nitrogenPct;
+      }
+    } else if (ratePerAcre && data.rateInputUnit === 'LBS_P' && fertilizer.phosphorusPct) {
+      // Convert lbs P2O5/acre to application unit
+      const phosphorusPct = Number(fertilizer.phosphorusPct) / 100;
+      if (fertilizer.isLiquid && fertilizer.lbsPerGallon) {
+        const lbsPerGallon = Number(fertilizer.lbsPerGallon);
+        ratePerAcre = ratePerAcre / (lbsPerGallon * phosphorusPct);
+      } else {
+        ratePerAcre = ratePerAcre / phosphorusPct;
+      }
+    } else if (ratePerAcre && data.rateInputUnit === 'LBS_K' && fertilizer.potassiumPct) {
+      // Convert lbs K2O/acre to application unit
+      const potassiumPct = Number(fertilizer.potassiumPct) / 100;
+      if (fertilizer.isLiquid && fertilizer.lbsPerGallon) {
+        const lbsPerGallon = Number(fertilizer.lbsPerGallon);
+        ratePerAcre = ratePerAcre / (lbsPerGallon * potassiumPct);
+      } else {
+        ratePerAcre = ratePerAcre / potassiumPct;
+      }
+    }
+
     // Calculate amountUsed from rate and acres if provided
     let amountUsed = data.amountUsed;
-    if (data.ratePerAcre && data.acresApplied) {
-      amountUsed = data.ratePerAcre * data.acresApplied;
+    if (ratePerAcre && data.acresApplied) {
+      amountUsed = ratePerAcre * data.acresApplied;
     }
 
     if (!amountUsed) {
@@ -420,7 +464,8 @@ export class FarmService {
         farmId: data.farmId,
         fertilizerId: data.fertilizerId,
         amountUsed,
-        ratePerAcre: data.ratePerAcre,
+        ratePerAcre,
+        rateInputUnit,
         acresApplied: data.acresApplied
       },
       include: {
@@ -432,6 +477,7 @@ export class FarmService {
       ...usage,
       amountUsed: Number(usage.amountUsed),
       ratePerAcre: usage.ratePerAcre ? Number(usage.ratePerAcre) : undefined,
+      rateInputUnit: usage.rateInputUnit || undefined,
       acresApplied: usage.acresApplied ? Number(usage.acresApplied) : undefined,
       fertilizer: {
         ...usage.fertilizer,
