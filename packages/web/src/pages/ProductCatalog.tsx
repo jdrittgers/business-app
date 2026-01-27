@@ -291,6 +291,41 @@ export default function ProductCatalog() {
     setSelectedProducts(newSelection);
   };
 
+  // Get current filtered items based on active tab
+  const getCurrentItems = () => {
+    if (activeTab === 'fertilizers') {
+      return fertilizers.filter(item => filter === 'all' || item.needsPricing);
+    } else if (activeTab === 'chemicals') {
+      return chemicals.filter(item => filter === 'all' || item.needsPricing);
+    } else {
+      return seedHybrids.filter(item => filter === 'all' || item.needsPricing);
+    }
+  };
+
+  const handleSelectAll = () => {
+    const currentItems = getCurrentItems();
+    const currentIds = currentItems.map(item => item.id);
+    const allSelected = currentIds.length > 0 && currentIds.every(id => selectedProducts.has(id));
+
+    if (allSelected) {
+      // Deselect all current items
+      const newSelection = new Set(selectedProducts);
+      currentIds.forEach(id => newSelection.delete(id));
+      setSelectedProducts(newSelection);
+    } else {
+      // Select all current items
+      const newSelection = new Set(selectedProducts);
+      currentIds.forEach(id => newSelection.add(id));
+      setSelectedProducts(newSelection);
+    }
+  };
+
+  const isAllSelected = () => {
+    const currentItems = getCurrentItems();
+    const currentIds = currentItems.map(item => item.id);
+    return currentIds.length > 0 && currentIds.every(id => selectedProducts.has(id));
+  };
+
   const handleBulkDeleteSeedHybrids = async () => {
     if (selectedProducts.size === 0) return;
     if (!selectedBusinessId) return;
@@ -556,9 +591,9 @@ export default function ProductCatalog() {
                         <input
                           type="checkbox"
                           className="rounded"
-                          checked={false}
-                          onChange={() => {}}
-                          title={activeTab === 'seedHybrids' ? 'Select for bulk delete' : 'Select for bid request'}
+                          checked={isAllSelected()}
+                          onChange={handleSelectAll}
+                          title={activeTab === 'seedHybrids' ? 'Select all for bulk delete' : 'Select all for bid request'}
                         />
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
