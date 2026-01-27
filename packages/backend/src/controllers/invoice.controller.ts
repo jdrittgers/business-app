@@ -141,3 +141,37 @@ export const deleteInvoice = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Scan a fertilizer bill and apply costs to a specific farm
+ */
+export const scanFertilizerBill = async (req: Request, res: Response) => {
+  try {
+    const { businessId, farmId } = req.params;
+    const userId = (req as any).user.userId;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const result = await invoiceService.parseAndApplyToFarm(
+      businessId,
+      farmId,
+      userId,
+      req.file
+    );
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Scan fertilizer bill error:', error);
+
+    if (error instanceof Error && error.message === 'Farm not found') {
+      return res.status(404).json({ error: 'Farm not found' });
+    }
+
+    res.status(500).json({
+      error: 'Failed to scan fertilizer bill',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

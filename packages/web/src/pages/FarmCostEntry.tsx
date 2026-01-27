@@ -95,6 +95,16 @@ export default function FarmCostEntry() {
   const [selectedSeedIds, setSelectedSeedIds] = useState<string[]>([]);
   const [selectedOtherCostIds, setSelectedOtherCostIds] = useState<string[]>([]);
 
+  // Scan bill modal state
+  const [showScanBillModal, setShowScanBillModal] = useState(false);
+  const [scanBillFile, setScanBillFile] = useState<File | null>(null);
+  const [isScanningBill, setIsScanningBill] = useState(false);
+  const [scanBillResult, setScanBillResult] = useState<{
+    invoice: any;
+    appliedItems: any[];
+    newProducts: any[];
+  } | null>(null);
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -531,6 +541,30 @@ export default function FarmCostEntry() {
     return chemicals.filter(c => c.category === category);
   };
 
+  // Scan bill handler
+  const handleScanBill = async () => {
+    if (!selectedBusinessId || !farmId || !scanBillFile) return;
+
+    setIsScanningBill(true);
+    try {
+      const result = await breakevenApi.scanFertilizerBill(selectedBusinessId, farmId, scanBillFile);
+      setScanBillResult(result);
+      // Reload farm data to show new fertilizer usages
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.response?.data?.message || 'Failed to scan bill');
+      setScanBillResult(null);
+    } finally {
+      setIsScanningBill(false);
+    }
+  };
+
+  const closeScanBillModal = () => {
+    setShowScanBillModal(false);
+    setScanBillFile(null);
+    setScanBillResult(null);
+  };
+
   if (!user) return null;
 
   if (isLoading) {
@@ -603,7 +637,20 @@ export default function FarmCostEntry() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Fertilizer Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Fertilizer Usage</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Fertilizer Usage</h2>
+              {canEdit() && (
+                <button
+                  onClick={() => setShowScanBillModal(true)}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Scan Bill
+                </button>
+              )}
+            </div>
             {canEdit() && (
               <form onSubmit={handleAddFertilizer} className="space-y-4">
               <div>
@@ -2009,6 +2056,148 @@ export default function FarmCostEntry() {
           )}
         </div>
       </main>
+
+      {/* Scan Bill Modal */}
+      {showScanBillModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Scan Fertilizer Bill</h3>
+                <button
+                  onClick={closeScanBillModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {!scanBillResult ? (
+                <>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Upload a fertilizer bill for <span className="font-semibold">{farm?.name}</span>.
+                    The system will extract product information and automatically apply costs to this field.
+                  </p>
+
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4">
+                    <input
+                      type="file"
+                      id="scanBillFile"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => setScanBillFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="scanBillFile"
+                      className="cursor-pointer"
+                    >
+                      {scanBillFile ? (
+                        <div>
+                          <svg className="w-12 h-12 mx-auto text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm font-medium text-gray-900">{scanBillFile.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">Click to change file</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <p className="text-sm text-gray-600">Click to upload or drag and drop</p>
+                          <p className="text-xs text-gray-500 mt-1">PDF, JPG, or PNG</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={closeScanBillModal}
+                      className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleScanBill}
+                      disabled={!scanBillFile || isScanningBill}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isScanningBill ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Scanning...
+                        </>
+                      ) : (
+                        'Scan & Apply'
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-semibold text-green-800">Bill Processed Successfully!</span>
+                    </div>
+                    {scanBillResult.invoice.vendorName && (
+                      <p className="text-sm text-gray-700">Vendor: {scanBillResult.invoice.vendorName}</p>
+                    )}
+                  </div>
+
+                  {scanBillResult.appliedItems.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Applied Fertilizers:</h4>
+                      <div className="space-y-2">
+                        {scanBillResult.appliedItems.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-gray-50 rounded p-3 text-sm">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{item.productName}</span>
+                              {item.isNew && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">New Product</span>
+                              )}
+                            </div>
+                            <div className="text-gray-600 text-xs mt-1">
+                              {item.amountUsed.toFixed(2)} {item.unit} @ ${item.pricePerUnit.toFixed(2)}/{item.unit} = ${item.totalCost.toFixed(2)}
+                            </div>
+                            {item.ratePerAcre && (
+                              <div className="text-gray-500 text-xs">
+                                Rate: {item.ratePerAcre.toFixed(2)} {item.unit}/acre
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {scanBillResult.newProducts.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                      <p className="text-sm text-blue-800">
+                        <span className="font-semibold">{scanBillResult.newProducts.length}</span> new product(s) added to your fertilizer catalog.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={closeScanBillModal}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

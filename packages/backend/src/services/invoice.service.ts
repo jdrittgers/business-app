@@ -390,6 +390,202 @@ export class InvoiceService {
     return 'CORN';
   }
 
+  /**
+   * Parse a fertilizer bill and apply costs directly to a farm
+   */
+  async parseAndApplyToFarm(
+    businessId: string,
+    farmId: string,
+    userId: string,
+    file: Express.Multer.File
+  ): Promise<{
+    invoice: any;
+    appliedItems: any[];
+    newProducts: any[];
+  }> {
+    // Get farm to verify it exists and get acres
+    const farm = await prisma.farm.findFirst({
+      where: {
+        id: farmId,
+        grainEntity: { businessId },
+        deletedAt: null
+      }
+    });
+
+    if (!farm) {
+      throw new Error('Farm not found');
+    }
+
+    // Create invoice with farmId
+    const invoice = await prisma.invoice.create({
+      data: {
+        businessId,
+        uploadedBy: userId,
+        farmId,
+        fileName: file.originalname,
+        filePath: file.path,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        status: InvoiceStatus.PENDING
+      }
+    });
+
+    try {
+      // Parse the invoice synchronously (wait for result)
+      const parsedData = await parserService.parseInvoice(file.path, file.mimetype);
+
+      // Update invoice with parsed metadata
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: InvoiceStatus.PARSED,
+          vendorName: parsedData.vendorName,
+          invoiceNumber: parsedData.invoiceNumber,
+          invoiceDate: parsedData.invoiceDate ? new Date(parsedData.invoiceDate) : null,
+          totalAmount: parsedData.totalAmount ? new Decimal(parsedData.totalAmount) : null,
+          parsedData: parsedData as any,
+          parsedAt: new Date()
+        }
+      });
+
+      // Create line items
+      for (const item of parsedData.lineItems) {
+        await prisma.invoiceLineItem.create({
+          data: {
+            invoiceId: invoice.id,
+            productType: item.productType as InvoiceProductType,
+            productName: item.productName,
+            quantity: new Decimal(item.quantity),
+            unit: item.unit,
+            pricePerUnit: new Decimal(item.pricePerUnit),
+            totalPrice: new Decimal(item.totalPrice),
+            isNewProduct: false,
+            ratePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : null,
+            rateUnit: item.rateUnit || null
+          }
+        });
+      }
+
+      // Get fertilizer line items only
+      const fertilizerItems = parsedData.lineItems.filter(
+        (item: any) => item.productType === 'FERTILIZER'
+      );
+
+      const appliedItems: any[] = [];
+      const newProducts: any[] = [];
+
+      // Apply fertilizer items to farm
+      await prisma.$transaction(async (tx) => {
+        for (const item of fertilizerItems) {
+          // Match or create fertilizer product
+          const existingFertilizer = await tx.fertilizer.findFirst({
+            where: {
+              businessId,
+              name: { equals: item.productName, mode: 'insensitive' }
+            }
+          });
+
+          let fertilizer;
+          if (existingFertilizer) {
+            // Update price if different
+            fertilizer = await tx.fertilizer.update({
+              where: { id: existingFertilizer.id },
+              data: {
+                pricePerUnit: new Decimal(item.pricePerUnit),
+                defaultRatePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : undefined,
+                rateUnit: item.rateUnit || undefined
+              }
+            });
+          } else {
+            // Create new fertilizer product
+            fertilizer = await tx.fertilizer.create({
+              data: {
+                businessId,
+                name: item.productName,
+                pricePerUnit: new Decimal(item.pricePerUnit),
+                unit: item.unit || 'LB',
+                defaultRatePerAcre: item.ratePerAcre ? new Decimal(item.ratePerAcre) : undefined,
+                rateUnit: item.rateUnit || undefined
+              }
+            });
+            newProducts.push({
+              id: fertilizer.id,
+              name: fertilizer.name,
+              pricePerUnit: Number(fertilizer.pricePerUnit),
+              unit: fertilizer.unit
+            });
+          }
+
+          // Calculate amount used for this farm
+          // Use rate per acre if available, otherwise use total quantity
+          const farmAcres = Number(farm.acres);
+          let amountUsed: number;
+          let ratePerAcre: number | null = null;
+
+          if (item.ratePerAcre) {
+            ratePerAcre = item.ratePerAcre;
+            amountUsed = item.ratePerAcre * farmAcres;
+          } else {
+            // Use the total quantity from the invoice
+            amountUsed = item.quantity;
+            ratePerAcre = item.quantity / farmAcres;
+          }
+
+          // Create FarmFertilizerUsage record
+          const usage = await tx.farmFertilizerUsage.create({
+            data: {
+              farmId,
+              fertilizerId: fertilizer.id,
+              amountUsed: new Decimal(amountUsed),
+              ratePerAcre: ratePerAcre ? new Decimal(ratePerAcre) : null,
+              acresApplied: new Decimal(farmAcres)
+            },
+            include: {
+              fertilizer: true
+            }
+          });
+
+          appliedItems.push({
+            id: usage.id,
+            productName: item.productName,
+            quantity: item.quantity,
+            unit: item.unit,
+            pricePerUnit: item.pricePerUnit,
+            ratePerAcre: ratePerAcre,
+            amountUsed: amountUsed,
+            totalCost: amountUsed * item.pricePerUnit,
+            isNew: !existingFertilizer
+          });
+        }
+      });
+
+      // Mark invoice as reviewed
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: InvoiceStatus.REVIEWED }
+      });
+
+      // Get updated invoice with line items
+      const finalInvoice = await this.getById(invoice.id, businessId);
+
+      return {
+        invoice: finalInvoice,
+        appliedItems,
+        newProducts
+      };
+    } catch (error) {
+      // Mark invoice as failed
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: InvoiceStatus.FAILED,
+          parseError: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+      throw error;
+    }
+  }
+
   async delete(invoiceId: string, businessId: string) {
     const invoice = await this.getById(invoiceId, businessId);
 

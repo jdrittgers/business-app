@@ -337,5 +337,36 @@ export const breakevenApi = {
   createSeedHybridAsWorker: async (businessId: string, name: string, commodityType: CommodityType, seedsPerBag?: number): Promise<SeedHybrid> => {
     const response = await apiClient.post(`/api/businesses/${businessId}/seed-hybrids/worker`, { name, commodityType, seedsPerBag });
     return response.data;
+  },
+
+  // Scan fertilizer bill for a specific farm
+  scanFertilizerBill: async (businessId: string, farmId: string, file: File): Promise<{
+    invoice: any;
+    appliedItems: Array<{
+      id: string;
+      productName: string;
+      quantity: number;
+      unit: string;
+      pricePerUnit: number;
+      ratePerAcre: number | null;
+      amountUsed: number;
+      totalCost: number;
+      isNew: boolean;
+    }>;
+    newProducts: Array<{
+      id: string;
+      name: string;
+      pricePerUnit: number;
+      unit: string;
+    }>;
+  }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post(
+      `/api/businesses/${businessId}/farms/${farmId}/scan-fertilizer-bill`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
   }
 };

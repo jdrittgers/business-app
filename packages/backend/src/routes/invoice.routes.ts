@@ -55,4 +55,13 @@ router.delete(
   invoiceController.deleteInvoice
 );
 
+// Scan fertilizer bill for a specific farm
+router.post(
+  '/businesses/:businessId/farms/:farmId/scan-fertilizer-bill',
+  authenticate,
+  requireBusinessAccess,
+  upload.single('file'),
+  invoiceController.scanFertilizerBill
+);
+
 export default router;
