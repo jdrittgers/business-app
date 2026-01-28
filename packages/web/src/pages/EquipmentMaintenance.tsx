@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { maintenanceApi } from '../api/maintenance.api';
 import { loansApi } from '../api/loans.api';
@@ -561,6 +562,8 @@ function EquipmentModal({ isOpen, onClose, onSave }: EquipmentModalProps) {
 
 export default function EquipmentMaintenance() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [maintenanceItems, setMaintenanceItems] = useState<MaintenanceItem[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -572,6 +575,14 @@ export default function EquipmentMaintenance() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'overdue' | 'upcoming' | 'ok'>('all');
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
+
+  // Handle equipment query parameter from Equipment Loans page
+  useEffect(() => {
+    const equipmentId = searchParams.get('equipment');
+    if (equipmentId) {
+      setSelectedEquipmentFilter(equipmentId);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (businessId) {
@@ -721,6 +732,12 @@ export default function EquipmentMaintenance() {
           <h1 className="text-2xl font-semibold text-gray-900">Equipment Maintenance</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track and schedule maintenance for your equipment.
+            <button
+              onClick={() => navigate('/equipment-loans')}
+              className="ml-2 text-blue-600 hover:text-blue-800 underline"
+            >
+              View Equipment Loans
+            </button>
           </p>
         </div>
         <div className="mt-3 sm:mt-0 flex gap-3">
@@ -823,9 +840,14 @@ export default function EquipmentMaintenance() {
               className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             >
               <option value="all">All Equipment</option>
-              {equipment.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
+              {equipment.map(e => {
+                const loanCount = e.equipmentLoans?.length || 0;
+                return (
+                  <option key={e.id} value={e.id}>
+                    {e.name} {loanCount > 0 ? `(${loanCount} loan${loanCount > 1 ? 's' : ''})` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>

@@ -5,6 +5,7 @@ import { breakevenApi } from '../api/breakeven.api';
 import { grainContractsApi } from '../api/grain-contracts.api';
 import { marketingAiApi } from '../api/marketing-ai.api';
 import { loansApi } from '../api/loans.api';
+import { localBasisApi } from '../api/local-basis.api';
 import {
   Farm,
   GrainEntity,
@@ -14,11 +15,18 @@ import {
   CreateEntitySplitRequest
 } from '@business-app/shared';
 
-// Default harvest prices (will be updated from Yahoo Finance)
-const DEFAULT_PRICES: Record<string, number> = {
+// Default futures prices (will be updated from harvest contracts)
+const DEFAULT_FUTURES: Record<string, number> = {
   CORN: 4.50,
   SOYBEANS: 10.50,
   WHEAT: 5.80
+};
+
+// Default new crop basis estimates
+const DEFAULT_BASIS: Record<string, number> = {
+  CORN: -0.35,
+  SOYBEANS: -0.70,
+  WHEAT: -0.55
 };
 
 export default function FarmManagement() {
@@ -33,9 +41,19 @@ export default function FarmManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Market prices
-  const [marketPrices, setMarketPrices] = useState<Record<string, number>>(DEFAULT_PRICES);
+  // Market prices - futures + basis = cash price
+  const [futuresPrices, setFuturesPrices] = useState<Record<string, number>>(DEFAULT_FUTURES);
+  const [basisEstimates, setBasisEstimates] = useState<Record<string, number>>(DEFAULT_BASIS);
   const [pricesLoading, setPricesLoading] = useState(false);
+
+  // Calculate cash prices from futures + basis
+  const cashPrices = useMemo(() => {
+    const prices: Record<string, number> = {};
+    Object.keys(futuresPrices).forEach(commodity => {
+      prices[commodity] = futuresPrices[commodity] + (basisEstimates[commodity] || 0);
+    });
+    return prices;
+  }, [futuresPrices, basisEstimates]);
 
   // Filters
   const [filterEntity, setFilterEntity] = useState<string>('ALL');
@@ -89,24 +107,43 @@ export default function FarmManagement() {
     }
   }, [selectedBusinessId, filterEntity, filterYear, filterCommodity]);
 
-  // Fetch market prices when year changes
+  // Fetch futures prices when year changes
   useEffect(() => {
     const loadPrices = async () => {
       setPricesLoading(true);
       try {
         const data = await marketingAiApi.getHarvestContracts(filterYear);
-        const newPrices = { ...DEFAULT_PRICES };
+        const newPrices = { ...DEFAULT_FUTURES };
         if (data.corn?.closePrice) newPrices.CORN = data.corn.closePrice;
         if (data.soybeans?.closePrice) newPrices.SOYBEANS = data.soybeans.closePrice;
-        setMarketPrices(newPrices);
+        setFuturesPrices(newPrices);
       } catch (err) {
-        console.error('Failed to load prices:', err);
+        console.error('Failed to load futures prices:', err);
       } finally {
         setPricesLoading(false);
       }
     };
     loadPrices();
   }, [filterYear]);
+
+  // Fetch local basis values when business changes
+  useEffect(() => {
+    const loadBasis = async () => {
+      if (!selectedBusinessId) return;
+      try {
+        const basisData = await localBasisApi.getBasis(selectedBusinessId);
+        const newBasis = { ...DEFAULT_BASIS };
+        basisData.forEach(b => {
+          newBasis[b.commodityType] = b.basisValue;
+        });
+        setBasisEstimates(newBasis);
+      } catch (err) {
+        console.error('Failed to load local basis:', err);
+        // Keep default basis values on error
+      }
+    };
+    loadBasis();
+  }, [selectedBusinessId]);
 
   const loadData = async () => {
     if (!selectedBusinessId) return;
@@ -150,16 +187,18 @@ export default function FarmManagement() {
     }
   };
 
-  // Calculate P&L for each farm
+  // Calculate P&L for each farm using cash prices (futures + basis)
   const farmsWithPL = useMemo(() => {
     return farms.map(farm => {
       const be = farmBreakEvens.get(farm.id);
-      const price = marketPrices[farm.commodityType] || 0;
+      const cashPrice = cashPrices[farm.commodityType] || 0;
+      const futuresPrice = futuresPrices[farm.commodityType] || 0;
+      const basis = basisEstimates[farm.commodityType] || 0;
 
       const totalCost = be?.totalCost || 0;
       const costPerAcre = be?.costPerAcre || 0;
       const expectedBushels = farm.acres * farm.projectedYield;
-      const projectedRevenue = expectedBushels * price;
+      const projectedRevenue = expectedBushels * cashPrice;
       const profit = projectedRevenue - totalCost;
       const profitPerAcre = farm.acres > 0 ? profit / farm.acres : 0;
       const breakEvenPrice = expectedBushels > 0 ? totalCost / expectedBushels : 0;
@@ -174,10 +213,12 @@ export default function FarmManagement() {
         profit,
         profitPerAcre,
         breakEvenPrice,
-        marketPrice: price
+        marketPrice: cashPrice,
+        futuresPrice,
+        basis
       };
     });
-  }, [farms, farmBreakEvens, marketPrices]);
+  }, [farms, farmBreakEvens, cashPrices, futuresPrices, basisEstimates]);
 
   // Summary calculations
   const summary = useMemo(() => {
@@ -378,12 +419,17 @@ export default function FarmManagement() {
           </div>
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="text-sm text-gray-500">Market Prices</div>
+          <div className="text-sm text-gray-500">Cash Prices</div>
           <div className="text-sm font-medium text-gray-900">
-            <div>🌽 ${marketPrices.CORN?.toFixed(2)}</div>
-            <div>🫘 ${marketPrices.SOYBEANS?.toFixed(2)}</div>
+            <div title={`Futures: $${futuresPrices.CORN?.toFixed(2)} + Basis: $${basisEstimates.CORN?.toFixed(2)}`}>
+              🌽 ${cashPrices.CORN?.toFixed(2)}
+            </div>
+            <div title={`Futures: $${futuresPrices.SOYBEANS?.toFixed(2)} + Basis: $${basisEstimates.SOYBEANS?.toFixed(2)}`}>
+              🫘 ${cashPrices.SOYBEANS?.toFixed(2)}
+            </div>
           </div>
           {pricesLoading && <div className="text-xs text-gray-400">Updating...</div>}
+          <div className="text-xs text-gray-400 mt-1">Futures + Basis</div>
         </div>
       </div>
 

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { loansApi } from '../api/loans.api';
 import { grainContractsApi } from '../api/grain-contracts.api';
+import { maintenanceApi } from '../api/maintenance.api';
+import { EquipmentMaintenance as MaintenanceItem } from '@business-app/shared';
 import {
   Equipment,
   CreateEquipmentRequest,
@@ -47,10 +50,14 @@ function EquipmentModal({ isOpen, onClose, onSave, equipment, entities }: Equipm
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [useEntitySplits, setUseEntitySplits] = useState(false);
+  const [selectedEntityId, setSelectedEntityId] = useState<string>('');
 
   useEffect(() => {
     if (equipment) {
-      const hasEntitySplits = !!(equipment.entitySplits && equipment.entitySplits.length > 0);
+      const hasEntitySplits = !!(equipment.entitySplits && equipment.entitySplits.length > 1);
+      const singleEntity = equipment.entitySplits && equipment.entitySplits.length === 1
+        ? equipment.entitySplits[0].grainEntityId
+        : '';
       setFormData({
         name: equipment.name,
         equipmentType: equipment.equipmentType,
@@ -66,6 +73,7 @@ function EquipmentModal({ isOpen, onClose, onSave, equipment, entities }: Equipm
           ? equipment.entitySplits!.map(s => ({ grainEntityId: s.grainEntityId, percentage: s.percentage }))
           : []
       });
+      setSelectedEntityId(singleEntity);
       setUseEntitySplits(hasEntitySplits);
     } else {
       setFormData({
@@ -73,9 +81,10 @@ function EquipmentModal({ isOpen, onClose, onSave, equipment, entities }: Equipm
         equipmentType: EquipmentType.TRACTOR,
         entitySplits: []
       });
+      setSelectedEntityId(entities.length > 0 ? entities[0].id : '');
       setUseEntitySplits(false);
     }
-  }, [equipment, isOpen]);
+  }, [equipment, isOpen, entities]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,11 +100,18 @@ function EquipmentModal({ isOpen, onClose, onSave, equipment, entities }: Equipm
 
     setIsSubmitting(true);
     try {
+      // Build entity splits - either from single selection or multiple splits
+      let entitySplits: CreateEntitySplitRequest[] | undefined;
+      if (useEntitySplits && formData.entitySplits && formData.entitySplits.length > 0) {
+        entitySplits = formData.entitySplits;
+      } else if (selectedEntityId) {
+        // Single entity selected - create a 100% split
+        entitySplits = [{ grainEntityId: selectedEntityId, percentage: 100 }];
+      }
+
       const dataToSave = {
         ...formData,
-        entitySplits: useEntitySplits && formData.entitySplits && formData.entitySplits.length > 0
-          ? formData.entitySplits
-          : undefined
+        entitySplits
       };
       await onSave(dataToSave);
       onClose();
@@ -219,31 +235,52 @@ function EquipmentModal({ isOpen, onClose, onSave, equipment, entities }: Equipm
               />
             </div>
 
-            {/* Entity Splits */}
+            {/* Entity Ownership */}
             <div className="space-y-3 pt-2 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-700">Entity Ownership</label>
-                <label className="flex items-center text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={useEntitySplits}
-                    onChange={(e) => {
-                      setUseEntitySplits(e.target.checked);
-                      if (e.target.checked && (!formData.entitySplits || formData.entitySplits.length === 0)) {
-                        // Initialize with first entity at 100%
-                        setFormData({
-                          ...formData,
-                          entitySplits: entities.length > 0
+              <label className="block text-sm font-medium text-gray-700">Entity Ownership</label>
+
+              {/* Single Entity Selection (default) */}
+              {!useEntitySplits && (
+                <div>
+                  <select
+                    value={selectedEntityId}
+                    onChange={(e) => setSelectedEntityId(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  >
+                    <option value="">-- No Entity Assigned --</option>
+                    {entities.map(entity => (
+                      <option key={entity.id} value={entity.id}>{entity.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Split checkbox */}
+              <label className="flex items-center text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={useEntitySplits}
+                  onChange={(e) => {
+                    setUseEntitySplits(e.target.checked);
+                    if (e.target.checked && (!formData.entitySplits || formData.entitySplits.length === 0)) {
+                      // Initialize with selected entity at 50% and empty slot
+                      setFormData({
+                        ...formData,
+                        entitySplits: selectedEntityId
+                          ? [
+                              { grainEntityId: selectedEntityId, percentage: 50 },
+                              { grainEntityId: '', percentage: 50 }
+                            ]
+                          : entities.length > 0
                             ? [{ grainEntityId: entities[0].id, percentage: 100 }]
                             : []
-                        });
-                      }
-                    }}
-                    className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  Split between entities
-                </label>
-              </div>
+                      });
+                    }
+                  }}
+                  className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Split between multiple entities
+              </label>
 
               {useEntitySplits && (
                 <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -960,8 +997,10 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
 
 export default function EquipmentLoans() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [entities, setEntities] = useState<GrainEntity[]>([]);
+  const [maintenanceItems, setMaintenanceItems] = useState<MaintenanceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
@@ -969,6 +1008,7 @@ export default function EquipmentLoans() {
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<EquipmentLoan | null>(null);
   const [expandedEquipment, setExpandedEquipment] = useState<string | null>(null);
+  const [filterEntityId, setFilterEntityId] = useState<string>('');
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
 
@@ -982,18 +1022,38 @@ export default function EquipmentLoans() {
     if (!businessId) return;
     try {
       setLoading(true);
-      const [equipmentData, entitiesData] = await Promise.all([
+      const [equipmentData, entitiesData, maintenanceData] = await Promise.all([
         loansApi.getEquipment(businessId),
-        grainContractsApi.getGrainEntities(businessId)
+        grainContractsApi.getGrainEntities(businessId),
+        maintenanceApi.getAll(businessId)
       ]);
       setEquipment(equipmentData);
       setEntities(entitiesData);
+      setMaintenanceItems(maintenanceData);
     } catch (error) {
       console.error('Failed to load equipment:', error);
       alert('Failed to load equipment');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get maintenance count for an equipment item
+  const getMaintenanceCount = (equipmentId: string) => {
+    return maintenanceItems.filter(m => m.equipmentId === equipmentId).length;
+  };
+
+  // Get overdue maintenance count for an equipment item
+  const getOverdueMaintenanceCount = (equipmentId: string) => {
+    const now = new Date();
+    return maintenanceItems.filter(m => {
+      if (m.equipmentId !== equipmentId) return false;
+      if (m.nextDueDate) {
+        const dueDate = new Date(m.nextDueDate);
+        return dueDate < now;
+      }
+      return false;
+    }).length;
   };
 
   const handleCreateEquipment = async (data: CreateEquipmentRequest | UpdateEquipmentRequest) => {
@@ -1049,11 +1109,16 @@ export default function EquipmentLoans() {
     await loadData();
   };
 
-  // Calculate totals
-  const totalCurrentValue = equipment.reduce((sum, e) => sum + (e.currentValue || 0), 0);
-  const totalLoanBalance = equipment.reduce((sum, e) => sum + (e.totalLoanBalance || 0), 0);
-  const totalAnnualInterest = equipment.reduce((sum, e) => sum + (e.annualInterestExpense || 0), 0);
-  const totalAnnualPrincipal = equipment.reduce((sum, e) => sum + (e.annualPrincipalExpense || 0), 0);
+  // Filter equipment by entity
+  const filteredEquipment = filterEntityId
+    ? equipment.filter(e => e.entitySplits?.some(s => s.grainEntityId === filterEntityId))
+    : equipment;
+
+  // Calculate totals (from filtered equipment)
+  const totalCurrentValue = filteredEquipment.reduce((sum, e) => sum + (e.currentValue || 0), 0);
+  const totalLoanBalance = filteredEquipment.reduce((sum, e) => sum + (e.totalLoanBalance || 0), 0);
+  const totalAnnualInterest = filteredEquipment.reduce((sum, e) => sum + (e.annualInterestExpense || 0), 0);
+  const totalAnnualPrincipal = filteredEquipment.reduce((sum, e) => sum + (e.annualPrincipalExpense || 0), 0);
 
   if (loading) {
     return (
@@ -1070,9 +1135,26 @@ export default function EquipmentLoans() {
           <h1 className="text-2xl font-semibold text-gray-900">Equipment Loans</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track equipment and machinery financing for break-even calculations.
+            <button
+              onClick={() => navigate('/maintenance')}
+              className="ml-2 text-blue-600 hover:text-blue-800 underline"
+            >
+              View Maintenance Schedules
+            </button>
           </p>
         </div>
-        <div className="mt-3 sm:mt-0">
+        <div className="mt-3 sm:mt-0 flex items-center gap-3">
+          {/* Entity Filter */}
+          <select
+            value={filterEntityId}
+            onChange={(e) => setFilterEntityId(e.target.value)}
+            className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+          >
+            <option value="">All Entities</option>
+            {entities.map(entity => (
+              <option key={entity.id} value={entity.id}>{entity.name}</option>
+            ))}
+          </select>
           <button
             onClick={() => {
               setSelectedEquipment(null);
@@ -1098,7 +1180,7 @@ export default function EquipmentLoans() {
               <div className="ml-5 w-0 flex-1">
                 <dl>
                   <dt className="text-sm font-medium text-gray-500 truncate">Equipment</dt>
-                  <dd className="text-lg font-medium text-gray-900">{equipment.length}</dd>
+                  <dd className="text-lg font-medium text-gray-900">{filteredEquipment.length}</dd>
                 </dl>
               </div>
             </div>
@@ -1175,20 +1257,26 @@ export default function EquipmentLoans() {
       </div>
 
       {/* Equipment List */}
-      {equipment.length === 0 ? (
+      {filteredEquipment.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No equipment</h3>
-          <p className="mt-1 text-sm text-gray-500">Add equipment to track loans and leases.</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">
+            {filterEntityId ? 'No equipment for this entity' : 'No equipment'}
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {filterEntityId ? 'Try selecting a different entity or add equipment.' : 'Add equipment to track loans and leases.'}
+          </p>
         </div>
       ) : (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <ul className="divide-y divide-gray-200">
-            {equipment.map((item) => {
+            {filteredEquipment.map((item) => {
               const hasLoans = item.equipmentLoans && item.equipmentLoans.length > 0;
               const loanCount = item.equipmentLoans?.length || 0;
+              const maintenanceCount = getMaintenanceCount(item.id);
+              const overdueCount = getOverdueMaintenanceCount(item.id);
 
               return (
                 <li key={item.id}>
@@ -1233,6 +1321,16 @@ export default function EquipmentLoans() {
                             {item.equipmentLoans?.filter(l => l.financingType === EquipmentFinancingType.LEASE).length || 0} lease(s)
                           </p>
                         </div>
+                        {maintenanceCount > 0 && (
+                          <div className="text-right">
+                            <p className={`text-sm ${overdueCount > 0 ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                              {maintenanceCount} maint.
+                            </p>
+                            {overdueCount > 0 && (
+                              <p className="text-xs text-red-500">{overdueCount} overdue</p>
+                            )}
+                          </div>
+                        )}
                         {item.currentValue !== undefined && item.currentValue !== null && (
                           <div className="text-right">
                             <p className="text-sm text-blue-600">${item.currentValue.toLocaleString()}</p>
@@ -1266,6 +1364,12 @@ export default function EquipmentLoans() {
                             className="text-sm px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
                           >
                             Add Loan/Lease
+                          </button>
+                          <button
+                            onClick={() => navigate(`/maintenance?equipment=${item.id}`)}
+                            className="text-sm px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200"
+                          >
+                            Maintenance ({maintenanceCount})
                           </button>
                           <button
                             onClick={() => {

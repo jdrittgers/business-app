@@ -940,6 +940,7 @@ export default function LandParcels() {
   const [selectedParcel, setSelectedParcel] = useState<LandParcel | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<LandLoan | null>(null);
   const [expandedParcel, setExpandedParcel] = useState<string | null>(null);
+  const [filterEntityId, setFilterEntityId] = useState<string>('');
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
 
@@ -1059,10 +1060,18 @@ export default function LandParcels() {
     await loadParcels();
   };
 
-  // Calculate totals
-  const totalAcres = parcels.reduce((sum, p) => sum + p.totalAcres, 0);
-  const totalLoanBalance = parcels.reduce((sum, p) => sum + (p.totalLoanBalance || 0), 0);
-  const totalAnnualInterest = parcels.reduce((sum, p) => sum + (p.annualInterestExpense || 0), 0);
+  // Filter parcels by entity (checking both parcel entity splits and loan entity links)
+  const filteredParcels = filterEntityId
+    ? parcels.filter(p =>
+        p.entitySplits?.some(s => s.grainEntityId === filterEntityId) ||
+        p.landLoans?.some(l => l.grainEntityId === filterEntityId || l.entitySplits?.some(es => es.grainEntityId === filterEntityId))
+      )
+    : parcels;
+
+  // Calculate totals from filtered parcels
+  const totalAcres = filteredParcels.reduce((sum, p) => sum + p.totalAcres, 0);
+  const totalLoanBalance = filteredParcels.reduce((sum, p) => sum + (p.totalLoanBalance || 0), 0);
+  const totalAnnualInterest = filteredParcels.reduce((sum, p) => sum + (p.annualInterestExpense || 0), 0);
 
   if (loading) {
     return (
@@ -1081,15 +1090,28 @@ export default function LandParcels() {
             Manage your land parcels and associated loans for break-even calculations.
           </p>
         </div>
-        <button
-          onClick={() => {
-            setSelectedParcel(null);
-            setShowParcelModal(true);
-          }}
-          className="mt-3 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          Add Land Parcel
-        </button>
+        <div className="mt-3 sm:mt-0 flex items-center gap-3">
+          {/* Entity Filter */}
+          <select
+            value={filterEntityId}
+            onChange={(e) => setFilterEntityId(e.target.value)}
+            className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+          >
+            <option value="">All Entities</option>
+            {entities.map(entity => (
+              <option key={entity.id} value={entity.id}>{entity.name}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              setSelectedParcel(null);
+              setShowParcelModal(true);
+            }}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Add Land Parcel
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -1148,18 +1170,22 @@ export default function LandParcels() {
       </div>
 
       {/* Parcels List */}
-      {parcels.length === 0 ? (
+      {filteredParcels.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No land parcels</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by adding a land parcel.</p>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">
+            {filterEntityId ? 'No land parcels for this entity' : 'No land parcels'}
+          </h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {filterEntityId ? 'Try selecting a different entity or add a land parcel.' : 'Get started by adding a land parcel.'}
+          </p>
         </div>
       ) : (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <ul className="divide-y divide-gray-200">
-            {parcels.map((parcel) => (
+            {filteredParcels.map((parcel) => (
               <li key={parcel.id}>
                 <div
                   className="px-4 py-4 sm:px-6 cursor-pointer hover:bg-gray-50"
