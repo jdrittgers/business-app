@@ -647,7 +647,23 @@ export default function FarmCostEntry() {
           {/* Fertilizer Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Fertilizer Usage</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-gray-900">Fertilizer Usage</h2>
+                <div className="flex rounded-md overflow-hidden border border-gray-300">
+                  <button
+                    onClick={() => setCostView('total')}
+                    className={`px-2 py-1 text-xs ${costView === 'total' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    Total
+                  </button>
+                  <button
+                    onClick={() => setCostView('perAcre')}
+                    className={`px-2 py-1 text-xs ${costView === 'perAcre' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    $/Acre
+                  </button>
+                </div>
+              </div>
               {canEdit() && (
                 <button
                   onClick={() => setShowScanBillModal(true)}
@@ -661,35 +677,33 @@ export default function FarmCostEntry() {
               )}
             </div>
 
-            {/* N-P-K-S Summary Card */}
-            {breakEven?.nutrientSummary && (
-              <div className="grid grid-cols-4 gap-3 mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
-                <div className="text-center">
-                  <div className="text-xl font-bold text-green-700">
-                    {breakEven.nutrientSummary.nitrogenPerAcre?.toFixed(1) || '0'}
-                  </div>
-                  <div className="text-xs text-gray-600">lbs N/acre</div>
+            {/* N-P-K-S Summary Card - Always show */}
+            <div className="grid grid-cols-4 gap-3 mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-center">
+                <div className="text-xl font-bold text-green-700">
+                  {breakEven?.nutrientSummary?.nitrogenPerAcre?.toFixed(0) || '0'}
                 </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-blue-700">
-                    {breakEven.nutrientSummary.phosphorusPerAcre?.toFixed(1) || '0'}
-                  </div>
-                  <div className="text-xs text-gray-600">lbs P₂O₅/acre</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-purple-700">
-                    {breakEven.nutrientSummary.potassiumPerAcre?.toFixed(1) || '0'}
-                  </div>
-                  <div className="text-xs text-gray-600">lbs K₂O/acre</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-yellow-700">
-                    {breakEven.nutrientSummary.sulfurPerAcre?.toFixed(1) || '0'}
-                  </div>
-                  <div className="text-xs text-gray-600">lbs S/acre</div>
-                </div>
+                <div className="text-xs text-gray-600">lbs N/acre</div>
               </div>
-            )}
+              <div className="text-center">
+                <div className="text-xl font-bold text-blue-700">
+                  {breakEven?.nutrientSummary?.phosphorusPerAcre?.toFixed(0) || '0'}
+                </div>
+                <div className="text-xs text-gray-600">lbs P₂O₅/acre</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-bold text-purple-700">
+                  {breakEven?.nutrientSummary?.potassiumPerAcre?.toFixed(0) || '0'}
+                </div>
+                <div className="text-xs text-gray-600">lbs K₂O/acre</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-bold text-yellow-700">
+                  {breakEven?.nutrientSummary?.sulfurPerAcre?.toFixed(0) || '0'}
+                </div>
+                <div className="text-xs text-gray-600">lbs S/acre</div>
+              </div>
+            </div>
             {canEdit() && (
               <form onSubmit={handleAddFertilizer} className="space-y-4">
               <div>
@@ -897,10 +911,27 @@ export default function FarmCostEntry() {
                                 className="mr-2 rounded text-blue-600"
                               />
                             )}
-                            <span>{usage.fertilizer.name}: {usage.amountUsed} {usage.fertilizer.unit}</span>
+                            <div>
+                              <span>{usage.fertilizer.name}: {usage.amountUsed} {usage.fertilizer.unit}</span>
+                              {usage.ratePerAcre && (
+                                <span className="text-gray-500 text-xs ml-2">
+                                  ({usage.ratePerAcre.toFixed(2)} {usage.fertilizer.isLiquid ? 'gal' : usage.fertilizer.unit}/ac)
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center space-x-3">
-                            <span className="font-semibold">${(usage.amountUsed * usage.fertilizer.pricePerUnit).toFixed(2)}</span>
+                            {(() => {
+                              const totalCost = usage.amountUsed * usage.fertilizer.pricePerUnit;
+                              const acresApplied = usage.acresApplied || farm?.acres || 1;
+                              const costPerAcre = totalCost / acresApplied;
+                              return (
+                                <span className="font-semibold">
+                                  ${costView === 'total' ? totalCost.toFixed(2) : costPerAcre.toFixed(2)}
+                                  {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                                </span>
+                              );
+                            })()}
                             {canEdit() && (
                               <div className="flex space-x-1">
                                 <button
@@ -1195,10 +1226,27 @@ export default function FarmCostEntry() {
                                 className="mr-2 rounded text-green-600"
                               />
                             )}
-                            <span>{usage.chemical.name}: {usage.amountUsed} {usage.chemical.unit}</span>
+                            <div>
+                              <span>{usage.chemical.name}: {usage.amountUsed} {usage.chemical.unit}</span>
+                              {usage.ratePerAcre && (
+                                <span className="text-gray-500 text-xs ml-2">
+                                  ({usage.ratePerAcre.toFixed(2)} {usage.chemical.unit}/ac)
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center space-x-3">
-                            <span className="font-semibold">${(usage.amountUsed * usage.chemical.pricePerUnit).toFixed(2)}</span>
+                            {(() => {
+                              const totalCost = usage.amountUsed * usage.chemical.pricePerUnit;
+                              const acresApplied = usage.acresApplied || farm?.acres || 1;
+                              const costPerAcre = totalCost / acresApplied;
+                              return (
+                                <span className="font-semibold">
+                                  ${costView === 'total' ? totalCost.toFixed(2) : costPerAcre.toFixed(2)}
+                                  {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                                </span>
+                              );
+                            })()}
                             {canEdit() && (
                               <div className="flex space-x-1">
                                 <button
@@ -1454,12 +1502,27 @@ export default function FarmCostEntry() {
                                   className="mr-2 rounded text-purple-600"
                                 />
                               )}
-                              <span>{usage.seedHybrid.name}: {usage.bagsUsed} bags</span>
+                              <div>
+                                <span>{usage.seedHybrid.name}: {usage.bagsUsed} bags</span>
+                                {usage.ratePerAcre && (
+                                  <span className="text-gray-500 text-xs ml-2">
+                                    ({Math.round(usage.ratePerAcre).toLocaleString()} seeds/ac)
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center space-x-3">
-                              <span className="font-semibold">
-                                ${(usage.bagsUsed * usage.seedHybrid.pricePerBag).toFixed(2)}
-                              </span>
+                              {(() => {
+                                const totalCost = usage.bagsUsed * usage.seedHybrid.pricePerBag;
+                                const acresApplied = usage.acresApplied || farm?.acres || 1;
+                                const costPerAcre = totalCost / acresApplied;
+                                return (
+                                  <span className="font-semibold">
+                                    ${costView === 'total' ? totalCost.toFixed(2) : costPerAcre.toFixed(2)}
+                                    {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                                  </span>
+                                );
+                              })()}
                               {canEdit() && (
                                 <div className="flex space-x-1">
                                   <button
