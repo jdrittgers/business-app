@@ -166,8 +166,8 @@ export interface LandLoanPayment {
   landLoanId: string;
   paymentDate: Date;
   totalAmount: number;
-  principalAmount: number;
-  interestAmount: number;
+  principalAmount?: number;  // Optional - for when breakdown is unknown
+  interestAmount?: number;   // Optional - for when breakdown is unknown
   notes?: string;
   createdAt: Date;
 }
@@ -175,8 +175,8 @@ export interface LandLoanPayment {
 export interface CreateLandLoanPaymentRequest {
   paymentDate: string;
   totalAmount: number;
-  principalAmount: number;
-  interestAmount: number;
+  principalAmount?: number;  // Optional - leave blank if unknown
+  interestAmount?: number;   // Optional - leave blank if unknown
   notes?: string;
 }
 
@@ -461,8 +461,8 @@ export interface EquipmentLoanPayment {
   equipmentLoanId: string;
   paymentDate: Date;
   totalAmount: number;
-  principalAmount: number;
-  interestAmount: number;
+  principalAmount?: number;  // Optional - for when breakdown is unknown
+  interestAmount?: number;   // Optional - for when breakdown is unknown
   notes?: string;
   createdAt: Date;
 }
@@ -470,7 +470,7 @@ export interface EquipmentLoanPayment {
 export interface CreateEquipmentLoanPaymentRequest {
   paymentDate: string;
   totalAmount: number;
-  principalAmount: number;
-  interestAmount: number;
+  principalAmount?: number;  // Optional - leave blank if unknown
+  interestAmount?: number;   // Optional - leave blank if unknown
   notes?: string;
 }

@@ -561,12 +561,12 @@ function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { paymentDate: string; totalAmount: number; principalAmount: number; interestAmount: number; notes?: string }) => Promise<void>;
+  onSave: (data: { paymentDate: string; totalAmount: number; principalAmount?: number; interestAmount?: number; notes?: string }) => Promise<void>;
   loan: LandLoan | null;
 }
 
 function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{ paymentDate: string; totalAmount: number; principalAmount?: number; interestAmount?: number; notes: string }>({
     paymentDate: new Date().toISOString().split('T')[0],
     totalAmount: 0,
     principalAmount: 0,
@@ -574,30 +574,41 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [unknownBreakdown, setUnknownBreakdown] = useState(false);
 
   useEffect(() => {
-    if (loan?.monthlyPayment) {
+    if (loan) {
+      // Default to unknown breakdown if loan is in simple mode
+      const isSimple = loan.useSimpleMode;
+      setUnknownBreakdown(isSimple);
+
       setFormData(prev => ({
         ...prev,
-        totalAmount: loan.monthlyPayment || 0
+        totalAmount: loan.monthlyPayment || (loan.annualPayment ? loan.annualPayment / 12 : 0),
+        principalAmount: isSimple ? undefined : 0,
+        interestAmount: isSimple ? undefined : 0
       }));
     }
   }, [loan, isOpen]);
 
   const handleTotalChange = (total: number) => {
-    // Auto-split based on interest rate estimate
-    const rate = loan?.interestRate || 0.05;
-    const balance = loan?.remainingBalance || 0;
-    const monthlyInterest = balance * rate / 12;
-    const interestPortion = Math.min(monthlyInterest, total);
-    const principalPortion = total - interestPortion;
+    if (unknownBreakdown) {
+      setFormData({ ...formData, totalAmount: total, principalAmount: undefined, interestAmount: undefined });
+    } else {
+      // Auto-split based on interest rate estimate
+      const rate = loan?.interestRate || 0.05;
+      const balance = loan?.remainingBalance || 0;
+      const monthlyInterest = balance * rate / 12;
+      const interestPortion = Math.min(monthlyInterest, total);
+      const principalPortion = total - interestPortion;
 
-    setFormData({
-      ...formData,
-      totalAmount: total,
-      interestAmount: interestPortion,
-      principalAmount: principalPortion
-    });
+      setFormData({
+        ...formData,
+        totalAmount: total,
+        interestAmount: interestPortion,
+        principalAmount: principalPortion
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -651,30 +662,49 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Principal Portion *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.principalAmount || ''}
-                  onChange={(e) => setFormData({ ...formData, principalAmount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Interest Portion *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.interestAmount || ''}
-                  onChange={(e) => setFormData({ ...formData, interestAmount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="unknownBreakdownLand"
+                checked={unknownBreakdown}
+                onChange={(e) => {
+                  setUnknownBreakdown(e.target.checked);
+                  if (e.target.checked) {
+                    setFormData({ ...formData, principalAmount: undefined, interestAmount: undefined });
+                  }
+                }}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="unknownBreakdownLand" className="ml-2 block text-sm text-gray-700">
+                I don't know the principal/interest breakdown
+              </label>
             </div>
+            {!unknownBreakdown && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Principal Portion *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.principalAmount || ''}
+                    onChange={(e) => setFormData({ ...formData, principalAmount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required={!unknownBreakdown}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Interest Portion *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.interestAmount || ''}
+                    onChange={(e) => setFormData({ ...formData, interestAmount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required={!unknownBreakdown}
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700">Notes</label>
               <textarea

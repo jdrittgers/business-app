@@ -2336,8 +2336,8 @@ model LandLoanPayment {
   landLoanId      String    @map("land_loan_id")
   paymentDate     DateTime  @map("payment_date")
   totalAmount     Decimal   @map("total_amount") @db.Decimal(10, 2)
-  principalAmount Decimal   @map("principal_amount") @db.Decimal(10, 2)
-  interestAmount  Decimal   @map("interest_amount") @db.Decimal(10, 2)
+  principalAmount Decimal?  @map("principal_amount") @db.Decimal(10, 2)
+  interestAmount  Decimal?  @map("interest_amount") @db.Decimal(10, 2)
   notes           String?
   createdAt       DateTime  @default(now()) @map("created_at")
 
@@ -2511,8 +2511,8 @@ model EquipmentLoanPayment {
   equipmentLoanId String        @map("equipment_loan_id")
   paymentDate     DateTime      @map("payment_date")
   totalAmount     Decimal       @map("total_amount") @db.Decimal(10, 2)
-  principalAmount Decimal       @map("principal_amount") @db.Decimal(10, 2)
-  interestAmount  Decimal       @map("interest_amount") @db.Decimal(10, 2)
+  principalAmount Decimal?      @map("principal_amount") @db.Decimal(10, 2)
+  interestAmount  Decimal?      @map("interest_amount") @db.Decimal(10, 2)
   notes           String?
   createdAt       DateTime      @default(now()) @map("created_at")
 

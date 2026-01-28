@@ -795,6 +795,7 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
     interestAmount: 0
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [unknownBreakdown, setUnknownBreakdown] = useState(false);
 
   useEffect(() => {
     if (isOpen && loan) {
@@ -805,11 +806,14 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
         : ((loan.remainingBalance || 0) * (loan.interestRate || 0)) / 12;
       const estimatedPrincipal = monthlyPayment - estimatedInterest;
 
+      // Default to unknown breakdown if loan is in simple mode
+      setUnknownBreakdown(loan.useSimpleMode);
+
       setFormData({
         paymentDate: new Date().toISOString().split('T')[0],
         totalAmount: monthlyPayment,
-        principalAmount: Math.max(0, estimatedPrincipal),
-        interestAmount: Math.max(0, estimatedInterest)
+        principalAmount: loan.useSimpleMode ? undefined : Math.max(0, estimatedPrincipal),
+        interestAmount: loan.useSimpleMode ? undefined : Math.max(0, estimatedInterest)
       });
     }
   }, [isOpen, loan]);
@@ -859,44 +863,67 @@ function PaymentModal({ isOpen, onClose, onSave, loan }: PaymentModalProps) {
                 value={formData.totalAmount || ''}
                 onChange={(e) => {
                   const total = parseFloat(e.target.value) || 0;
-                  const interestRatio = formData.totalAmount > 0
-                    ? formData.interestAmount / formData.totalAmount
-                    : 0.4;
-                  setFormData({
-                    ...formData,
-                    totalAmount: total,
-                    interestAmount: total * interestRatio,
-                    principalAmount: total * (1 - interestRatio)
-                  });
+                  if (unknownBreakdown) {
+                    setFormData({ ...formData, totalAmount: total, principalAmount: undefined, interestAmount: undefined });
+                  } else {
+                    const interestRatio = formData.totalAmount > 0 && formData.interestAmount
+                      ? formData.interestAmount / formData.totalAmount
+                      : 0.4;
+                    setFormData({
+                      ...formData,
+                      totalAmount: total,
+                      interestAmount: total * interestRatio,
+                      principalAmount: total * (1 - interestRatio)
+                    });
+                  }
                 }}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Principal Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.principalAmount || ''}
-                  onChange={(e) => setFormData({ ...formData, principalAmount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Interest Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.interestAmount || ''}
-                  onChange={(e) => setFormData({ ...formData, interestAmount: parseFloat(e.target.value) || 0 })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="unknownBreakdown"
+                checked={unknownBreakdown}
+                onChange={(e) => {
+                  setUnknownBreakdown(e.target.checked);
+                  if (e.target.checked) {
+                    setFormData({ ...formData, principalAmount: undefined, interestAmount: undefined });
+                  }
+                }}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="unknownBreakdown" className="ml-2 block text-sm text-gray-700">
+                I don't know the principal/interest breakdown
+              </label>
             </div>
+            {!unknownBreakdown && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Principal Amount *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.principalAmount || ''}
+                    onChange={(e) => setFormData({ ...formData, principalAmount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required={!unknownBreakdown}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Interest Amount *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.interestAmount || ''}
+                    onChange={(e) => setFormData({ ...formData, interestAmount: parseFloat(e.target.value) || 0 })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required={!unknownBreakdown}
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700">Notes</label>
               <input

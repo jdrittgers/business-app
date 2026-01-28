@@ -292,35 +292,45 @@ export class LandLoanService {
   }
 
   async recordPayment(loanId: string, data: CreateLandLoanPaymentRequest): Promise<LandLoanPayment> {
-    // Create payment and update remaining balance
-    const [payment, _] = await prisma.$transaction([
+    // Create payment and optionally update remaining balance
+    const hasBreakdown = data.principalAmount !== undefined && data.interestAmount !== undefined;
+
+    const operations: any[] = [
       prisma.landLoanPayment.create({
         data: {
           landLoanId: loanId,
           paymentDate: new Date(data.paymentDate),
           totalAmount: data.totalAmount,
-          principalAmount: data.principalAmount,
-          interestAmount: data.interestAmount,
+          principalAmount: data.principalAmount ?? null,
+          interestAmount: data.interestAmount ?? null,
           notes: data.notes
         }
-      }),
-      prisma.landLoan.update({
-        where: { id: loanId },
-        data: {
-          remainingBalance: {
-            decrement: data.principalAmount
-          }
-        }
       })
-    ]);
+    ];
+
+    // Only decrement balance if we know the principal amount
+    if (hasBreakdown && data.principalAmount) {
+      operations.push(
+        prisma.landLoan.update({
+          where: { id: loanId },
+          data: {
+            remainingBalance: {
+              decrement: data.principalAmount
+            }
+          }
+        })
+      );
+    }
+
+    const [payment] = await prisma.$transaction(operations);
 
     return {
       id: payment.id,
       landLoanId: payment.landLoanId,
       paymentDate: payment.paymentDate,
       totalAmount: Number(payment.totalAmount),
-      principalAmount: Number(payment.principalAmount),
-      interestAmount: Number(payment.interestAmount),
+      principalAmount: payment.principalAmount ? Number(payment.principalAmount) : undefined,
+      interestAmount: payment.interestAmount ? Number(payment.interestAmount) : undefined,
       notes: payment.notes || undefined,
       createdAt: payment.createdAt
     };
@@ -1240,35 +1250,45 @@ export class EquipmentLoanService {
   }
 
   async recordPayment(loanId: string, data: CreateEquipmentLoanPaymentRequest): Promise<EquipmentLoanPayment> {
-    // Create payment and update remaining balance
-    const [payment, _] = await prisma.$transaction([
+    // Create payment and optionally update remaining balance
+    const hasBreakdown = data.principalAmount !== undefined && data.interestAmount !== undefined;
+
+    const operations: any[] = [
       prisma.equipmentLoanPayment.create({
         data: {
           equipmentLoanId: loanId,
           paymentDate: new Date(data.paymentDate),
           totalAmount: data.totalAmount,
-          principalAmount: data.principalAmount,
-          interestAmount: data.interestAmount,
+          principalAmount: data.principalAmount ?? null,
+          interestAmount: data.interestAmount ?? null,
           notes: data.notes
         }
-      }),
-      prisma.equipmentLoan.update({
-        where: { id: loanId },
-        data: {
-          remainingBalance: {
-            decrement: data.principalAmount
-          }
-        }
       })
-    ]);
+    ];
+
+    // Only decrement balance if we know the principal amount
+    if (hasBreakdown && data.principalAmount) {
+      operations.push(
+        prisma.equipmentLoan.update({
+          where: { id: loanId },
+          data: {
+            remainingBalance: {
+              decrement: data.principalAmount
+            }
+          }
+        })
+      );
+    }
+
+    const [payment] = await prisma.$transaction(operations);
 
     return {
       id: payment.id,
       equipmentLoanId: payment.equipmentLoanId,
       paymentDate: payment.paymentDate,
       totalAmount: Number(payment.totalAmount),
-      principalAmount: Number(payment.principalAmount),
-      interestAmount: Number(payment.interestAmount),
+      principalAmount: payment.principalAmount ? Number(payment.principalAmount) : undefined,
+      interestAmount: payment.interestAmount ? Number(payment.interestAmount) : undefined,
       notes: payment.notes || undefined,
       createdAt: payment.createdAt
     };
