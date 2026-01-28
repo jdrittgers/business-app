@@ -271,11 +271,18 @@ export class BreakEvenAnalyticsService {
       const totalCost = amountUsed * pricePerUnit;
       fertilizerCost += totalCost;
 
-      // Calculate lbs of product applied (convert gallons to lbs for liquid)
+      // Calculate lbs of product applied
+      // amountUsed is in purchase units (TON, LB, GAL) - convert to lbs
       const acresApplied = usage.acresApplied ? Number(usage.acresApplied) : acres;
-      let lbsApplied = amountUsed;
-      if (usage.fertilizer.isLiquid && usage.fertilizer.lbsPerGallon) {
+      const unit = usage.fertilizer.unit;
+      let lbsApplied: number;
+      if (unit === 'TON') {
+        lbsApplied = amountUsed * 2000;
+      } else if (unit === 'GAL' && usage.fertilizer.lbsPerGallon) {
         lbsApplied = amountUsed * Number(usage.fertilizer.lbsPerGallon);
+      } else {
+        // LB or unknown - assume already in lbs
+        lbsApplied = amountUsed;
       }
 
       // Calculate nutrients applied (in lbs)

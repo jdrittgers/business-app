@@ -1030,6 +1030,9 @@ export class EquipmentService {
       include: {
         equipmentLoans: {
           where: { deletedAt: null, isActive: true }
+        },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
         }
       },
       orderBy: { name: 'asc' }
@@ -1047,6 +1050,9 @@ export class EquipmentService {
           include: {
             payments: { orderBy: { paymentDate: 'desc' }, take: 10 }
           }
+        },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
         }
       }
     });
@@ -1071,9 +1077,26 @@ export class EquipmentService {
         notes: data.notes
       },
       include: {
-        equipmentLoans: { where: { deletedAt: null } }
+        equipmentLoans: { where: { deletedAt: null } },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
+        }
       }
     });
+
+    // Create entity splits if provided
+    if (data.entitySplits && data.entitySplits.length > 0) {
+      await prisma.equipmentEntitySplit.createMany({
+        data: data.entitySplits.map(split => ({
+          equipmentId: equipment.id,
+          grainEntityId: split.grainEntityId,
+          percentage: split.percentage
+        }))
+      });
+
+      // Re-fetch with splits
+      return this.getById(equipment.id, businessId) as Promise<Equipment>;
+    }
 
     return this.mapEquipment(equipment);
   }
@@ -1095,9 +1118,34 @@ export class EquipmentService {
         ...(data.isActive !== undefined && { isActive: data.isActive })
       },
       include: {
-        equipmentLoans: { where: { deletedAt: null } }
+        equipmentLoans: { where: { deletedAt: null } },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
+        }
       }
     });
+
+    // Update entity splits if provided
+    if (data.entitySplits !== undefined) {
+      // Delete existing splits
+      await prisma.equipmentEntitySplit.deleteMany({
+        where: { equipmentId: id }
+      });
+
+      // Create new splits
+      if (data.entitySplits && data.entitySplits.length > 0) {
+        await prisma.equipmentEntitySplit.createMany({
+          data: data.entitySplits.map(split => ({
+            equipmentId: id,
+            grainEntityId: split.grainEntityId,
+            percentage: split.percentage
+          }))
+        });
+      }
+
+      // Re-fetch with splits
+      return this.getById(id, businessId) as Promise<Equipment>;
+    }
 
     return this.mapEquipment(equipment);
   }
@@ -1137,7 +1185,13 @@ export class EquipmentService {
       totalLoanBalance,
       annualInterestExpense,
       annualPrincipalExpense,
-      equipmentLoans: loans.map((l: any) => this.mapEquipmentLoan(l))
+      equipmentLoans: loans.map((l: any) => this.mapEquipmentLoan(l)),
+      entitySplits: equipment.entitySplits?.map((s: any) => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity?.name,
+        percentage: Number(s.percentage)
+      }))
     };
   }
 
