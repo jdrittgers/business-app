@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { requireBusinessAccess } from '../middleware/business-access';
 import * as invitationController from '../controllers/invitation.controller';
 
 const router = Router();
@@ -23,7 +24,7 @@ router.post('/', (req, res) => invitationController.createInvitation(req, res));
  * GET /api/invitations/business/:businessId
  * Get all invitations for a business (Owner only)
  */
-router.get('/business/:businessId', (req, res) => invitationController.getBusinessInvitations(req, res));
+router.get('/business/:businessId', requireBusinessAccess, (req, res) => invitationController.getBusinessInvitations(req, res));
 
 /**
  * POST /api/invitations/accept

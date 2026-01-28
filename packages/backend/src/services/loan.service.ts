@@ -260,9 +260,9 @@ export class LandLoanService {
     return loans.map(l => this.mapLoan(l));
   }
 
-  async getById(id: string): Promise<LandLoan | null> {
+  async getById(id: string, businessId?: string): Promise<LandLoan | null> {
     const loan = await prisma.landLoan.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...(businessId ? { landParcel: { businessId } } : {}) },
       include: {
         landParcel: true,
         payments: { orderBy: { paymentDate: 'desc' } },
@@ -326,7 +326,12 @@ export class LandLoanService {
     return this.mapLoan(loan);
   }
 
-  async update(id: string, data: UpdateLandLoanRequest): Promise<LandLoan> {
+  async update(id: string, data: UpdateLandLoanRequest, businessId?: string): Promise<LandLoan> {
+    if (businessId) {
+      const existing = await this.getById(id, businessId);
+      if (!existing) throw new Error('Land loan not found');
+    }
+
     // If nextPaymentDate is being changed, reset the reminder flag
     const resetReminder = data.nextPaymentDate !== undefined;
 
@@ -386,14 +391,24 @@ export class LandLoanService {
     return this.mapLoan(loan);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, businessId?: string): Promise<void> {
+    if (businessId) {
+      const existing = await this.getById(id, businessId);
+      if (!existing) throw new Error('Land loan not found');
+    }
+
     await prisma.landLoan.update({
       where: { id },
       data: { deletedAt: new Date() }
     });
   }
 
-  async recordPayment(loanId: string, data: CreateLandLoanPaymentRequest): Promise<LandLoanPayment> {
+  async recordPayment(loanId: string, data: CreateLandLoanPaymentRequest, businessId?: string): Promise<LandLoanPayment> {
+    if (businessId) {
+      const existing = await this.getById(loanId, businessId);
+      if (!existing) throw new Error('Land loan not found');
+    }
+
     // Create payment and optionally update remaining balance
     const hasBreakdown = data.principalAmount !== undefined && data.interestAmount !== undefined;
 
@@ -562,9 +577,9 @@ export class OperatingLoanService {
     return loans.map(l => this.mapLoan(l));
   }
 
-  async getById(id: string): Promise<OperatingLoan | null> {
+  async getById(id: string, businessId?: string): Promise<OperatingLoan | null> {
     const loan = await prisma.operatingLoan.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...(businessId ? { grainEntity: { businessId } } : {}) },
       include: {
         grainEntity: { select: { name: true } },
         transactions: {
@@ -601,7 +616,12 @@ export class OperatingLoanService {
     return this.mapLoan(loan);
   }
 
-  async update(id: string, data: UpdateOperatingLoanRequest): Promise<OperatingLoan> {
+  async update(id: string, data: UpdateOperatingLoanRequest, businessId?: string): Promise<OperatingLoan> {
+    if (businessId) {
+      const existing = await this.getById(id, businessId);
+      if (!existing) throw new Error('Operating loan not found');
+    }
+
     const loan = await prisma.operatingLoan.update({
       where: { id },
       data: {
@@ -621,14 +641,26 @@ export class OperatingLoanService {
     return this.mapLoan(loan);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, businessId?: string): Promise<void> {
+    if (businessId) {
+      const existing = await this.getById(id, businessId);
+      if (!existing) throw new Error('Operating loan not found');
+    }
+
     await prisma.operatingLoan.update({
       where: { id },
       data: { deletedAt: new Date() }
     });
   }
 
-  async recordDraw(loanId: string, userId: string, amount: number, date: Date, description?: string): Promise<OperatingLoanTransaction> {
+  async recordDraw(loanId: string, userId: string, amount: number, date: Date, description?: string, businessId?: string): Promise<OperatingLoanTransaction> {
+    if (businessId) {
+      const ownershipCheck = await prisma.operatingLoan.findFirst({
+        where: { id: loanId, grainEntity: { businessId } }
+      });
+      if (!ownershipCheck) throw new Error('Operating loan not found');
+    }
+
     const loan = await prisma.operatingLoan.findUnique({ where: { id: loanId } });
     if (!loan) throw new Error('Loan not found');
 
@@ -658,7 +690,14 @@ export class OperatingLoanService {
     return this.mapTransaction(transaction);
   }
 
-  async recordPayment(loanId: string, userId: string, amount: number, date: Date, description?: string): Promise<OperatingLoanTransaction> {
+  async recordPayment(loanId: string, userId: string, amount: number, date: Date, description?: string, businessId?: string): Promise<OperatingLoanTransaction> {
+    if (businessId) {
+      const ownershipCheck = await prisma.operatingLoan.findFirst({
+        where: { id: loanId, grainEntity: { businessId } }
+      });
+      if (!ownershipCheck) throw new Error('Operating loan not found');
+    }
+
     const loan = await prisma.operatingLoan.findUnique({ where: { id: loanId } });
     if (!loan) throw new Error('Loan not found');
 
@@ -1290,9 +1329,9 @@ export class EquipmentLoanService {
     return loans.map(l => this.mapLoan(l));
   }
 
-  async getById(id: string): Promise<EquipmentLoan | null> {
+  async getById(id: string, businessId?: string): Promise<EquipmentLoan | null> {
     const loan = await prisma.equipmentLoan.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, ...(businessId ? { equipment: { businessId } } : {}) },
       include: {
         equipment: true,
         payments: { orderBy: { paymentDate: 'desc' } }
@@ -1371,7 +1410,12 @@ export class EquipmentLoanService {
     return nextDate;
   }
 
-  async update(id: string, data: UpdateEquipmentLoanRequest): Promise<EquipmentLoan> {
+  async update(id: string, data: UpdateEquipmentLoanRequest, businessId?: string): Promise<EquipmentLoan> {
+    if (businessId) {
+      const existing = await this.getById(id, businessId);
+      if (!existing) throw new Error('Equipment loan not found');
+    }
+
     // If nextPaymentDate is being changed, reset the reminder flag
     const resetReminder = data.nextPaymentDate !== undefined;
 
@@ -1409,14 +1453,24 @@ export class EquipmentLoanService {
     return this.mapLoan(loan);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, businessId?: string): Promise<void> {
+    if (businessId) {
+      const existing = await this.getById(id, businessId);
+      if (!existing) throw new Error('Equipment loan not found');
+    }
+
     await prisma.equipmentLoan.update({
       where: { id },
       data: { deletedAt: new Date() }
     });
   }
 
-  async recordPayment(loanId: string, data: CreateEquipmentLoanPaymentRequest): Promise<EquipmentLoanPayment> {
+  async recordPayment(loanId: string, data: CreateEquipmentLoanPaymentRequest, businessId?: string): Promise<EquipmentLoanPayment> {
+    if (businessId) {
+      const existing = await this.getById(loanId, businessId);
+      if (!existing) throw new Error('Equipment loan not found');
+    }
+
     // Create payment and optionally update remaining balance
     const hasBreakdown = data.principalAmount !== undefined && data.interestAmount !== undefined;
 

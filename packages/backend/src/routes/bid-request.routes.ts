@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as bidRequestController from '../controllers/bid-request.controller';
 import { authenticate } from '../middleware/auth';
 import { requireBusinessAccess } from '../middleware/business-access';
+import { getUserBusinessId } from '../utils/assert-business-access';
 import { requireRetailerRole } from '../middleware/retailer-auth';
 
 const router = Router();
@@ -58,6 +59,9 @@ router.delete(
 );
 
 // Accept a bid
+// Note: No route-level requireBusinessAccess — the service layer already validates
+// that the authenticated user owns the bid request. getUserBusinessId is available
+// for defense-in-depth if needed in the controller.
 router.post(
   '/bids/:bidId/accept',
   authenticate,

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { GrainBinService } from '../services/grain-bin.service';
+import { getUserBusinessId } from '../utils/assert-business-access';
 
 const grainBinService = new GrainBinService();
 
@@ -35,9 +36,14 @@ export class GrainBinController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
+      // Verify user owns the grain entity's business
+      const businessId = await getUserBusinessId(userId);
       const bins = await grainBinService.getBinsByGrainEntity(grainEntityId);
 
-      res.json(bins);
+      // Filter to only bins belonging to user's business
+      const filteredBins = bins.filter((bin: any) => !bin.businessId || bin.businessId === businessId);
+
+      res.json(filteredBins);
     } catch (error) {
       console.error('Error getting bins by grain entity:', error);
       res.status(500).json({
@@ -56,7 +62,8 @@ export class GrainBinController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const bin = await grainBinService.getById(binId);
+      const businessId = await getUserBusinessId(userId);
+      const bin = await grainBinService.getById(binId, businessId);
 
       if (!bin) {
         return res.status(404).json({ error: 'Bin not found' });

@@ -7,6 +7,7 @@ import {
   CreateAccumulatorEntryRequest,
   GetGrainContractsQuery
 } from '@business-app/shared';
+import { getUserBusinessId } from '../utils/assert-business-access';
 
 const grainContractService = new GrainContractService();
 
@@ -103,7 +104,8 @@ export class GrainContractController {
       }
 
       const { contractId } = req.params;
-      const contract = await grainContractService.getContract(contractId);
+      const businessId = req.params.businessId || await getUserBusinessId(req.user.userId);
+      const contract = await grainContractService.getContract(contractId, businessId);
       res.json(contract);
     } catch (error) {
       if (error instanceof Error && error.message === 'Contract not found') {
@@ -148,8 +150,9 @@ export class GrainContractController {
 
       const { contractId } = req.params;
       const data: UpdateGrainContractRequest = req.body;
+      const businessId = req.params.businessId || await getUserBusinessId(req.user.userId);
 
-      const contract = await grainContractService.updateContract(contractId, data);
+      const contract = await grainContractService.updateContract(contractId, data, businessId);
       res.json(contract);
     } catch (error) {
       console.error('Update contract error:', error);
@@ -166,7 +169,8 @@ export class GrainContractController {
       }
 
       const { contractId } = req.params;
-      await grainContractService.deleteContract(contractId);
+      const businessId = req.params.businessId || await getUserBusinessId(req.user.userId);
+      await grainContractService.deleteContract(contractId, businessId);
       res.json({ message: 'Contract deleted successfully' });
     } catch (error) {
       console.error('Delete contract error:', error);
@@ -190,7 +194,8 @@ export class GrainContractController {
         return;
       }
 
-      const entry = await grainContractService.addAccumulatorEntry(contractId, data);
+      const businessId = req.params.businessId || await getUserBusinessId(req.user.userId);
+      const entry = await grainContractService.addAccumulatorEntry(contractId, data, businessId);
       res.status(201).json(entry);
     } catch (error) {
       if (error instanceof Error && error.message === 'Accumulator contract not found') {

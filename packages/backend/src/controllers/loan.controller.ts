@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, authenticate } from '../middleware/auth';
-import { requireGrainAccess } from '../middleware/grain-access';
+import { requireBusinessAccess } from '../middleware/business-access';
+import { getUserBusinessId } from '../utils/assert-business-access';
 import {
   landParcelService,
   landLoanService,
@@ -12,14 +13,13 @@ import {
 
 const router = Router();
 
-// Apply auth and grain access middleware to all routes
+// Apply auth middleware to all routes
 router.use(authenticate);
-router.use(requireGrainAccess);
 
 // ===== Land Parcels =====
 
 // Get all land parcels for a business
-router.get('/businesses/:businessId/land-parcels', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/land-parcels', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const isActive = req.query.isActive === 'true' ? true :
                      req.query.isActive === 'false' ? false : undefined;
@@ -32,7 +32,7 @@ router.get('/businesses/:businessId/land-parcels', async (req: AuthRequest, res:
 });
 
 // Get a specific land parcel
-router.get('/businesses/:businessId/land-parcels/:id', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/land-parcels/:id', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const parcel = await landParcelService.getById(req.params.id, req.params.businessId);
     if (!parcel) {
@@ -47,7 +47,7 @@ router.get('/businesses/:businessId/land-parcels/:id', async (req: AuthRequest, 
 });
 
 // Create a new land parcel
-router.post('/businesses/:businessId/land-parcels', async (req: AuthRequest, res: Response) => {
+router.post('/businesses/:businessId/land-parcels', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const parcel = await landParcelService.create(req.params.businessId, req.body);
     res.status(201).json(parcel);
@@ -58,7 +58,7 @@ router.post('/businesses/:businessId/land-parcels', async (req: AuthRequest, res
 });
 
 // Update a land parcel
-router.put('/businesses/:businessId/land-parcels/:id', async (req: AuthRequest, res: Response) => {
+router.put('/businesses/:businessId/land-parcels/:id', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const parcel = await landParcelService.update(req.params.id, req.params.businessId, req.body);
     res.json(parcel);
@@ -69,7 +69,7 @@ router.put('/businesses/:businessId/land-parcels/:id', async (req: AuthRequest, 
 });
 
 // Delete (soft) a land parcel
-router.delete('/businesses/:businessId/land-parcels/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/businesses/:businessId/land-parcels/:id', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     await landParcelService.delete(req.params.id, req.params.businessId);
     res.status(204).send();
@@ -95,7 +95,8 @@ router.get('/land-parcels/:parcelId/loans', async (req: AuthRequest, res: Respon
 // Get a specific land loan
 router.get('/land-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const loan = await landLoanService.getById(req.params.id);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const loan = await landLoanService.getById(req.params.id, businessId);
     if (!loan) {
       res.status(404).json({ error: 'Land loan not found' });
       return;
@@ -121,7 +122,8 @@ router.post('/land-parcels/:parcelId/loans', async (req: AuthRequest, res: Respo
 // Update a land loan
 router.put('/land-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const loan = await landLoanService.update(req.params.id, req.body);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const loan = await landLoanService.update(req.params.id, req.body, businessId);
     res.json(loan);
   } catch (error: any) {
     console.error('Error updating land loan:', error);
@@ -132,7 +134,8 @@ router.put('/land-loans/:id', async (req: AuthRequest, res: Response) => {
 // Delete (soft) a land loan
 router.delete('/land-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    await landLoanService.delete(req.params.id);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    await landLoanService.delete(req.params.id, businessId);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting land loan:', error);
@@ -143,7 +146,8 @@ router.delete('/land-loans/:id', async (req: AuthRequest, res: Response) => {
 // Record a payment on a land loan
 router.post('/land-loans/:id/payments', async (req: AuthRequest, res: Response) => {
   try {
-    const payment = await landLoanService.recordPayment(req.params.id, req.body);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const payment = await landLoanService.recordPayment(req.params.id, req.body, businessId);
     res.status(201).json(payment);
   } catch (error: any) {
     console.error('Error recording land loan payment:', error);
@@ -154,7 +158,7 @@ router.post('/land-loans/:id/payments', async (req: AuthRequest, res: Response) 
 // ===== Operating Loans =====
 
 // Get all operating loans for a business
-router.get('/businesses/:businessId/operating-loans', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/operating-loans', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { grainEntityId, year, isActive } = req.query;
     const loans = await operatingLoanService.getAll(req.params.businessId, {
@@ -187,7 +191,8 @@ router.get('/grain-entities/:entityId/operating-loans', async (req: AuthRequest,
 // Get a specific operating loan
 router.get('/operating-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const loan = await operatingLoanService.getById(req.params.id);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const loan = await operatingLoanService.getById(req.params.id, businessId);
     if (!loan) {
       res.status(404).json({ error: 'Operating loan not found' });
       return;
@@ -213,7 +218,8 @@ router.post('/grain-entities/:entityId/operating-loans', async (req: AuthRequest
 // Update an operating loan
 router.put('/operating-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const loan = await operatingLoanService.update(req.params.id, req.body);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const loan = await operatingLoanService.update(req.params.id, req.body, businessId);
     res.json(loan);
   } catch (error: any) {
     console.error('Error updating operating loan:', error);
@@ -224,7 +230,8 @@ router.put('/operating-loans/:id', async (req: AuthRequest, res: Response) => {
 // Delete (soft) an operating loan
 router.delete('/operating-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    await operatingLoanService.delete(req.params.id);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    await operatingLoanService.delete(req.params.id, businessId);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting operating loan:', error);
@@ -235,13 +242,15 @@ router.delete('/operating-loans/:id', async (req: AuthRequest, res: Response) =>
 // Record a draw on an operating loan
 router.post('/operating-loans/:id/draw', async (req: AuthRequest, res: Response) => {
   try {
+    const businessId = await getUserBusinessId(req.user!.userId);
     const { amount, transactionDate, description } = req.body;
     const transaction = await operatingLoanService.recordDraw(
       req.params.id,
       req.user!.userId,
       amount,
       transactionDate ? new Date(transactionDate) : new Date(),
-      description
+      description,
+      businessId
     );
     res.status(201).json(transaction);
   } catch (error: any) {
@@ -253,13 +262,15 @@ router.post('/operating-loans/:id/draw', async (req: AuthRequest, res: Response)
 // Record a payment on an operating loan
 router.post('/operating-loans/:id/payment', async (req: AuthRequest, res: Response) => {
   try {
+    const businessId = await getUserBusinessId(req.user!.userId);
     const { amount, transactionDate, description } = req.body;
     const transaction = await operatingLoanService.recordPayment(
       req.params.id,
       req.user!.userId,
       amount,
       transactionDate ? new Date(transactionDate) : new Date(),
-      description
+      description,
+      businessId
     );
     res.status(201).json(transaction);
   } catch (error: any) {
@@ -271,7 +282,7 @@ router.post('/operating-loans/:id/payment', async (req: AuthRequest, res: Respon
 // ===== Equipment =====
 
 // Get all equipment for a business
-router.get('/businesses/:businessId/equipment', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/equipment', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const isActive = req.query.isActive === 'true' ? true :
                      req.query.isActive === 'false' ? false : undefined;
@@ -284,7 +295,7 @@ router.get('/businesses/:businessId/equipment', async (req: AuthRequest, res: Re
 });
 
 // Get a specific equipment item
-router.get('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/equipment/:id', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const equipment = await equipmentService.getById(req.params.id, req.params.businessId);
     if (!equipment) {
@@ -299,7 +310,7 @@ router.get('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res
 });
 
 // Create new equipment
-router.post('/businesses/:businessId/equipment', async (req: AuthRequest, res: Response) => {
+router.post('/businesses/:businessId/equipment', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const equipment = await equipmentService.create(req.params.businessId, req.body);
     res.status(201).json(equipment);
@@ -310,7 +321,7 @@ router.post('/businesses/:businessId/equipment', async (req: AuthRequest, res: R
 });
 
 // Update equipment
-router.put('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res: Response) => {
+router.put('/businesses/:businessId/equipment/:id', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const equipment = await equipmentService.update(req.params.id, req.params.businessId, req.body);
     res.json(equipment);
@@ -321,7 +332,7 @@ router.put('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res
 });
 
 // Delete (soft) equipment
-router.delete('/businesses/:businessId/equipment/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/businesses/:businessId/equipment/:id', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     await equipmentService.delete(req.params.id, req.params.businessId);
     res.status(204).send();
@@ -347,7 +358,8 @@ router.get('/equipment/:equipmentId/loans', async (req: AuthRequest, res: Respon
 // Get a specific equipment loan
 router.get('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const loan = await equipmentLoanService.getById(req.params.id);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const loan = await equipmentLoanService.getById(req.params.id, businessId);
     if (!loan) {
       res.status(404).json({ error: 'Equipment loan not found' });
       return;
@@ -373,7 +385,8 @@ router.post('/equipment/:equipmentId/loans', async (req: AuthRequest, res: Respo
 // Update an equipment loan
 router.put('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    const loan = await equipmentLoanService.update(req.params.id, req.body);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const loan = await equipmentLoanService.update(req.params.id, req.body, businessId);
     res.json(loan);
   } catch (error: any) {
     console.error('Error updating equipment loan:', error);
@@ -384,7 +397,8 @@ router.put('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
 // Delete (soft) an equipment loan
 router.delete('/equipment-loans/:id', async (req: AuthRequest, res: Response) => {
   try {
-    await equipmentLoanService.delete(req.params.id);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    await equipmentLoanService.delete(req.params.id, businessId);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting equipment loan:', error);
@@ -395,7 +409,8 @@ router.delete('/equipment-loans/:id', async (req: AuthRequest, res: Response) =>
 // Record a payment on an equipment loan
 router.post('/equipment-loans/:id/payments', async (req: AuthRequest, res: Response) => {
   try {
-    const payment = await equipmentLoanService.recordPayment(req.params.id, req.body);
+    const businessId = await getUserBusinessId(req.user!.userId);
+    const payment = await equipmentLoanService.recordPayment(req.params.id, req.body, businessId);
     res.status(201).json(payment);
   } catch (error: any) {
     console.error('Error recording equipment loan payment:', error);
@@ -406,7 +421,7 @@ router.post('/equipment-loans/:id/payments', async (req: AuthRequest, res: Respo
 // ===== Interest Summary =====
 
 // Get interest summary for a business
-router.get('/businesses/:businessId/loans/interest-summary', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/loans/interest-summary', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const year = req.query.year
       ? parseInt(req.query.year as string)
@@ -420,7 +435,7 @@ router.get('/businesses/:businessId/loans/interest-summary', async (req: AuthReq
 });
 
 // Get interest allocation for a specific farm
-router.get('/businesses/:businessId/farms/:farmId/interest', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/farms/:farmId/interest', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const year = req.query.year
       ? parseInt(req.query.year as string)

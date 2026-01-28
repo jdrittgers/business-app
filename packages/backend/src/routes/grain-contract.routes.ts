@@ -2,23 +2,22 @@ import { Router } from 'express';
 import { GrainContractController } from '../controllers/grain-contract.controller';
 import { FarmContractAllocationService } from '../services/farm-contract-allocation.service';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireGrainAccess } from '../middleware/grain-access';
+import { requireBusinessAccess } from '../middleware/business-access';
 import { Response } from 'express';
 
 const router = Router();
 const controller = new GrainContractController();
 const allocationService = new FarmContractAllocationService();
 
-// All routes require authentication AND Rittgers Farm membership
+// All routes require authentication
 router.use(authenticate);
-router.use(requireGrainAccess);
 
-// Grain entities
-router.get('/businesses/:businessId/grain-entities', (req, res) => controller.getGrainEntities(req, res));
-router.post('/businesses/:businessId/grain-entities', (req, res) => controller.createGrainEntity(req, res));
+// Grain entities (business-scoped, require membership)
+router.get('/businesses/:businessId/grain-entities', requireBusinessAccess, (req, res) => controller.getGrainEntities(req, res));
+router.post('/businesses/:businessId/grain-entities', requireBusinessAccess, (req, res) => controller.createGrainEntity(req, res));
 
-// Contracts
-router.get('/businesses/:businessId/grain-contracts', (req, res) => controller.getContracts(req, res));
+// Contracts (business-scoped, require membership)
+router.get('/businesses/:businessId/grain-contracts', requireBusinessAccess, (req, res) => controller.getContracts(req, res));
 router.post('/grain-contracts', (req, res) => controller.createContract(req, res));
 router.get('/grain-contracts/:contractId', (req, res) => controller.getContract(req, res));
 router.patch('/grain-contracts/:contractId', (req, res) => controller.updateContract(req, res));
@@ -30,7 +29,7 @@ router.post('/grain-contracts/:contractId/accumulator-entries', (req, res) => co
 // ===== Contract Allocation Routes =====
 
 // Get allocations for a contract
-router.get('/businesses/:businessId/grain-contracts/:contractId/allocations', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/grain-contracts/:contractId/allocations', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId } = req.params;
     const allocations = await allocationService.getContractAllocations(contractId, businessId);
@@ -45,7 +44,7 @@ router.get('/businesses/:businessId/grain-contracts/:contractId/allocations', as
 });
 
 // Get contract with allocations and summary
-router.get('/businesses/:businessId/grain-contracts/:contractId/allocations/summary', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/grain-contracts/:contractId/allocations/summary', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId } = req.params;
     const result = await allocationService.getContractWithAllocations(contractId, businessId);
@@ -60,7 +59,7 @@ router.get('/businesses/:businessId/grain-contracts/:contractId/allocations/summ
 });
 
 // Calculate proportional allocations (preview)
-router.get('/businesses/:businessId/grain-contracts/:contractId/allocations/calculate', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/grain-contracts/:contractId/allocations/calculate', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId } = req.params;
     const calculations = await allocationService.calculateProportionalAllocations(contractId, businessId);
@@ -75,7 +74,7 @@ router.get('/businesses/:businessId/grain-contracts/:contractId/allocations/calc
 });
 
 // Auto-allocate contract to farms (proportional)
-router.post('/businesses/:businessId/grain-contracts/:contractId/allocations/auto', async (req: AuthRequest, res: Response) => {
+router.post('/businesses/:businessId/grain-contracts/:contractId/allocations/auto', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId } = req.params;
     const result = await allocationService.autoAllocateContract(contractId, businessId, req.body);
@@ -90,7 +89,7 @@ router.post('/businesses/:businessId/grain-contracts/:contractId/allocations/aut
 });
 
 // Set manual allocations
-router.post('/businesses/:businessId/grain-contracts/:contractId/allocations', async (req: AuthRequest, res: Response) => {
+router.post('/businesses/:businessId/grain-contracts/:contractId/allocations', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId } = req.params;
     const result = await allocationService.setContractAllocations(contractId, businessId, req.body);
@@ -105,7 +104,7 @@ router.post('/businesses/:businessId/grain-contracts/:contractId/allocations', a
 });
 
 // Reset to proportional allocations
-router.post('/businesses/:businessId/grain-contracts/:contractId/allocations/reset', async (req: AuthRequest, res: Response) => {
+router.post('/businesses/:businessId/grain-contracts/:contractId/allocations/reset', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId } = req.params;
     const result = await allocationService.resetToProportional(contractId, businessId);
@@ -120,7 +119,7 @@ router.post('/businesses/:businessId/grain-contracts/:contractId/allocations/res
 });
 
 // Delete a specific allocation
-router.delete('/businesses/:businessId/grain-contracts/:contractId/allocations/:farmId', async (req: AuthRequest, res: Response) => {
+router.delete('/businesses/:businessId/grain-contracts/:contractId/allocations/:farmId', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, contractId, farmId } = req.params;
     await allocationService.deleteAllocation(contractId, farmId, businessId);
@@ -137,7 +136,7 @@ router.delete('/businesses/:businessId/grain-contracts/:contractId/allocations/:
 // ===== Farm Allocation Routes =====
 
 // Get allocations for a specific farm
-router.get('/businesses/:businessId/farms/:farmId/contract-allocations', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/farms/:farmId/contract-allocations', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, farmId } = req.params;
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
@@ -153,7 +152,7 @@ router.get('/businesses/:businessId/farms/:farmId/contract-allocations', async (
 });
 
 // Get allocations for all farms in an entity
-router.get('/businesses/:businessId/grain-entities/:entityId/farm-allocations', async (req: AuthRequest, res: Response) => {
+router.get('/businesses/:businessId/grain-entities/:entityId/farm-allocations', requireBusinessAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { businessId, entityId } = req.params;
     const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();

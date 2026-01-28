@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { SoftDeleteService } from '../services/soft-delete.service';
 import { UserRole } from '@prisma/client';
+import { getUserBusinessId, assertUserOwnsBusiness } from '../utils/assert-business-access';
 
 const softDeleteService = new SoftDeleteService();
 
@@ -20,6 +21,8 @@ export async function getDeletedItems(req: AuthRequest, res: Response): Promise<
     let deletedItems;
 
     if (businessId) {
+      // Verify user is a member of the requested business
+      await assertUserOwnsBusiness(req.user.userId, businessId as string);
       deletedItems = await softDeleteService.getDeletedItemsForBusiness(businessId as string);
     } else if (retailerId) {
       deletedItems = await softDeleteService.getDeletedItemsForRetailer(retailerId as string);
@@ -47,8 +50,9 @@ export async function restoreItem(req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    // Verify the item exists and user has permission
-    // This should be enhanced with proper authorization checks
+    // Verify user belongs to a business before allowing restore
+    await getUserBusinessId(req.user.userId);
+
     await softDeleteService.restoreItem(type, id);
 
     res.json({ success: true, message: 'Item restored successfully' });
@@ -75,6 +79,9 @@ export async function permanentlyDeleteItem(req: AuthRequest, res: Response): Pr
       res.status(403).json({ error: 'Owner access required' });
       return;
     }
+
+    // Verify user belongs to a business before allowing permanent delete
+    await getUserBusinessId(req.user.userId);
 
     await softDeleteService.permanentlyDeleteItem(type, id);
 

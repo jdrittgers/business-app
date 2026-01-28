@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { requireBusinessAccess } from '../middleware/business-access';
 import * as userController from '../controllers/user.controller';
 
 const router = Router();
@@ -11,7 +12,7 @@ router.use(authenticate);
  * PUT /api/user/businesses/:businessId/location
  * Update business location
  */
-router.put('/businesses/:businessId/location', (req, res) => userController.updateBusinessLocation(req, res));
+router.put('/businesses/:businessId/location', requireBusinessAccess, (req, res) => userController.updateBusinessLocation(req, res));
 
 /**
  * DELETE /api/user/account

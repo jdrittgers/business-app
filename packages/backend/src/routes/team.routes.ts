@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { requireBusinessAccess } from '../middleware/business-access';
 import * as teamController from '../controllers/team.controller';
 
 const router = Router();
@@ -11,7 +12,7 @@ router.use(authenticate);
  * GET /api/team/business/:businessId
  * Get all team members for a business (Owner only)
  */
-router.get('/business/:businessId', (req, res) => teamController.getTeamMembers(req, res));
+router.get('/business/:businessId', requireBusinessAccess, (req, res) => teamController.getTeamMembers(req, res));
 
 /**
  * DELETE /api/team/member/:membershipId

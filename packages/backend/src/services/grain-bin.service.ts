@@ -117,7 +117,7 @@ export class GrainBinService {
   }
 
   // Get a single bin by ID
-  async getById(binId: string): Promise<any | null> {
+  async getById(binId: string, businessId?: string): Promise<any | null> {
     const bin = await prisma.grainBin.findUnique({
       where: { id: binId },
       include: {
@@ -132,6 +132,11 @@ export class GrainBinService {
     });
 
     if (!bin) return null;
+
+    // Verify business ownership if businessId provided
+    if (businessId && bin.grainEntity.businessId !== businessId) {
+      return null;
+    }
 
     // Calculate sold bushels from accepted/completed offers
     const offers = await this.getAcceptedOffers(binId);

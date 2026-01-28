@@ -79,9 +79,12 @@ export class GrainContractService {
   }
 
   // Get single contract
-  async getContract(contractId: string): Promise<GrainContract> {
-    const contract = await prisma.grainContract.findUnique({
-      where: { id: contractId },
+  async getContract(contractId: string, businessId?: string): Promise<GrainContract> {
+    const contract = await prisma.grainContract.findFirst({
+      where: {
+        id: contractId,
+        ...(businessId ? { grainEntity: { businessId } } : {})
+      },
       include: {
         grainEntity: true,
         accumulatorDetails: {
@@ -145,7 +148,12 @@ export class GrainContractService {
   }
 
   // Update grain contract
-  async updateContract(contractId: string, data: UpdateGrainContractRequest): Promise<GrainContract> {
+  async updateContract(contractId: string, data: UpdateGrainContractRequest, businessId?: string): Promise<GrainContract> {
+    // Verify ownership if businessId provided
+    if (businessId) {
+      await this.getContract(contractId, businessId);
+    }
+
     const updateData: any = {};
 
     // Core fields
@@ -192,7 +200,10 @@ export class GrainContractService {
   }
 
   // Delete contract
-  async deleteContract(contractId: string): Promise<void> {
+  async deleteContract(contractId: string, businessId?: string): Promise<void> {
+    if (businessId) {
+      await this.getContract(contractId, businessId);
+    }
     await prisma.grainContract.delete({
       where: { id: contractId }
     });
@@ -201,10 +212,14 @@ export class GrainContractService {
   // Add accumulator daily entry
   async addAccumulatorEntry(
     contractId: string,
-    data: CreateAccumulatorEntryRequest
+    data: CreateAccumulatorEntryRequest,
+    businessId?: string
   ): Promise<AccumulatorDailyEntry> {
-    const contract = await prisma.grainContract.findUnique({
-      where: { id: contractId },
+    const contract = await prisma.grainContract.findFirst({
+      where: {
+        id: contractId,
+        ...(businessId ? { grainEntity: { businessId } } : {})
+      },
       include: { accumulatorDetails: true }
     });
 
@@ -249,10 +264,14 @@ export class GrainContractService {
   // Update accumulator details
   async updateAccumulatorDetails(
     contractId: string,
-    data: UpdateAccumulatorDetailsRequest
+    data: UpdateAccumulatorDetailsRequest,
+    businessId?: string
   ): Promise<AccumulatorDetails> {
-    const contract = await prisma.grainContract.findUnique({
-      where: { id: contractId },
+    const contract = await prisma.grainContract.findFirst({
+      where: {
+        id: contractId,
+        ...(businessId ? { grainEntity: { businessId } } : {})
+      },
       include: { accumulatorDetails: true }
     });
 
@@ -280,9 +299,12 @@ export class GrainContractService {
   }
 
   // Auto-detect knockout based on market price
-  async checkAccumulatorKnockout(contractId: string, currentMarketPrice: number): Promise<boolean> {
-    const contract = await prisma.grainContract.findUnique({
-      where: { id: contractId },
+  async checkAccumulatorKnockout(contractId: string, currentMarketPrice: number, businessId?: string): Promise<boolean> {
+    const contract = await prisma.grainContract.findFirst({
+      where: {
+        id: contractId,
+        ...(businessId ? { grainEntity: { businessId } } : {})
+      },
       include: { accumulatorDetails: true }
     });
 

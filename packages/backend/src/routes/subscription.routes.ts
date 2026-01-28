@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
+import { requireBusinessAccess } from '../middleware/business-access';
 import { subscriptionLimiter } from '../middleware/rate-limit';
 import * as subscriptionController from '../controllers/subscription.controller';
 
@@ -12,6 +13,7 @@ const router = Router();
 router.get(
   '/business/:businessId',
   authenticate,
+  requireBusinessAccess,
   subscriptionController.getBusinessSubscription
 );
 
