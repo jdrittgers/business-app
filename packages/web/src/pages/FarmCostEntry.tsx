@@ -1018,6 +1018,16 @@ export default function FarmCostEntry() {
                 >
                   Fungicides
                 </button>
+                <button
+                  onClick={() => setChemicalTab(ChemicalCategory.INSECTICIDE)}
+                  className={`py-2 px-3 border-b-2 text-sm font-medium ${
+                    chemicalTab === ChemicalCategory.INSECTICIDE
+                      ? 'border-red-500 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Insecticides
+                </button>
               </nav>
             </div>
 
@@ -1026,7 +1036,8 @@ export default function FarmCostEntry() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
-                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow Product' : 'Fungicide'}
+                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow Product' :
+                   chemicalTab === ChemicalCategory.INSECTICIDE ? 'Insecticide' : 'Fungicide'}
                 </label>
                 <select
                   value={chemicalForm.chemicalId}
@@ -1035,7 +1046,8 @@ export default function FarmCostEntry() {
                   required
                 >
                   <option value="">Select {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
-                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow Product' : 'Fungicide'}</option>
+                   chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow Product' :
+                   chemicalTab === ChemicalCategory.INSECTICIDE ? 'Insecticide' : 'Fungicide'}</option>
                   {getChemicalsByCategory(chemicalTab).map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} (${c.pricePerUnit.toFixed(2)}/{c.unit})
@@ -1163,7 +1175,8 @@ export default function FarmCostEntry() {
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="text-sm font-medium text-gray-700">
                           Current {chemicalTab === ChemicalCategory.HERBICIDE ? 'Herbicide' :
-                           chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow' : 'Fungicide'} Usage:
+                           chemicalTab === ChemicalCategory.IN_FURROW ? 'In-Furrow' :
+                           chemicalTab === ChemicalCategory.INSECTICIDE ? 'Insecticide' : 'Fungicide'} Usage:
                         </h3>
                         {canEdit() && (
                           <label className="flex items-center text-xs text-gray-600">

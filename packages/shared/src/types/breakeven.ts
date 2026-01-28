@@ -21,7 +21,8 @@ export enum UnitType {
 export enum ChemicalCategory {
   HERBICIDE = 'HERBICIDE',
   IN_FURROW = 'IN_FURROW',
-  FUNGICIDE = 'FUNGICIDE'
+  FUNGICIDE = 'FUNGICIDE',
+  INSECTICIDE = 'INSECTICIDE'
 }
 
 export enum TrialType {
@@ -627,6 +628,7 @@ export interface FarmPlanView {
   fertilizerPlan: FarmPlanProductEntry[];
   chemicalPlan: FarmPlanProductEntry[];
   fungicidePlan: FarmPlanProductEntry[];
+  insecticidePlan: FarmPlanProductEntry[];
   activeTrials: FarmPlanTrialEntry[];
 }
 

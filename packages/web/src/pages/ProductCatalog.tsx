@@ -771,7 +771,8 @@ export default function ProductCatalog() {
                       const categoryLabels: Record<string, string> = {
                         HERBICIDE: 'Herbicide',
                         IN_FURROW: 'In-Furrow',
-                        FUNGICIDE: 'Fungicide'
+                        FUNGICIDE: 'Fungicide',
+                        INSECTICIDE: 'Insecticide'
                       };
                       return (
                         <tr key={item.id} className={item.needsPricing ? 'bg-amber-50' : ''}>
@@ -798,6 +799,7 @@ export default function ProductCatalog() {
                               item.category === 'HERBICIDE' ? 'bg-green-100 text-green-800' :
                               item.category === 'IN_FURROW' ? 'bg-purple-100 text-purple-800' :
                               item.category === 'FUNGICIDE' ? 'bg-blue-100 text-blue-800' :
+                              item.category === 'INSECTICIDE' ? 'bg-red-100 text-red-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
                               {categoryLabels[item.category] || item.category || 'Herbicide'}
@@ -1102,6 +1104,7 @@ export default function ProductCatalog() {
                       <option value="HERBICIDE">Herbicide</option>
                       <option value="IN_FURROW">In-Furrow</option>
                       <option value="FUNGICIDE">Fungicide</option>
+                      <option value="INSECTICIDE">Insecticide</option>
                     </select>
                   </div>
                 )}

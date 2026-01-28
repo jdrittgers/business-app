@@ -746,6 +746,70 @@ export default function FarmPlanEdit() {
             )}
           </div>
 
+          {/* Insecticide Plan */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                Insecticide Plan
+              </h3>
+              <button
+                onClick={() => {
+                  setNewChemicalCategory(ChemicalCategory.INSECTICIDE);
+                  setNewProductAcres(farm?.acres?.toString() || '');
+                  setShowAddProductModal('chemical');
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                + Add Insecticide
+              </button>
+            </div>
+            {farm?.chemicalUsage && farm.chemicalUsage.filter(u => u.chemical?.category === ChemicalCategory.INSECTICIDE).length > 0 ? (
+              <div className="space-y-3">
+                {farm.chemicalUsage
+                  .filter(usage => usage.chemical?.category === ChemicalCategory.INSECTICIDE)
+                  .map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-red-100 border border-red-300' : 'bg-red-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('chemical', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'Insecticide' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-red-500 border-red-500 text-white'
+                          : 'border-gray-300 hover:border-red-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                      <p className="text-sm text-gray-600">{usage.ratePerAcre} {usage.chemical?.unit}/acre</p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Applied {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">No insecticide plan set</p>
+            )}
+          </div>
+
           {/* Active Trials */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-4">

@@ -7,6 +7,7 @@ export enum PassType {
   PRE = 'PRE',
   POST = 'POST',
   FUNGICIDE = 'FUNGICIDE',
+  INSECTICIDE = 'INSECTICIDE',
   IN_FURROW = 'IN_FURROW'
 }
 

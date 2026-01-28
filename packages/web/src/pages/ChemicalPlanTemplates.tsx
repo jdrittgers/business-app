@@ -26,6 +26,7 @@ const PASS_TYPE_OPTIONS = [
   { value: 'PRE', label: 'Pre-Emergence' },
   { value: 'POST', label: 'Post-Emergence' },
   { value: 'FUNGICIDE', label: 'Fungicide' },
+  { value: 'INSECTICIDE', label: 'Insecticide' },
   { value: 'IN_FURROW', label: 'In-Furrow' }
 ];
 
@@ -439,6 +440,7 @@ export default function ChemicalPlanTemplates() {
       case 'PRE': return 'Pre';
       case 'POST': return 'Post';
       case 'FUNGICIDE': return 'Fungicide';
+      case 'INSECTICIDE': return 'Insecticide';
       case 'IN_FURROW': return 'In-Furrow';
       default: return type;
     }
@@ -595,6 +597,7 @@ export default function ChemicalPlanTemplates() {
                         template.passType === 'PRE' ? 'bg-blue-100 text-blue-800' :
                         template.passType === 'POST' ? 'bg-purple-100 text-purple-800' :
                         template.passType === 'FUNGICIDE' ? 'bg-teal-100 text-teal-800' :
+                        template.passType === 'INSECTICIDE' ? 'bg-red-100 text-red-800' :
                         'bg-orange-100 text-orange-800'
                       }`}>
                         {getPassTypeLabel(template.passType)}

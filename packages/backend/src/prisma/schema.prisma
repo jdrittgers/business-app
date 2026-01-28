@@ -99,6 +99,7 @@ enum ChemicalCategory {
   HERBICIDE   // General chemicals/herbicides
   IN_FURROW   // In-furrow treatments
   FUNGICIDE   // Fungicide applications
+  INSECTICIDE // Insecticide applications
 }
 
 // Pass type for chemical plan templates
@@ -106,6 +107,7 @@ enum PassType {
   PRE         // Pre-emergence herbicides
   POST        // Post-emergence herbicides
   FUNGICIDE   // Fungicide applications
+  INSECTICIDE // Insecticide applications
   IN_FURROW   // In-furrow treatments
 }
 

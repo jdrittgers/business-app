@@ -1002,6 +1002,15 @@ export class FarmService {
         acresApplied: Number(usage.acresApplied) || Number(farm.acres)
       }));
 
+    const insecticidePlan = (farm.chemicalUsage as any[])
+      .filter(usage => usage.chemical.category === 'INSECTICIDE')
+      .map(usage => ({
+        productName: usage.chemical.name,
+        ratePerAcre: Number(usage.ratePerAcre) || 0,
+        unit: usage.chemical.unit,
+        acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+      }));
+
     // Build active trials list
     const activeTrials = (farm.trials as any[]).map(trial => ({
       id: trial.id,
@@ -1027,6 +1036,7 @@ export class FarmService {
       fertilizerPlan,
       chemicalPlan,
       fungicidePlan,
+      insecticidePlan,
       activeTrials
     };
   }
@@ -1117,6 +1127,15 @@ export class FarmService {
           acresApplied: Number(usage.acresApplied) || Number(farm.acres)
         }));
 
+      const insecticidePlan = (farm.chemicalUsage as any[])
+        .filter(usage => usage.chemical.category === 'INSECTICIDE')
+        .map(usage => ({
+          productName: usage.chemical.name,
+          ratePerAcre: Number(usage.ratePerAcre) || 0,
+          unit: usage.chemical.unit,
+          acresApplied: Number(usage.acresApplied) || Number(farm.acres)
+        }));
+
       const activeTrials = (farm.trials as any[]).map(trial => ({
         id: trial.id,
         name: trial.name,
@@ -1141,6 +1160,7 @@ export class FarmService {
         fertilizerPlan,
         chemicalPlan,
         fungicidePlan,
+        insecticidePlan,
         activeTrials
       };
     });

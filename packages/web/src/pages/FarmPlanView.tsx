@@ -717,6 +717,60 @@ export default function FarmPlansPage() {
                         )}
                       </div>
 
+                      {/* Insecticide Plan */}
+                      <div className="bg-white rounded-lg p-4 shadow-sm">
+                        <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                          <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                          Insecticide Plan
+                        </h3>
+                        {loadingFarmDetails === plan.farmId ? (
+                          <div className="text-sm text-gray-500">Loading...</div>
+                        ) : farmDetails[plan.farmId]?.chemicalUsage && farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.INSECTICIDE).length > 0 ? (
+                          <div className="space-y-2">
+                            {farmDetails[plan.farmId].chemicalUsage!.filter(u => u.chemical?.category === ChemicalCategory.INSECTICIDE).map((usage) => (
+                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-red-50' : ''}`}>
+                                <button
+                                  onClick={() => {
+                                    if (usage.completedAt) {
+                                      handleUndoComplete('chemical', usage.id, plan.farmId);
+                                    } else {
+                                      setShowCompletionModal({ type: 'chemical', id: usage.id, productName: usage.chemical?.name || 'Insecticide', farmId: plan.farmId });
+                                    }
+                                  }}
+                                  disabled={saving}
+                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                                    usage.completedAt
+                                      ? 'bg-red-500 border-red-500 text-white'
+                                      : 'border-gray-300 hover:border-red-500'
+                                  }`}
+                                >
+                                  {usage.completedAt && (
+                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{usage.chemical?.name}</p>
+                                  <p className="text-gray-600">
+                                    {usage.ratePerAcre} {usage.chemical?.unit}/acre
+                                  </p>
+                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
+                                  {usage.completedAt && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Sprayed {formatCompletionDate(usage.completedAt)}
+                                      {usage.completedByName && ` by ${usage.completedByName}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No insecticide plan set</p>
+                        )}
+                      </div>
+
                       {/* Active Trials */}
                       <div className="bg-white rounded-lg p-4 shadow-sm">
                         <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
