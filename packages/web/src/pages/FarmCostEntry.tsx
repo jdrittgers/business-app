@@ -2208,7 +2208,7 @@ export default function FarmCostEntry() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                   <div>
                     <p className="text-xs text-gray-600">Fertilizer</p>
                     <p className="text-lg font-bold text-blue-600">
@@ -2235,6 +2235,20 @@ export default function FarmCostEntry() {
                         : (breakEven.costs.seed / breakEven.acres).toFixed(2)}
                       {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Equipment</p>
+                    <p className="text-lg font-bold text-indigo-600">
+                      ${costView === 'total'
+                        ? (breakEven.costs.equipment || 0).toLocaleString()
+                        : ((breakEven.costs.equipment || 0) / breakEven.acres).toFixed(2)}
+                      {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
+                    </p>
+                    {breakEven.costs.equipment > 0 && (
+                      <p className="text-xs text-gray-400">
+                        Int: ${(breakEven.costs.equipmentInterest || 0).toLocaleString()} | Prin: ${(breakEven.costs.equipmentPrincipal || 0).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-gray-600">Other</p>

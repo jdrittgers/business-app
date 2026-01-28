@@ -13,6 +13,7 @@ import {
   TrialType,
   TrialStatus
 } from '@business-app/shared';
+import { EquipmentLoanService } from './loan.service';
 
 export class FarmService {
   async getAll(businessId: string, query?: GetFarmsQuery): Promise<Farm[]> {
@@ -932,8 +933,25 @@ export class FarmService {
       }
     }
 
-    const totalCost = fertilizerCost + chemicalCost + seedCost + otherCostsTotal;
-    const costPerAcre = totalCost / farm.acres;
+    // Calculate equipment loan costs (distributed per-acre across all farms)
+    let equipmentInterest = 0;
+    let equipmentPrincipal = 0;
+    try {
+      // Get business ID from the farm's grain entity
+      const farmEntity = await prisma.grainEntity.findFirst({ where: { id: farm.grainEntityId } });
+      if (farmEntity) {
+        const equipmentLoanService = new EquipmentLoanService();
+        const costPerAcreData = await equipmentLoanService.getEquipmentCostPerAcre(farmEntity.businessId, farm.year);
+        equipmentInterest = costPerAcreData.interestPerAcre * farm.acres;
+        equipmentPrincipal = costPerAcreData.principalPerAcre * farm.acres;
+      }
+    } catch (err) {
+      console.error('Error calculating equipment costs:', err);
+    }
+    const equipmentCost = equipmentInterest + equipmentPrincipal;
+
+    const totalCost = fertilizerCost + chemicalCost + seedCost + otherCostsTotal + equipmentCost;
+    const costPerAcre = farm.acres > 0 ? totalCost / farm.acres : 0;
     const breakEvenPrice = expectedBushels > 0 ? totalCost / expectedBushels : 0;
 
     return {
@@ -947,6 +965,9 @@ export class FarmService {
         chemical: chemicalCost,
         seed: seedCost,
         other: otherCostsTotal,
+        equipment: equipmentCost,
+        equipmentInterest,
+        equipmentPrincipal,
         total: totalCost
       },
       // Also expose at top level for easier access
