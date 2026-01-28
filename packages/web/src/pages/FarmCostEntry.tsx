@@ -803,20 +803,42 @@ export default function FarmCostEntry() {
                 )}
               </div>
 
-              {fertilizerForm.ratePerAcre && (fertilizerForm.useAllAcres || fertilizerForm.acresApplied) && farm && (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold">Total Amount:</span>{' '}
-                    {(parseFloat(fertilizerForm.ratePerAcre) *
-                      (fertilizerForm.useAllAcres ? farm.acres : parseFloat(fertilizerForm.acresApplied || '0'))
-                    ).toFixed(2)}{' '}
-                    {fertilizers.find(f => f.id === fertilizerForm.fertilizerId)?.unit || 'units'}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    {parseFloat(fertilizerForm.ratePerAcre).toFixed(2)} × {fertilizerForm.useAllAcres ? farm.acres : fertilizerForm.acresApplied} acres
-                  </p>
-                </div>
-              )}
+              {fertilizerForm.ratePerAcre && (fertilizerForm.useAllAcres || fertilizerForm.acresApplied) && farm && (() => {
+                const selectedFert = fertilizers.find(f => f.id === fertilizerForm.fertilizerId);
+                const ratePerAcre = parseFloat(fertilizerForm.ratePerAcre);
+                const acres = fertilizerForm.useAllAcres ? farm.acres : parseFloat(fertilizerForm.acresApplied || '0');
+                let totalAmount = ratePerAcre * acres;
+                let displayUnit = selectedFert?.unit || 'units';
+                let conversionNote = '';
+
+                // Convert for liquid fertilizers sold by TON
+                if (selectedFert?.isLiquid && String(selectedFert.unit) === 'TON' && selectedFert.lbsPerGallon) {
+                  const totalGallons = totalAmount;
+                  const totalLbs = totalGallons * selectedFert.lbsPerGallon;
+                  totalAmount = totalLbs / 2000;
+                  conversionNote = `(${totalGallons.toFixed(0)} gal × ${selectedFert.lbsPerGallon} lbs/gal ÷ 2000)`;
+                } else if (selectedFert?.isLiquid && String(selectedFert.unit) === 'LB' && selectedFert.lbsPerGallon) {
+                  const totalGallons = totalAmount;
+                  totalAmount = totalGallons * selectedFert.lbsPerGallon;
+                  conversionNote = `(${totalGallons.toFixed(0)} gal × ${selectedFert.lbsPerGallon} lbs/gal)`;
+                } else if (!selectedFert?.isLiquid && String(selectedFert?.unit) === 'TON') {
+                  totalAmount = totalAmount / 2000;
+                  conversionNote = `(${(ratePerAcre * acres).toFixed(0)} lbs ÷ 2000)`;
+                }
+
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">Total Amount:</span>{' '}
+                      {totalAmount.toFixed(2)} {displayUnit}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {ratePerAcre.toFixed(2)} {selectedFert?.isLiquid ? 'gal' : 'lbs'}/acre × {acres} acres
+                      {conversionNote && <span className="ml-1 text-gray-500">{conversionNote}</span>}
+                    </p>
+                  </div>
+                );
+              })()}
 
               <button
                 type="submit"

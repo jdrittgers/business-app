@@ -14,7 +14,8 @@ export enum CostType {
 export enum UnitType {
   LB = 'LB',
   GAL = 'GAL',
-  BAG = 'BAG'
+  BAG = 'BAG',
+  TON = 'TON'
 }
 
 export enum ChemicalCategory {
