@@ -537,9 +537,9 @@ export default function FarmPlansPage() {
                         </h3>
                         {loadingFarmDetails === plan.farmId ? (
                           <div className="text-sm text-gray-500">Loading...</div>
-                        ) : farmDetails[plan.farmId]?.fertilizerUsage && farmDetails[plan.farmId].fertilizerUsage!.filter(u => !u.fertilizer?.isManure).length > 0 ? (
+                        ) : farmDetails[plan.farmId]?.fertilizerUsage && farmDetails[plan.farmId].fertilizerUsage!.length > 0 ? (
                           <div className="space-y-2">
-                            {farmDetails[plan.farmId].fertilizerUsage!.filter(u => !u.fertilizer?.isManure).map((usage) => (
+                            {farmDetails[plan.farmId].fertilizerUsage!.map((usage) => (
                               <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-blue-50' : ''}`}>
                                 <button
                                   onClick={() => {
@@ -563,9 +563,12 @@ export default function FarmPlansPage() {
                                   )}
                                 </button>
                                 <div className="flex-1">
-                                  <p className="font-medium text-gray-900">{usage.fertilizer?.name}</p>
+                                  <p className="font-medium text-gray-900">
+                                    {usage.fertilizer?.name}
+                                    {usage.fertilizer?.isManure && <span className="text-amber-700 text-xs ml-1">(Manure)</span>}
+                                  </p>
                                   <p className="text-gray-600">
-                                    {usage.ratePerAcre} {usage.fertilizer?.unit}/acre
+                                    {usage.ratePerAcre} {usage.fertilizer?.isManure ? (usage.fertilizer?.isLiquid ? '1k gal' : 'tons') : usage.fertilizer?.unit}/acre
                                   </p>
                                   <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
                                   {usage.completedAt && (
@@ -592,60 +595,6 @@ export default function FarmPlansPage() {
                           </div>
                         ) : (
                           <p className="text-sm text-gray-500 italic">No fertilizer plan set</p>
-                        )}
-                      </div>
-
-                      {/* Manure Plan */}
-                      <div className="bg-white rounded-lg p-4 shadow-sm">
-                        <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                          <span className="w-2 h-2 bg-amber-700 rounded-full mr-2"></span>
-                          Manure Plan
-                        </h3>
-                        {loadingFarmDetails === plan.farmId ? (
-                          <div className="text-sm text-gray-500">Loading...</div>
-                        ) : farmDetails[plan.farmId]?.fertilizerUsage && farmDetails[plan.farmId].fertilizerUsage!.filter(u => u.fertilizer?.isManure).length > 0 ? (
-                          <div className="space-y-2">
-                            {farmDetails[plan.farmId].fertilizerUsage!.filter(u => u.fertilizer?.isManure).map((usage) => (
-                              <div key={usage.id} className={`text-sm flex items-start p-2 rounded ${usage.completedAt ? 'bg-amber-50' : ''}`}>
-                                <button
-                                  onClick={() => {
-                                    if (usage.completedAt) {
-                                      handleUndoComplete('fertilizer', usage.id, plan.farmId);
-                                    } else {
-                                      setShowCompletionModal({ type: 'fertilizer', id: usage.id, productName: usage.fertilizer?.name || 'Manure', farmId: plan.farmId });
-                                    }
-                                  }}
-                                  disabled={saving}
-                                  className={`mt-0.5 mr-2 w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center ${
-                                    usage.completedAt
-                                      ? 'bg-amber-700 border-amber-700 text-white'
-                                      : 'border-gray-300 hover:border-amber-500'
-                                  }`}
-                                >
-                                  {usage.completedAt && (
-                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  )}
-                                </button>
-                                <div className="flex-1">
-                                  <p className="font-medium text-amber-900">{usage.fertilizer?.name}</p>
-                                  <p className="text-gray-600">
-                                    {usage.ratePerAcre} {usage.fertilizer?.isLiquid ? '1k gal' : 'tons'}/acre
-                                  </p>
-                                  <p className="text-xs text-gray-500">{usage.acresApplied} acres</p>
-                                  {usage.completedAt && (
-                                    <p className="text-xs text-amber-600 mt-1">
-                                      Applied {formatCompletionDate(usage.completedAt)}
-                                      {usage.completedByName && ` by ${usage.completedByName}`}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-500 italic">No manure plan set</p>
                         )}
                       </div>
 

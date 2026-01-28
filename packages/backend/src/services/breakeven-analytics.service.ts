@@ -275,20 +275,11 @@ export class BreakEvenAnalyticsService {
       const acresApplied = usage.acresApplied ? Number(usage.acresApplied) : acres;
       if (usage.fertilizer.isManure) {
         // Manure: nutrient values are lbs per 1,000 gal (liquid) or lbs per ton (dry)
-        const unit = usage.fertilizer.unit;
-        if (unit === 'GAL') {
-          const thousandsOfGallons = amountUsed / 1000;
-          if (usage.fertilizer.nitrogenPct) totalNitrogen += thousandsOfGallons * Number(usage.fertilizer.nitrogenPct);
-          if (usage.fertilizer.phosphorusPct) totalPhosphorus += thousandsOfGallons * Number(usage.fertilizer.phosphorusPct);
-          if (usage.fertilizer.potassiumPct) totalPotassium += thousandsOfGallons * Number(usage.fertilizer.potassiumPct);
-          if (usage.fertilizer.sulfurPct) totalSulfur += thousandsOfGallons * Number(usage.fertilizer.sulfurPct);
-        } else {
-          // Dry manure: amountUsed in tons, nutrients are per ton
-          if (usage.fertilizer.nitrogenPct) totalNitrogen += amountUsed * Number(usage.fertilizer.nitrogenPct);
-          if (usage.fertilizer.phosphorusPct) totalPhosphorus += amountUsed * Number(usage.fertilizer.phosphorusPct);
-          if (usage.fertilizer.potassiumPct) totalPotassium += amountUsed * Number(usage.fertilizer.potassiumPct);
-          if (usage.fertilizer.sulfurPct) totalSulfur += amountUsed * Number(usage.fertilizer.sulfurPct);
-        }
+        // amountUsed is stored in 1,000 gal units (liquid) or tons (dry)
+        if (usage.fertilizer.nitrogenPct) totalNitrogen += amountUsed * Number(usage.fertilizer.nitrogenPct);
+        if (usage.fertilizer.phosphorusPct) totalPhosphorus += amountUsed * Number(usage.fertilizer.phosphorusPct);
+        if (usage.fertilizer.potassiumPct) totalPotassium += amountUsed * Number(usage.fertilizer.potassiumPct);
+        if (usage.fertilizer.sulfurPct) totalSulfur += amountUsed * Number(usage.fertilizer.sulfurPct);
       } else {
         // Commercial fertilizer: convert to lbs then apply percentage
         const unit = usage.fertilizer.unit;

@@ -454,14 +454,10 @@ export class FarmService {
     let amountUsed = data.amountUsed;
     if (ratePerAcre && data.acresApplied) {
       if (fertilizer.isManure) {
-        // Manure rate handling
-        if (fertilizer.isLiquid) {
-          // Rate entered as "1,000 gal/acre" - convert to total gallons
-          amountUsed = ratePerAcre * 1000 * data.acresApplied;
-        } else {
-          // Rate entered as "tons/acre" - convert to total tons
-          amountUsed = ratePerAcre * data.acresApplied;
-        }
+        // Manure rate handling - store in natural units
+        // Liquid: rate is "1,000 gal/acre", amountUsed stored in 1,000 gal units
+        // Dry: rate is "tons/acre", amountUsed stored in tons
+        amountUsed = ratePerAcre * data.acresApplied;
       } else {
       // ratePerAcre is in application units (gal/acre for liquid, lbs/acre for dry)
       let totalApplicationUnits = ratePerAcre * data.acresApplied;
@@ -890,21 +886,12 @@ export class FarmService {
         // Calculate nutrient lbs applied
         if (usage.fertilizer.isManure) {
           // Manure: nutrient values are lbs per 1,000 gal (liquid) or lbs per ton (dry)
-          const unit = usage.fertilizer.unit;
-          if (unit === 'GAL') {
-            // amountUsed is in gallons, nutrients are per 1,000 gal
-            const thousandsOfGallons = amountUsed / 1000;
-            if (usage.fertilizer.nitrogenPct) totalNitrogen += thousandsOfGallons * Number(usage.fertilizer.nitrogenPct);
-            if (usage.fertilizer.phosphorusPct) totalPhosphorus += thousandsOfGallons * Number(usage.fertilizer.phosphorusPct);
-            if (usage.fertilizer.potassiumPct) totalPotassium += thousandsOfGallons * Number(usage.fertilizer.potassiumPct);
-            if (usage.fertilizer.sulfurPct) totalSulfur += thousandsOfGallons * Number(usage.fertilizer.sulfurPct);
-          } else {
-            // amountUsed is in tons, nutrients are per ton
-            if (usage.fertilizer.nitrogenPct) totalNitrogen += amountUsed * Number(usage.fertilizer.nitrogenPct);
-            if (usage.fertilizer.phosphorusPct) totalPhosphorus += amountUsed * Number(usage.fertilizer.phosphorusPct);
-            if (usage.fertilizer.potassiumPct) totalPotassium += amountUsed * Number(usage.fertilizer.potassiumPct);
-            if (usage.fertilizer.sulfurPct) totalSulfur += amountUsed * Number(usage.fertilizer.sulfurPct);
-          }
+          // amountUsed is stored in 1,000 gal units (liquid) or tons (dry)
+          // So: nutrientLbs = amountUsed * nutrientValue for both
+          if (usage.fertilizer.nitrogenPct) totalNitrogen += amountUsed * Number(usage.fertilizer.nitrogenPct);
+          if (usage.fertilizer.phosphorusPct) totalPhosphorus += amountUsed * Number(usage.fertilizer.phosphorusPct);
+          if (usage.fertilizer.potassiumPct) totalPotassium += amountUsed * Number(usage.fertilizer.potassiumPct);
+          if (usage.fertilizer.sulfurPct) totalSulfur += amountUsed * Number(usage.fertilizer.sulfurPct);
         } else {
           // Commercial fertilizer: convert to lbs then apply percentage
           const unit = usage.fertilizer.unit;
