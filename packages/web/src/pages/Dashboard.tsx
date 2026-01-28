@@ -14,27 +14,12 @@ export default function Dashboard() {
     );
   }
 
-  const businessName = user.businessMemberships?.[0]?.business?.name || 'My Farm';
-
   return (
     <div className="space-y-6">
-      {/* Hero Welcome Section — matches login dark gradient */}
-      <div
-        className="rounded-xl p-8 text-white shadow-2xl"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}
-      >
-        <div className="flex items-center space-x-4 mb-4">
-          <img
-            src="/kernelag-logo.jpg"
-            alt="KernelAg"
-            className="w-14 h-14 rounded-xl object-cover ring-2 ring-white/20"
-          />
-          <div>
-            <h1 className="text-2xl font-bold">Welcome back, {user.firstName}!</h1>
-            <p className="text-slate-300 mt-0.5">{businessName}</p>
-          </div>
-        </div>
-        <p className="text-slate-400 text-sm">Here's an overview of your farm operations</p>
+      {/* Welcome Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user.firstName}!</h1>
+        <p className="text-gray-600 mt-1">Here's an overview of your farm operations</p>
       </div>
 
       {/* Quick Actions */}

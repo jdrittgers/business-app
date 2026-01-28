@@ -31,8 +31,13 @@ export default function AppLayout({ children, title, subtitle, actions }: AppLay
               </svg>
             </button>
 
-            {/* Page title */}
-            <div className="flex-1 min-w-0 lg:ml-0 ml-4">
+            {/* Logo + Page title */}
+            <div className="flex items-center flex-1 min-w-0 lg:ml-0 ml-4">
+              <img
+                src="/kernelag-logo.jpg"
+                alt="KernelAg"
+                className="w-8 h-8 rounded-lg object-cover mr-3 hidden lg:block"
+              />
               {title && (
                 <div>
                   <h1 className="text-lg font-semibold text-gray-900 truncate">{title}</h1>
