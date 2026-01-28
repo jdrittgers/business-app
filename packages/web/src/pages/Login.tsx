@@ -41,27 +41,32 @@ export default function Login() {
 
       navigate('/dashboard');
     } catch (err) {
-      // Error is already handled in the store
+      // Error is handled in the store
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
+      <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-8 mx-4">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Business App</h1>
-          <p className="text-gray-600 mt-2">Sign in to your account</p>
+          <img
+            src="/kernelag-logo.jpg"
+            alt="KernelAg"
+            className="w-20 h-20 mx-auto mb-4 rounded-xl object-cover"
+          />
+          <h1 className="text-3xl font-bold text-gray-900">Farmer Login</h1>
+          <p className="text-gray-500 mt-1">Sign in to your KernelAg account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
             </div>
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
               Email Address
             </label>
             <input
@@ -70,13 +75,13 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="owner@90ten.com"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
               Password
             </label>
             <input
@@ -85,7 +90,7 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               placeholder="••••••••"
             />
           </div>
@@ -93,16 +98,16 @@ export default function Login() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 px-4 rounded-lg font-semibold text-white bg-emerald-500 hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <div className="mt-6 pt-6 border-t border-gray-200 text-center space-y-2">
+        <div className="mt-6 pt-5 border-t border-gray-200 text-center space-y-2">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+            <Link to="/register" className="text-emerald-600 hover:text-emerald-700 font-medium">
               Register as a Farmer
             </Link>
           </p>
@@ -112,6 +117,21 @@ export default function Login() {
               Sign in to the Retailer Portal
             </Link>
           </p>
+        </div>
+
+        {/* Demo Credentials */}
+        <div className="mt-5 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Demo Account</p>
+          <div className="space-y-1.5">
+            <div className="flex items-center text-sm">
+              <span className="text-slate-500 w-20">Email:</span>
+              <span className="font-mono font-medium text-slate-800">demo@demo.com</span>
+            </div>
+            <div className="flex items-center text-sm">
+              <span className="text-slate-500 w-20">Password:</span>
+              <span className="font-mono font-medium text-slate-800">demo</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
