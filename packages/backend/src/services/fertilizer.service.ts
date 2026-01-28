@@ -122,6 +122,7 @@ export class FertilizerService {
         sulfurPct: data.sulfurPct ?? preset?.sulfurPct,
         isLiquid: data.isLiquid ?? preset?.isLiquid ?? false,
         lbsPerGallon: data.lbsPerGallon ?? preset?.lbsPerGallon,
+        isManure: data.isManure ?? false,
         purchaseUnit: data.purchaseUnit,
         pricePerPurchaseUnit: data.pricePerPurchaseUnit
       }

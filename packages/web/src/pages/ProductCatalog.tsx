@@ -206,6 +206,7 @@ export default function ProductCatalog() {
         pricePerUnit: '',
         unit: 'GAL',
         isLiquid: false,
+        isManure: false,
         lbsPerGallon: '',
         purchaseUnit: '',
         pricePerPurchaseUnit: '',
@@ -256,7 +257,8 @@ export default function ProductCatalog() {
           name: formData.name,
           pricePerUnit: parseFloat(formData.pricePerUnit) || 0,
           unit: formData.unit as UnitType,
-          isLiquid: formData.isLiquid || false
+          isLiquid: formData.isLiquid || false,
+          isManure: formData.isManure || false
         };
         // Add nutrient percentages if provided
         if (formData.nitrogenPct) data.nitrogenPct = parseFloat(formData.nitrogenPct);
@@ -733,6 +735,11 @@ export default function ProductCatalog() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             <div className="flex items-center gap-2">
                               {item.name}
+                              {item.isManure && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-700 text-white">
+                                  Manure
+                                </span>
+                              )}
                               {item.needsPricing && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
                                   Needs Pricing
@@ -964,17 +971,42 @@ export default function ProductCatalog() {
                 {/* Fertilizer-specific fields */}
                 {activeTab === 'fertilizers' && (
                   <>
+                    {/* Manure Source toggle */}
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="isManure"
+                        checked={formData.isManure || false}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          isManure: e.target.checked,
+                          // Default liquid manure to GAL, dry to TON
+                          ...(e.target.checked && !formData.isLiquid ? { unit: 'TON' } : {}),
+                          ...(e.target.checked && formData.isLiquid ? { unit: 'GAL' } : {})
+                        })}
+                        className="h-4 w-4 text-amber-600 rounded border-gray-300"
+                      />
+                      <label htmlFor="isManure" className="ml-2 text-sm text-gray-700">
+                        Manure source
+                      </label>
+                    </div>
+
                     {/* Is Liquid toggle */}
                     <div className="flex items-center">
                       <input
                         type="checkbox"
                         id="isLiquid"
                         checked={formData.isLiquid || false}
-                        onChange={(e) => setFormData({ ...formData, isLiquid: e.target.checked })}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          isLiquid: e.target.checked,
+                          // For manure, set unit based on liquid/dry
+                          ...(formData.isManure ? { unit: e.target.checked ? 'GAL' : 'TON' } : {})
+                        })}
                         className="h-4 w-4 text-blue-600 rounded border-gray-300"
                       />
                       <label htmlFor="isLiquid" className="ml-2 text-sm text-gray-700">
-                        Liquid fertilizer (e.g., UAN)
+                        {formData.isManure ? 'Liquid manure' : 'Liquid fertilizer (e.g., UAN)'}
                       </label>
                     </div>
 
@@ -1032,16 +1064,26 @@ export default function ProductCatalog() {
 
                     {/* Nutrient Content */}
                     <div className="border-t pt-4 mt-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Nutrient Content (%)</label>
-                      <p className="text-xs text-gray-500 mb-2">Leave blank to auto-detect from product name</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {formData.isManure
+                          ? `Nutrient Content (lbs per ${formData.isLiquid ? '1,000 gal' : 'ton'})`
+                          : 'Nutrient Content (%)'}
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        {formData.isManure
+                          ? `Enter lab analysis values in lbs per ${formData.isLiquid ? '1,000 gallons' : 'ton'}`
+                          : 'Leave blank to auto-detect from product name'}
+                      </p>
                       <div className="grid grid-cols-4 gap-2">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">N</label>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {formData.isManure ? `N (lbs/${formData.isLiquid ? '1k gal' : 'ton'})` : 'N'}
+                          </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
-                            max="100"
+                            max={formData.isManure ? undefined : 100}
                             value={formData.nitrogenPct || ''}
                             onChange={(e) => setFormData({ ...formData, nitrogenPct: e.target.value })}
                             placeholder="0"
@@ -1049,12 +1091,14 @@ export default function ProductCatalog() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">P₂O₅</label>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {formData.isManure ? `P₂O₅ (lbs/${formData.isLiquid ? '1k gal' : 'ton'})` : 'P₂O₅'}
+                          </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
-                            max="100"
+                            max={formData.isManure ? undefined : 100}
                             value={formData.phosphorusPct || ''}
                             onChange={(e) => setFormData({ ...formData, phosphorusPct: e.target.value })}
                             placeholder="0"
@@ -1062,12 +1106,14 @@ export default function ProductCatalog() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">K₂O</label>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {formData.isManure ? `K₂O (lbs/${formData.isLiquid ? '1k gal' : 'ton'})` : 'K₂O'}
+                          </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
-                            max="100"
+                            max={formData.isManure ? undefined : 100}
                             value={formData.potassiumPct || ''}
                             onChange={(e) => setFormData({ ...formData, potassiumPct: e.target.value })}
                             placeholder="0"
@@ -1075,12 +1121,14 @@ export default function ProductCatalog() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">S</label>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {formData.isManure ? `S (lbs/${formData.isLiquid ? '1k gal' : 'ton'})` : 'S'}
+                          </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
-                            max="100"
+                            max={formData.isManure ? undefined : 100}
                             value={formData.sulfurPct || ''}
                             onChange={(e) => setFormData({ ...formData, sulfurPct: e.target.value })}
                             placeholder="0"

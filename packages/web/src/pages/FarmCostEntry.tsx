@@ -47,6 +47,13 @@ export default function FarmCostEntry() {
     acresApplied: '',
     amountUsed: ''
   });
+  const [manureForm, setManureForm] = useState({
+    fertilizerId: '',
+    ratePerAcre: '',
+    useAllAcres: true,
+    acresApplied: '',
+    amountUsed: ''
+  });
   const [chemicalForm, setChemicalForm] = useState({
     chemicalId: '',
     ratePerAcre: '',
@@ -196,6 +203,29 @@ export default function FarmCostEntry() {
       await loadData();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to add fertilizer usage');
+    }
+  };
+
+  const handleAddManure = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBusinessId || !farmId || !farm) return;
+
+    try {
+      const acresApplied = manureForm.useAllAcres ? farm.acres : parseFloat(manureForm.acresApplied);
+      const ratePerAcre = parseFloat(manureForm.ratePerAcre);
+      const selectedManure = fertilizers.find(f => f.id === manureForm.fertilizerId);
+
+      await breakevenApi.addFertilizerUsage(selectedBusinessId, {
+        farmId,
+        fertilizerId: manureForm.fertilizerId,
+        ratePerAcre,
+        rateInputUnit: selectedManure?.isLiquid ? 'GAL' : 'LB',
+        acresApplied
+      });
+      setManureForm({ fertilizerId: '', ratePerAcre: '', useAllAcres: true, acresApplied: '', amountUsed: '' });
+      await loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to add manure usage');
     }
   };
 
@@ -717,7 +747,7 @@ export default function FarmCostEntry() {
                   required
                 >
                   <option value="">Select Fertilizer</option>
-                  {fertilizers.map(f => (
+                  {fertilizers.filter(f => !f.isManure).map(f => (
                     <option key={f.id} value={f.id}>
                       {f.name} (${f.pricePerUnit.toFixed(2)}/{f.unit})
                     </option>
@@ -849,7 +879,7 @@ export default function FarmCostEntry() {
             </form>
             )}
 
-            {farm.fertilizerUsage && farm.fertilizerUsage.length > 0 && (
+            {farm.fertilizerUsage && farm.fertilizerUsage.filter((u: any) => !u.fertilizer?.isManure).length > 0 && (
               <div className="mt-6">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-sm font-medium text-gray-700">Current Usage:</h3>
@@ -889,7 +919,7 @@ export default function FarmCostEntry() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  {farm.fertilizerUsage.map((usage: any) => (
+                  {farm.fertilizerUsage.filter((u: any) => !u.fertilizer?.isManure).map((usage: any) => (
                     <div key={usage.id} className={`text-sm p-2 rounded ${selectedFertilizerIds.includes(usage.id) ? 'bg-blue-50' : 'bg-gray-50'}`}>
                       {editingFertilizer?.id === usage.id ? (
                         <form onSubmit={handleUpdateFertilizer} className="space-y-2">
@@ -980,6 +1010,114 @@ export default function FarmCostEntry() {
               </div>
             )}
           </div>
+
+          {/* Manure Section */}
+          {fertilizers.some(f => f.isManure) && (
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-amber-700">
+            <h2 className="text-lg font-semibold text-amber-900 mb-4">Manure Application</h2>
+            {canEdit() && (
+              <form onSubmit={handleAddManure} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Manure Source
+                </label>
+                <select
+                  value={manureForm.fertilizerId}
+                  onChange={(e) => setManureForm({ ...manureForm, fertilizerId: e.target.value })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  required
+                >
+                  <option value="">Select Manure Source</option>
+                  {fertilizers.filter(f => f.isManure).map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} ({f.isLiquid ? 'Liquid' : 'Dry'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rate per Acre ({(() => {
+                    const sel = fertilizers.find(f => f.id === manureForm.fertilizerId);
+                    return sel?.isLiquid ? '1,000 gal/acre' : 'tons/acre';
+                  })()})
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={manureForm.ratePerAcre}
+                  onChange={(e) => setManureForm({ ...manureForm, ratePerAcre: e.target.value })}
+                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  placeholder={(() => {
+                    const sel = fertilizers.find(f => f.id === manureForm.fertilizerId);
+                    return sel?.isLiquid ? '1,000 gal/acre' : 'tons/acre';
+                  })()}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={manureForm.useAllAcres}
+                    onChange={(e) => setManureForm({ ...manureForm, useAllAcres: e.target.checked })}
+                    className="rounded text-amber-600 mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Apply to all {farm?.acres} acres</span>
+                </label>
+                {!manureForm.useAllAcres && (
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={manureForm.acresApplied}
+                    onChange={(e) => setManureForm({ ...manureForm, acresApplied: e.target.value })}
+                    className="mt-2 w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                    placeholder="Acres applied"
+                    required
+                  />
+                )}
+              </div>
+
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-amber-700 text-white rounded-md hover:bg-amber-800"
+              >
+                Add Manure Application
+              </button>
+            </form>
+            )}
+
+            {farm?.fertilizerUsage && farm.fertilizerUsage.filter((u: any) => u.fertilizer?.isManure).length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Current Manure Usage:</h3>
+                <div className="space-y-2">
+                  {farm.fertilizerUsage.filter((u: any) => u.fertilizer?.isManure).map((usage: any) => (
+                    <div key={usage.id} className="text-sm p-2 bg-amber-50 rounded">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-medium text-amber-900">{usage.fertilizer?.name}</span>
+                          <span className="text-gray-600 ml-2">
+                            {usage.ratePerAcre ? `${Number(usage.ratePerAcre).toFixed(2)} ${usage.fertilizer?.isLiquid ? '1k gal' : 'tons'}/ac` : `${Number(usage.amountUsed).toFixed(2)} ${usage.fertilizer?.unit}`}
+                          </span>
+                        </div>
+                        {canEdit() && (
+                          <button
+                            onClick={() => handleDeleteFertilizer(usage.id)}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          )}
 
           {/* Chemical Section */}
           <div className="bg-white rounded-lg shadow-md p-6">

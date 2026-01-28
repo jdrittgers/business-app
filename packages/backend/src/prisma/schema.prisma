@@ -600,8 +600,9 @@ model Fertilizer {
   rateUnit           String?  @map("rate_unit") // Unit for the rate (may differ from purchase unit)
   isActive           Boolean  @default(true) @map("is_active")
   needsPricing       Boolean  @default(false) @map("needs_pricing") // Flag for products added by workers without pricing
+  isManure           Boolean  @default(false) @map("is_manure")    // Manure source (nutrients in lbs/1000gal or lbs/ton)
 
-  // Nutrient content (percentages)
+  // Nutrient content (percentages for commercial, lbs/1000gal or lbs/ton for manure)
   nitrogenPct        Decimal? @map("nitrogen_pct") @db.Decimal(5, 2)     // N%
   phosphorusPct      Decimal? @map("phosphorus_pct") @db.Decimal(5, 2)   // P2O5%
   potassiumPct       Decimal? @map("potassium_pct") @db.Decimal(5, 2)    // K2O%

@@ -60,11 +60,12 @@ export interface Fertilizer {
   rateUnit?: string; // Unit for the rate (may differ from purchase unit)
   isActive: boolean;
   needsPricing: boolean;
-  // Nutrient content (percentages)
-  nitrogenPct?: number;    // N%
-  phosphorusPct?: number;  // P2O5%
-  potassiumPct?: number;   // K2O%
-  sulfurPct?: number;      // S%
+  isManure?: boolean;       // Manure source (nutrients in lbs/1000gal or lbs/ton)
+  // Nutrient content (% for commercial, lbs/1000gal or lbs/ton for manure)
+  nitrogenPct?: number;
+  phosphorusPct?: number;
+  potassiumPct?: number;
+  sulfurPct?: number;
   // For liquid fertilizers
   isLiquid?: boolean;
   lbsPerGallon?: number;   // Weight per gallon (e.g., 11.06 for UAN)
@@ -81,7 +82,8 @@ export interface CreateFertilizerRequest {
   unit: UnitType;
   defaultRatePerAcre?: number;
   rateUnit?: string;
-  // Nutrient content (percentages)
+  isManure?: boolean;
+  // Nutrient content
   nitrogenPct?: number;
   phosphorusPct?: number;
   potassiumPct?: number;
@@ -101,7 +103,8 @@ export interface UpdateFertilizerRequest {
   defaultRatePerAcre?: number;
   rateUnit?: string;
   isActive?: boolean;
-  // Nutrient content (percentages)
+  isManure?: boolean;
+  // Nutrient content
   nitrogenPct?: number;
   phosphorusPct?: number;
   potassiumPct?: number;

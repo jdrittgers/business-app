@@ -271,32 +271,48 @@ export class BreakEvenAnalyticsService {
       const totalCost = amountUsed * pricePerUnit;
       fertilizerCost += totalCost;
 
-      // Calculate lbs of product applied
-      // amountUsed is in purchase units (TON, LB, GAL) - convert to lbs
-      const acresApplied = usage.acresApplied ? Number(usage.acresApplied) : acres;
-      const unit = usage.fertilizer.unit;
-      let lbsApplied: number;
-      if (unit === 'TON') {
-        lbsApplied = amountUsed * 2000;
-      } else if (unit === 'GAL' && usage.fertilizer.lbsPerGallon) {
-        lbsApplied = amountUsed * Number(usage.fertilizer.lbsPerGallon);
-      } else {
-        // LB or unknown - assume already in lbs
-        lbsApplied = amountUsed;
-      }
-
       // Calculate nutrients applied (in lbs)
-      if (usage.fertilizer.nitrogenPct) {
-        totalNitrogen += lbsApplied * (Number(usage.fertilizer.nitrogenPct) / 100);
-      }
-      if (usage.fertilizer.phosphorusPct) {
-        totalPhosphorus += lbsApplied * (Number(usage.fertilizer.phosphorusPct) / 100);
-      }
-      if (usage.fertilizer.potassiumPct) {
-        totalPotassium += lbsApplied * (Number(usage.fertilizer.potassiumPct) / 100);
-      }
-      if (usage.fertilizer.sulfurPct) {
-        totalSulfur += lbsApplied * (Number(usage.fertilizer.sulfurPct) / 100);
+      const acresApplied = usage.acresApplied ? Number(usage.acresApplied) : acres;
+      if (usage.fertilizer.isManure) {
+        // Manure: nutrient values are lbs per 1,000 gal (liquid) or lbs per ton (dry)
+        const unit = usage.fertilizer.unit;
+        if (unit === 'GAL') {
+          const thousandsOfGallons = amountUsed / 1000;
+          if (usage.fertilizer.nitrogenPct) totalNitrogen += thousandsOfGallons * Number(usage.fertilizer.nitrogenPct);
+          if (usage.fertilizer.phosphorusPct) totalPhosphorus += thousandsOfGallons * Number(usage.fertilizer.phosphorusPct);
+          if (usage.fertilizer.potassiumPct) totalPotassium += thousandsOfGallons * Number(usage.fertilizer.potassiumPct);
+          if (usage.fertilizer.sulfurPct) totalSulfur += thousandsOfGallons * Number(usage.fertilizer.sulfurPct);
+        } else {
+          // Dry manure: amountUsed in tons, nutrients are per ton
+          if (usage.fertilizer.nitrogenPct) totalNitrogen += amountUsed * Number(usage.fertilizer.nitrogenPct);
+          if (usage.fertilizer.phosphorusPct) totalPhosphorus += amountUsed * Number(usage.fertilizer.phosphorusPct);
+          if (usage.fertilizer.potassiumPct) totalPotassium += amountUsed * Number(usage.fertilizer.potassiumPct);
+          if (usage.fertilizer.sulfurPct) totalSulfur += amountUsed * Number(usage.fertilizer.sulfurPct);
+        }
+      } else {
+        // Commercial fertilizer: convert to lbs then apply percentage
+        const unit = usage.fertilizer.unit;
+        let lbsApplied: number;
+        if (unit === 'TON') {
+          lbsApplied = amountUsed * 2000;
+        } else if (unit === 'GAL' && usage.fertilizer.lbsPerGallon) {
+          lbsApplied = amountUsed * Number(usage.fertilizer.lbsPerGallon);
+        } else {
+          lbsApplied = amountUsed;
+        }
+
+        if (usage.fertilizer.nitrogenPct) {
+          totalNitrogen += lbsApplied * (Number(usage.fertilizer.nitrogenPct) / 100);
+        }
+        if (usage.fertilizer.phosphorusPct) {
+          totalPhosphorus += lbsApplied * (Number(usage.fertilizer.phosphorusPct) / 100);
+        }
+        if (usage.fertilizer.potassiumPct) {
+          totalPotassium += lbsApplied * (Number(usage.fertilizer.potassiumPct) / 100);
+        }
+        if (usage.fertilizer.sulfurPct) {
+          totalSulfur += lbsApplied * (Number(usage.fertilizer.sulfurPct) / 100);
+        }
       }
 
       return {

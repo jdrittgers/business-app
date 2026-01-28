@@ -510,9 +510,9 @@ export default function FarmPlanEdit() {
                 + Add Fertilizer
               </button>
             </div>
-            {farm?.fertilizerUsage && farm.fertilizerUsage.length > 0 ? (
+            {farm?.fertilizerUsage && farm.fertilizerUsage.filter(u => !u.fertilizer?.isManure).length > 0 ? (
               <div className="space-y-3">
-                {farm.fertilizerUsage.map((usage) => (
+                {farm.fertilizerUsage.filter(u => !u.fertilizer?.isManure).map((usage) => (
                   <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-blue-100 border border-blue-300' : 'bg-blue-50'}`}>
                     <button
                       onClick={() => {
@@ -551,6 +551,69 @@ export default function FarmPlanEdit() {
               </div>
             ) : (
               <p className="text-sm text-gray-500 italic">No fertilizer plan set</p>
+            )}
+          </div>
+
+          {/* Manure Plan */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <span className="w-3 h-3 bg-amber-700 rounded-full mr-2"></span>
+                Manure Plan
+              </h3>
+              <button
+                onClick={() => {
+                  setNewProductAcres(farm?.acres?.toString() || '');
+                  setShowAddProductModal('fertilizer');
+                }}
+                className="text-sm text-amber-700 hover:text-amber-900 font-medium"
+              >
+                + Add Manure
+              </button>
+            </div>
+            {farm?.fertilizerUsage && farm.fertilizerUsage.filter(u => u.fertilizer?.isManure).length > 0 ? (
+              <div className="space-y-3">
+                {farm.fertilizerUsage.filter(u => u.fertilizer?.isManure).map((usage) => (
+                  <div key={usage.id} className={`p-3 rounded-lg flex items-start ${usage.completedAt ? 'bg-amber-100 border border-amber-300' : 'bg-amber-50'}`}>
+                    <button
+                      onClick={() => {
+                        if (usage.completedAt) {
+                          handleUndoComplete('fertilizer', usage.id);
+                        } else {
+                          setShowCompletionModal({ type: 'fertilizer', id: usage.id, productName: usage.fertilizer?.name || 'Manure' });
+                        }
+                      }}
+                      disabled={saving}
+                      className={`mt-0.5 mr-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${
+                        usage.completedAt
+                          ? 'bg-amber-700 border-amber-700 text-white'
+                          : 'border-gray-300 hover:border-amber-500'
+                      }`}
+                    >
+                      {usage.completedAt && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <div className="flex-1">
+                      <p className="font-medium text-amber-900">{usage.fertilizer?.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {usage.ratePerAcre} {usage.fertilizer?.isLiquid ? '1k gal' : 'tons'}/acre
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {usage.completedAt && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          Applied {formatCompletionDate(usage.completedAt)}
+                          {usage.completedByName && ` by ${usage.completedByName}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">No manure plan set</p>
             )}
           </div>
 
