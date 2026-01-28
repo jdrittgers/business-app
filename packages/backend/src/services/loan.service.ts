@@ -918,7 +918,7 @@ export class LoanInterestService {
     const businessId = farm.grainEntity.business?.id;
     if (businessId) {
       const equipmentLoanService = new EquipmentLoanService();
-      const costPerAcre = await equipmentLoanService.getEquipmentCostPerAcre(businessId, year);
+      const costPerAcre = await equipmentLoanService.getEquipmentCostPerAcre(businessId, year, farm.grainEntityId);
       const farmAcres = Number(farm.acres);
 
       equipmentLoanInterest = costPerAcre.interestPerAcre * farmAcres;
@@ -1546,14 +1546,16 @@ export class EquipmentLoanService {
   }
 
   // Get total equipment loan cost per acre for break-even calculations
-  async getEquipmentCostPerAcre(businessId: string, year: number): Promise<{ interestPerAcre: number; principalPerAcre: number; totalPerAcre: number }> {
-    // Get all equipment with loans that are marked for break-even
+  // If grainEntityId is provided, only includes equipment assigned to that entity (using entity split percentages)
+  async getEquipmentCostPerAcre(businessId: string, year: number, grainEntityId?: string): Promise<{ interestPerAcre: number; principalPerAcre: number; totalPerAcre: number }> {
+    // Get all equipment with loans that are marked for break-even, including entity splits
     const equipment = await prisma.equipment.findMany({
       where: { businessId, deletedAt: null, isActive: true },
       include: {
         equipmentLoans: {
           where: { deletedAt: null, isActive: true, includeInBreakeven: true }
-        }
+        },
+        entitySplits: true
       }
     });
 
@@ -1561,16 +1563,30 @@ export class EquipmentLoanService {
     let totalAnnualPrincipal = 0;
 
     for (const eq of equipment) {
+      // Determine what fraction of this equipment's cost applies
+      let entityFraction = 1; // default: 100% if no entity filter or no splits
+      if (grainEntityId && eq.entitySplits.length > 0) {
+        const split = eq.entitySplits.find(s => s.grainEntityId === grainEntityId);
+        if (!split) {
+          // This equipment is not assigned to the requested entity — skip it
+          continue;
+        }
+        entityFraction = Number(split.percentage) / 100;
+      } else if (grainEntityId && eq.entitySplits.length === 0) {
+        // Equipment has no entity splits — include fully (shared across business)
+        entityFraction = 1;
+      }
+
       for (const loan of eq.equipmentLoans) {
-        totalAnnualInterest += this.calculateAnnualInterest(loan);
-        totalAnnualPrincipal += this.calculateAnnualPrincipal(loan);
+        totalAnnualInterest += this.calculateAnnualInterest(loan) * entityFraction;
+        totalAnnualPrincipal += this.calculateAnnualPrincipal(loan) * entityFraction;
       }
     }
 
-    // Get total acres across all farms for this year
+    // Get total acres — if entity-filtered, only count that entity's farms
     const farms = await prisma.farm.findMany({
       where: {
-        grainEntity: { businessId },
+        ...(grainEntityId ? { grainEntityId } : { grainEntity: { businessId } }),
         year,
         deletedAt: null
       },

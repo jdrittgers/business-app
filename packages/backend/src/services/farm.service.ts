@@ -972,7 +972,7 @@ export class FarmService {
       const farmEntity = await prisma.grainEntity.findFirst({ where: { id: farm.grainEntityId } });
       if (farmEntity) {
         const equipmentLoanService = new EquipmentLoanService();
-        const costPerAcreData = await equipmentLoanService.getEquipmentCostPerAcre(farmEntity.businessId, farm.year);
+        const costPerAcreData = await equipmentLoanService.getEquipmentCostPerAcre(farmEntity.businessId, farm.year, farm.grainEntityId);
         equipmentInterest = costPerAcreData.interestPerAcre * farm.acres;
         equipmentPrincipal = costPerAcreData.principalPerAcre * farm.acres;
       }
