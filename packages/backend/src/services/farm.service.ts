@@ -452,7 +452,27 @@ export class FarmService {
     // Calculate amountUsed from rate and acres if provided
     let amountUsed = data.amountUsed;
     if (ratePerAcre && data.acresApplied) {
-      amountUsed = ratePerAcre * data.acresApplied;
+      // ratePerAcre is in application units (gal/acre for liquid, lbs/acre for dry)
+      let totalApplicationUnits = ratePerAcre * data.acresApplied;
+
+      // Convert to purchase unit if different from application unit
+      if (fertilizer.isLiquid && fertilizer.unit === 'TON' && fertilizer.lbsPerGallon) {
+        // User entered gal/acre, fertilizer is sold by TON
+        // Convert: gallons -> lbs -> tons
+        const totalLbs = totalApplicationUnits * Number(fertilizer.lbsPerGallon);
+        amountUsed = totalLbs / 2000; // 2000 lbs per ton
+      } else if (fertilizer.isLiquid && fertilizer.unit === 'LB' && fertilizer.lbsPerGallon) {
+        // User entered gal/acre, fertilizer is sold by LB
+        // Convert: gallons -> lbs
+        amountUsed = totalApplicationUnits * Number(fertilizer.lbsPerGallon);
+      } else if (!fertilizer.isLiquid && fertilizer.unit === 'TON') {
+        // User entered lbs/acre, fertilizer is sold by TON
+        // Convert: lbs -> tons
+        amountUsed = totalApplicationUnits / 2000;
+      } else {
+        // No conversion needed (unit matches application unit)
+        amountUsed = totalApplicationUnits;
+      }
     }
 
     if (!amountUsed) {
