@@ -406,9 +406,13 @@ model GrainEntity {
   operatingLoans OperatingLoan[]
 
   // Entity splits (farms/equipment/land split across entities)
-  farmEntitySplits      FarmEntitySplit[]
-  equipmentEntitySplits EquipmentEntitySplit[]
+  farmEntitySplits       FarmEntitySplit[]
+  equipmentEntitySplits  EquipmentEntitySplit[]
   landParcelEntitySplits LandParcelEntitySplit[]
+  landLoanEntitySplits   LandLoanEntitySplit[]
+
+  // Land loans linked to this entity
+  landLoans              LandLoan[]
 
   @@unique([businessId, name])
   @@index([businessId])
@@ -701,6 +705,7 @@ model Farm {
   trials                   FarmTrial[]
   chemicalPlanApplications ChemicalPlanApplication[]
   invoices                 Invoice[]  // Field-specific invoices/bills
+  landLoans                LandLoan[] // Land loans tied to this specific farm
 
   @@map("farms")
   @@index([grainEntityId])
@@ -2296,6 +2301,10 @@ model LandLoan {
   lender            String
   loanNumber        String?           @map("loan_number")
 
+  // Entity/Farm linking (optional - for attributing loan costs to specific entity/farm)
+  grainEntityId     String?           @map("grain_entity_id")
+  farmId            String?           @map("farm_id")
+
   // Mode selection - simple just tracks annual payment, full tracks amortization
   useSimpleMode     Boolean           @default(false) @map("use_simple_mode")
 
@@ -2323,9 +2332,14 @@ model LandLoan {
 
   // Relations
   landParcel        LandParcel        @relation(fields: [landParcelId], references: [id], onDelete: Cascade)
+  grainEntity       GrainEntity?      @relation(fields: [grainEntityId], references: [id], onDelete: SetNull)
+  farm              Farm?             @relation(fields: [farmId], references: [id], onDelete: SetNull)
   payments          LandLoanPayment[]
+  entitySplits      LandLoanEntitySplit[]
 
   @@index([landParcelId])
+  @@index([grainEntityId])
+  @@index([farmId])
   @@index([deletedAt])
   @@index([nextPaymentDate])
   @@map("land_loans")
@@ -2347,6 +2361,23 @@ model LandLoanPayment {
   @@index([landLoanId])
   @@index([paymentDate])
   @@map("land_loan_payments")
+}
+
+model LandLoanEntitySplit {
+  id            String      @id @default(uuid())
+  landLoanId    String      @map("land_loan_id")
+  grainEntityId String      @map("grain_entity_id")
+  percentage    Decimal     @db.Decimal(5, 2) // 0.00 to 100.00
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  landLoan      LandLoan    @relation(fields: [landLoanId], references: [id], onDelete: Cascade)
+  grainEntity   GrainEntity @relation(fields: [grainEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([landLoanId, grainEntityId])
+  @@index([landLoanId])
+  @@index([grainEntityId])
+  @@map("land_loan_entity_splits")
 }
 
 model OperatingLoan {

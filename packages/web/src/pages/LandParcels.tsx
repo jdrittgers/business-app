@@ -314,22 +314,37 @@ interface LoanModalProps {
   onClose: () => void;
   onSave: (data: CreateLandLoanRequest) => Promise<void>;
   loan?: LandLoan | null;
+  entities: GrainEntity[];
+  farms: Array<{ id: string; name: string; year: number; acres: number; grainEntityId: string }>;
 }
 
-function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
+function LoanModal({ isOpen, onClose, onSave, loan, entities, farms }: LoanModalProps) {
   const [useSimpleMode, setUseSimpleMode] = useState(true);
-  const [formData, setFormData] = useState<CreateLandLoanRequest>({
+  const [formData, setFormData] = useState<CreateLandLoanRequest & { entitySplits?: CreateEntitySplitRequest[] }>({
     lender: '',
-    useSimpleMode: true
+    useSimpleMode: true,
+    entitySplits: []
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedEntityId, setSelectedEntityId] = useState<string>('');
+  const [useEntitySplits, setUseEntitySplits] = useState(false);
+
+  // Filter farms by selected entity
+  const filteredFarms = selectedEntityId
+    ? farms.filter(f => f.grainEntityId === selectedEntityId)
+    : [];
 
   useEffect(() => {
     if (loan) {
       setUseSimpleMode(loan.useSimpleMode);
+      setSelectedEntityId(loan.grainEntityId || '');
+      const hasEntitySplits = !!(loan.entitySplits && loan.entitySplits.length > 0);
+      setUseEntitySplits(hasEntitySplits);
       setFormData({
         lender: loan.lender,
         loanNumber: loan.loanNumber,
+        grainEntityId: loan.grainEntityId,
+        farmId: loan.farmId,
         useSimpleMode: loan.useSimpleMode,
         principal: loan.principal,
         interestRate: loan.interestRate,
@@ -339,19 +354,41 @@ function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
         monthlyPayment: loan.monthlyPayment,
         remainingBalance: loan.remainingBalance,
         annualPayment: loan.annualPayment,
-        notes: loan.notes
+        notes: loan.notes,
+        entitySplits: hasEntitySplits
+          ? loan.entitySplits!.map(s => ({ grainEntityId: s.grainEntityId, percentage: s.percentage }))
+          : []
       });
     } else {
       setUseSimpleMode(true);
-      setFormData({ lender: '', useSimpleMode: true });
+      setSelectedEntityId('');
+      setUseEntitySplits(false);
+      setFormData({ lender: '', useSimpleMode: true, entitySplits: [] });
     }
   }, [loan, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate entity splits total to 100% if using splits
+    if (useEntitySplits && formData.entitySplits && formData.entitySplits.length > 0) {
+      const total = formData.entitySplits.reduce((sum, s) => sum + s.percentage, 0);
+      if (Math.abs(total - 100) > 0.01) {
+        alert('Entity split percentages must total 100%');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
-      await onSave({ ...formData, useSimpleMode });
+      const dataToSave = {
+        ...formData,
+        useSimpleMode,
+        entitySplits: useEntitySplits && formData.entitySplits && formData.entitySplits.length > 0
+          ? formData.entitySplits
+          : undefined
+      };
+      await onSave(dataToSave);
       onClose();
     } catch (error) {
       console.error('Failed to save loan:', error);
@@ -374,6 +411,51 @@ function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
             {loan ? 'Edit Land Loan' : 'Add Land Loan'}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Entity/Farm Selection */}
+            <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="text-sm font-medium text-blue-800">Link to Entity/Farm (Optional)</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Entity</label>
+                  <select
+                    value={selectedEntityId}
+                    onChange={(e) => {
+                      const entityId = e.target.value;
+                      setSelectedEntityId(entityId);
+                      setFormData({
+                        ...formData,
+                        grainEntityId: entityId || undefined,
+                        farmId: undefined // Reset farm when entity changes
+                      });
+                    }}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="">-- Select Entity --</option>
+                    {entities.map(entity => (
+                      <option key={entity.id} value={entity.id}>{entity.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Farm</label>
+                  <select
+                    value={formData.farmId || ''}
+                    onChange={(e) => setFormData({ ...formData, farmId: e.target.value || undefined })}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                    disabled={!selectedEntityId}
+                  >
+                    <option value="">-- Select Farm --</option>
+                    {filteredFarms.map(farm => (
+                      <option key={farm.id} value={farm.id}>{farm.name} ({farm.year})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {selectedEntityId && filteredFarms.length === 0 && (
+                <p className="text-xs text-amber-600">No farms found for this entity</p>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Lender *</label>
               <input
@@ -530,6 +612,113 @@ function LoanModal({ isOpen, onClose, onSave, loan }: LoanModalProps) {
                 rows={2}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
+            </div>
+
+            {/* Entity Splits for Cost Attribution */}
+            <div className="space-y-3 pt-2 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">Cost Attribution</label>
+                <label className="flex items-center text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={useEntitySplits}
+                    onChange={(e) => {
+                      setUseEntitySplits(e.target.checked);
+                      if (e.target.checked && (!formData.entitySplits || formData.entitySplits.length === 0)) {
+                        // Initialize with first entity at 100%
+                        setFormData({
+                          ...formData,
+                          entitySplits: entities.length > 0
+                            ? [{ grainEntityId: entities[0].id, percentage: 100 }]
+                            : []
+                        });
+                      }
+                    }}
+                    className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Split costs between entities
+                </label>
+              </div>
+
+              {useEntitySplits && (
+                <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-2">Specify how loan costs should be allocated across entities</p>
+                  {(formData.entitySplits || []).map((split, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <select
+                        value={split.grainEntityId}
+                        onChange={(e) => {
+                          const newSplits = [...(formData.entitySplits || [])];
+                          newSplits[index].grainEntityId = e.target.value;
+                          setFormData({ ...formData, entitySplits: newSplits });
+                        }}
+                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                        required
+                      >
+                        <option value="">Select Entity</option>
+                        {entities.map(entity => (
+                          <option key={entity.id} value={entity.id}>{entity.name}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={split.percentage}
+                          onChange={(e) => {
+                            const newSplits = [...(formData.entitySplits || [])];
+                            newSplits[index].percentage = parseFloat(e.target.value) || 0;
+                            setFormData({ ...formData, entitySplits: newSplits });
+                          }}
+                          className="w-20 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                          required
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                      </div>
+                      {(formData.entitySplits || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSplits = (formData.entitySplits || []).filter((_, i) => i !== index);
+                            setFormData({ ...formData, entitySplits: newSplits });
+                          }}
+                          className="p-1 text-red-500 hover:text-red-700"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          entitySplits: [...(formData.entitySplits || []), { grainEntityId: '', percentage: 0 }]
+                        });
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      + Add Entity
+                    </button>
+                    <div className="text-sm">
+                      <span className="text-gray-500">Total: </span>
+                      <span className={`font-medium ${
+                        Math.abs((formData.entitySplits || []).reduce((sum, s) => sum + s.percentage, 0) - 100) < 0.01
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}>
+                        {(formData.entitySplits || []).reduce((sum, s) => sum + s.percentage, 0).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3">
@@ -743,6 +932,7 @@ export default function LandParcels() {
   const { user } = useAuthStore();
   const [parcels, setParcels] = useState<LandParcel[]>([]);
   const [entities, setEntities] = useState<GrainEntity[]>([]);
+  const [allFarms, setAllFarms] = useState<Array<{ id: string; name: string; year: number; acres: number; grainEntityId: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [showParcelModal, setShowParcelModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
@@ -769,6 +959,45 @@ export default function LandParcels() {
       ]);
       setParcels(parcelsData);
       setEntities(entitiesData);
+
+      // Build list of all farms from all entities for the loan modal
+      const farmsFromParcels: Array<{ id: string; name: string; year: number; acres: number; grainEntityId: string }> = [];
+      for (const parcel of parcelsData) {
+        if (parcel.farms) {
+          for (const farm of parcel.farms) {
+            // Find which entity this farm belongs to by looking at parcel entity splits or matching
+            const entitySplit = parcel.entitySplits?.[0];
+            if (entitySplit) {
+              farmsFromParcels.push({
+                id: farm.id,
+                name: farm.name,
+                year: farm.year,
+                acres: farm.acres,
+                grainEntityId: entitySplit.grainEntityId
+              });
+            }
+          }
+        }
+      }
+      // Also fetch all farms directly using breakeven API
+      try {
+        const { breakevenApi } = await import('../api/breakeven.api');
+        const allFarmsData = await breakevenApi.getFarms(businessId);
+        const uniqueFarms = new Map<string, any>();
+        allFarmsData.forEach((f: any) => {
+          uniqueFarms.set(f.id, {
+            id: f.id,
+            name: f.name,
+            year: f.year,
+            acres: Number(f.acres),
+            grainEntityId: f.grainEntityId
+          });
+        });
+        setAllFarms(Array.from(uniqueFarms.values()));
+      } catch (err) {
+        console.error('Failed to load farms:', err);
+        setAllFarms(farmsFromParcels);
+      }
     } catch (error) {
       console.error('Failed to load land parcels:', error);
       alert('Failed to load land parcels');
@@ -1024,6 +1253,22 @@ export default function LandParcels() {
                                     ? `Annual Payment: $${(loan.annualPayment || 0).toLocaleString()}`
                                     : `${(loan.interestRate ? loan.interestRate * 100 : 0).toFixed(2)}% Rate • $${(loan.remainingBalance || 0).toLocaleString()} Balance`}
                                 </p>
+                                {(loan.grainEntityName || loan.farmName) && (
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    {loan.grainEntityName && <span>{loan.grainEntityName}</span>}
+                                    {loan.farmName && <span> → {loan.farmName}</span>}
+                                  </p>
+                                )}
+                                {loan.entitySplits && loan.entitySplits.length > 0 && (
+                                  <p className="text-xs text-purple-600 mt-1">
+                                    Cost split: {loan.entitySplits.map((s, i) => (
+                                      <span key={s.id}>
+                                        {i > 0 && ' / '}
+                                        {s.grainEntityName} ({s.percentage}%)
+                                      </span>
+                                    ))}
+                                  </p>
+                                )}
                               </div>
                               <div className="flex items-center space-x-4">
                                 <div className="text-right">
@@ -1107,6 +1352,8 @@ export default function LandParcels() {
         }}
         onSave={selectedLoan ? handleUpdateLoan : handleCreateLoan}
         loan={selectedLoan}
+        entities={entities}
+        farms={allFarms}
       />
 
       <PaymentModal

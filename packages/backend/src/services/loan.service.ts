@@ -41,10 +41,21 @@ export class LandParcelService {
       },
       include: {
         farms: {
-          select: { id: true, name: true, year: true, acres: true, commodityType: true }
+          select: { id: true, name: true, year: true, acres: true, commodityType: true },
+          where: { deletedAt: null }
         },
         landLoans: {
-          where: { deletedAt: null, isActive: true }
+          where: { deletedAt: null, isActive: true },
+          include: {
+            grainEntity: { select: { id: true, name: true } },
+            farm: { select: { id: true, name: true } },
+            entitySplits: {
+              include: { grainEntity: { select: { name: true } } }
+            }
+          }
+        },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
         }
       },
       orderBy: { name: 'asc' }
@@ -59,13 +70,22 @@ export class LandParcelService {
       include: {
         farms: {
           select: { id: true, name: true, year: true, acres: true, commodityType: true },
+          where: { deletedAt: null },
           orderBy: [{ year: 'desc' }, { name: 'asc' }]
         },
         landLoans: {
           where: { deletedAt: null },
           include: {
-            payments: { orderBy: { paymentDate: 'desc' }, take: 10 }
+            payments: { orderBy: { paymentDate: 'desc' }, take: 10 },
+            grainEntity: { select: { id: true, name: true } },
+            farm: { select: { id: true, name: true } },
+            entitySplits: {
+              include: { grainEntity: { select: { name: true } } }
+            }
           }
+        },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
         }
       }
     });
@@ -156,7 +176,13 @@ export class LandParcelService {
         acres: Number(f.acres),
         commodityType: f.commodityType
       })),
-      landLoans: loans.map((l: any) => this.mapLandLoan(l))
+      landLoans: loans.map((l: any) => this.mapLandLoan(l)),
+      entitySplits: parcel.entitySplits?.map((s: any) => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity?.name || undefined,
+        percentage: Number(s.percentage)
+      }))
     };
   }
 
@@ -175,6 +201,11 @@ export class LandParcelService {
       landParcelId: loan.landParcelId,
       lender: loan.lender,
       loanNumber: loan.loanNumber || undefined,
+      // Entity/Farm linking
+      grainEntityId: loan.grainEntityId || undefined,
+      grainEntityName: loan.grainEntity?.name || undefined,
+      farmId: loan.farmId || undefined,
+      farmName: loan.farm?.name || undefined,
       useSimpleMode: loan.useSimpleMode,
       principal: loan.principal ? Number(loan.principal) : undefined,
       interestRate: loan.interestRate ? Number(loan.interestRate) : undefined,
@@ -194,10 +225,16 @@ export class LandParcelService {
         landLoanId: p.landLoanId,
         paymentDate: p.paymentDate,
         totalAmount: Number(p.totalAmount),
-        principalAmount: Number(p.principalAmount),
-        interestAmount: Number(p.interestAmount),
+        principalAmount: p.principalAmount ? Number(p.principalAmount) : undefined,
+        interestAmount: p.interestAmount ? Number(p.interestAmount) : undefined,
         notes: p.notes || undefined,
         createdAt: p.createdAt
+      })),
+      entitySplits: loan.entitySplits?.map((s: any) => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity?.name || undefined,
+        percentage: Number(s.percentage)
       }))
     };
   }
@@ -210,7 +247,12 @@ export class LandLoanService {
     const loans = await prisma.landLoan.findMany({
       where: { landParcelId: parcelId, deletedAt: null },
       include: {
-        payments: { orderBy: { paymentDate: 'desc' } }
+        payments: { orderBy: { paymentDate: 'desc' } },
+        grainEntity: { select: { id: true, name: true } },
+        farm: { select: { id: true, name: true } },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
+        }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -223,7 +265,12 @@ export class LandLoanService {
       where: { id, deletedAt: null },
       include: {
         landParcel: true,
-        payments: { orderBy: { paymentDate: 'desc' } }
+        payments: { orderBy: { paymentDate: 'desc' } },
+        grainEntity: { select: { id: true, name: true } },
+        farm: { select: { id: true, name: true } },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
+        }
       }
     });
 
@@ -232,11 +279,14 @@ export class LandLoanService {
   }
 
   async create(parcelId: string, data: CreateLandLoanRequest): Promise<LandLoan> {
+    // Create the loan with entity/farm linking
     const loan = await prisma.landLoan.create({
       data: {
         landParcelId: parcelId,
         lender: data.lender,
         loanNumber: data.loanNumber,
+        grainEntityId: data.grainEntityId || null,
+        farmId: data.farmId || null,
         useSimpleMode: data.useSimpleMode,
         principal: data.principal,
         interestRate: data.interestRate,
@@ -249,8 +299,29 @@ export class LandLoanService {
         nextPaymentDate: data.nextPaymentDate ? new Date(data.nextPaymentDate) : null,
         notes: data.notes
       },
-      include: { payments: true }
+      include: {
+        payments: true,
+        grainEntity: { select: { id: true, name: true } },
+        farm: { select: { id: true, name: true } },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
+        }
+      }
     });
+
+    // Create entity splits if provided
+    if (data.entitySplits && data.entitySplits.length > 0) {
+      await prisma.landLoanEntitySplit.createMany({
+        data: data.entitySplits.map(split => ({
+          landLoanId: loan.id,
+          grainEntityId: split.grainEntityId,
+          percentage: split.percentage
+        }))
+      });
+
+      // Re-fetch with splits
+      return this.getById(loan.id) as Promise<LandLoan>;
+    }
 
     return this.mapLoan(loan);
   }
@@ -264,6 +335,8 @@ export class LandLoanService {
       data: {
         ...(data.lender !== undefined && { lender: data.lender }),
         ...(data.loanNumber !== undefined && { loanNumber: data.loanNumber }),
+        ...(data.grainEntityId !== undefined && { grainEntityId: data.grainEntityId || null }),
+        ...(data.farmId !== undefined && { farmId: data.farmId || null }),
         ...(data.useSimpleMode !== undefined && { useSimpleMode: data.useSimpleMode }),
         ...(data.principal !== undefined && { principal: data.principal }),
         ...(data.interestRate !== undefined && { interestRate: data.interestRate }),
@@ -278,8 +351,37 @@ export class LandLoanService {
         ...(data.notes !== undefined && { notes: data.notes }),
         ...(data.isActive !== undefined && { isActive: data.isActive })
       },
-      include: { payments: true }
+      include: {
+        payments: true,
+        grainEntity: { select: { id: true, name: true } },
+        farm: { select: { id: true, name: true } },
+        entitySplits: {
+          include: { grainEntity: { select: { name: true } } }
+        }
+      }
     });
+
+    // Update entity splits if provided
+    if (data.entitySplits !== undefined) {
+      // Delete existing splits
+      await prisma.landLoanEntitySplit.deleteMany({
+        where: { landLoanId: id }
+      });
+
+      // Create new splits
+      if (data.entitySplits && data.entitySplits.length > 0) {
+        await prisma.landLoanEntitySplit.createMany({
+          data: data.entitySplits.map(split => ({
+            landLoanId: id,
+            grainEntityId: split.grainEntityId,
+            percentage: split.percentage
+          }))
+        });
+      }
+
+      // Re-fetch with splits
+      return this.getById(id) as Promise<LandLoan>;
+    }
 
     return this.mapLoan(loan);
   }
@@ -366,6 +468,11 @@ export class LandLoanService {
       landParcelId: loan.landParcelId,
       lender: loan.lender,
       loanNumber: loan.loanNumber || undefined,
+      // Entity/Farm linking
+      grainEntityId: loan.grainEntityId || undefined,
+      grainEntityName: loan.grainEntity?.name || undefined,
+      farmId: loan.farmId || undefined,
+      farmName: loan.farm?.name || undefined,
       useSimpleMode: loan.useSimpleMode,
       principal: loan.principal ? Number(loan.principal) : undefined,
       interestRate: loan.interestRate ? Number(loan.interestRate) : undefined,
@@ -398,10 +505,16 @@ export class LandLoanService {
         landLoanId: p.landLoanId,
         paymentDate: p.paymentDate,
         totalAmount: Number(p.totalAmount),
-        principalAmount: Number(p.principalAmount),
-        interestAmount: Number(p.interestAmount),
+        principalAmount: p.principalAmount ? Number(p.principalAmount) : undefined,
+        interestAmount: p.interestAmount ? Number(p.interestAmount) : undefined,
         notes: p.notes || undefined,
         createdAt: p.createdAt
+      })),
+      entitySplits: loan.entitySplits?.map((s: any) => ({
+        id: s.id,
+        grainEntityId: s.grainEntityId,
+        grainEntityName: s.grainEntity?.name || undefined,
+        percentage: Number(s.percentage)
       }))
     };
   }

@@ -99,6 +99,11 @@ export interface LandLoan {
   landParcelId: string;
   lender: string;
   loanNumber?: string;
+  // Entity/Farm linking (for attributing loan costs to specific entity/farm)
+  grainEntityId?: string;
+  grainEntityName?: string;
+  farmId?: string;
+  farmName?: string;
   useSimpleMode: boolean;
   // Full amortization fields
   principal?: number;
@@ -122,11 +127,15 @@ export interface LandLoan {
   annualPrincipalExpense?: number;
   landParcel?: LandParcel;
   payments?: LandLoanPayment[];
+  entitySplits?: EntitySplit[];
 }
 
 export interface CreateLandLoanRequest {
   lender: string;
   loanNumber?: string;
+  // Entity/Farm linking
+  grainEntityId?: string;
+  farmId?: string;
   useSimpleMode: boolean;
   // Full amortization (required if useSimpleMode = false)
   principal?: number;
@@ -141,11 +150,16 @@ export interface CreateLandLoanRequest {
   // Payment scheduling
   nextPaymentDate?: string;
   notes?: string;
+  // Entity splits (optional - for splitting loan costs across entities)
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 export interface UpdateLandLoanRequest {
   lender?: string;
   loanNumber?: string;
+  // Entity/Farm linking
+  grainEntityId?: string;
+  farmId?: string;
   useSimpleMode?: boolean;
   principal?: number;
   interestRate?: number;
@@ -158,6 +172,8 @@ export interface UpdateLandLoanRequest {
   nextPaymentDate?: string;
   notes?: string;
   isActive?: boolean;
+  // Entity splits (optional - for splitting loan costs across entities)
+  entitySplits?: CreateEntitySplitRequest[];
 }
 
 // Land Loan Payment Types
