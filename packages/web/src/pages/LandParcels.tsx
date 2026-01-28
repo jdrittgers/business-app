@@ -824,7 +824,7 @@ export default function LandParcels() {
     }
   };
 
-  const handleRecordPayment = async (data: { paymentDate: string; totalAmount: number; principalAmount: number; interestAmount: number; notes?: string }) => {
+  const handleRecordPayment = async (data: { paymentDate: string; totalAmount: number; principalAmount?: number; interestAmount?: number; notes?: string }) => {
     if (!selectedLoan) return;
     await loansApi.recordLandLoanPayment(selectedLoan.id, data);
     await loadParcels();
