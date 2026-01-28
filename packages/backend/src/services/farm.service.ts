@@ -863,12 +863,41 @@ export class FarmService {
     const expectedYield = farm.projectedYield;
     const expectedBushels = farm.acres * expectedYield;
 
-    // Calculate fertilizer cost
+    // Calculate fertilizer cost and nutrient totals
     let fertilizerCost = 0;
+    let totalNitrogen = 0;
+    let totalPhosphorus = 0;
+    let totalPotassium = 0;
+    let totalSulfur = 0;
     if (farm.fertilizerUsage) {
       for (const usage of farm.fertilizerUsage as any[]) {
-        const cost = Number(usage.amountUsed) * Number(usage.fertilizer.pricePerUnit);
+        const amountUsed = Number(usage.amountUsed);
+        const cost = amountUsed * Number(usage.fertilizer.pricePerUnit);
         fertilizerCost += cost;
+
+        // Convert amountUsed from purchase units to lbs for nutrient calculation
+        const unit = usage.fertilizer.unit;
+        let lbsApplied: number;
+        if (unit === 'TON') {
+          lbsApplied = amountUsed * 2000;
+        } else if (unit === 'GAL' && usage.fertilizer.lbsPerGallon) {
+          lbsApplied = amountUsed * Number(usage.fertilizer.lbsPerGallon);
+        } else {
+          lbsApplied = amountUsed;
+        }
+
+        if (usage.fertilizer.nitrogenPct) {
+          totalNitrogen += lbsApplied * (Number(usage.fertilizer.nitrogenPct) / 100);
+        }
+        if (usage.fertilizer.phosphorusPct) {
+          totalPhosphorus += lbsApplied * (Number(usage.fertilizer.phosphorusPct) / 100);
+        }
+        if (usage.fertilizer.potassiumPct) {
+          totalPotassium += lbsApplied * (Number(usage.fertilizer.potassiumPct) / 100);
+        }
+        if (usage.fertilizer.sulfurPct) {
+          totalSulfur += lbsApplied * (Number(usage.fertilizer.sulfurPct) / 100);
+        }
       }
     }
 
@@ -923,7 +952,13 @@ export class FarmService {
       // Also expose at top level for easier access
       totalCost,
       costPerAcre,
-      breakEvenPrice
+      breakEvenPrice,
+      nutrientSummary: {
+        nitrogenPerAcre: farm.acres > 0 ? totalNitrogen / farm.acres : 0,
+        phosphorusPerAcre: farm.acres > 0 ? totalPhosphorus / farm.acres : 0,
+        potassiumPerAcre: farm.acres > 0 ? totalPotassium / farm.acres : 0,
+        sulfurPerAcre: farm.acres > 0 ? totalSulfur / farm.acres : 0
+      }
     };
   }
 

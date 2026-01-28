@@ -146,6 +146,11 @@ export const breakevenApi = {
     return response.data;
   },
 
+  bulkAddChemicalUsage: async (businessId: string, data: { farmIds: string[]; chemicalId: string; ratePerAcre: number }) => {
+    const response = await apiClient.post(`/api/businesses/${businessId}/farms/bulk-chemical-usage`, data);
+    return response.data;
+  },
+
   updateChemicalUsage: async (businessId: string, id: string, amountUsed: number) => {
     const response = await apiClient.put(`/api/businesses/${businessId}/farms/chemical-usage/${id}`, { amountUsed });
     return response.data;

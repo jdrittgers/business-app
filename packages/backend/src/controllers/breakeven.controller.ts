@@ -258,6 +258,50 @@ router.delete('/businesses/:businessId/farms/fertilizer-usage/:id', async (req: 
 });
 
 // ===== Chemical Usage =====
+
+// Bulk assign chemical to multiple farms
+router.post('/businesses/:businessId/farms/bulk-chemical-usage', async (req: AuthRequest, res: Response) => {
+  try {
+    const { farmIds, chemicalId, ratePerAcre, useFieldAcres } = req.body;
+    if (!farmIds || !Array.isArray(farmIds) || farmIds.length === 0) {
+      return res.status(400).json({ error: 'farmIds array is required' });
+    }
+    if (!chemicalId) {
+      return res.status(400).json({ error: 'chemicalId is required' });
+    }
+    if (!ratePerAcre) {
+      return res.status(400).json({ error: 'ratePerAcre is required' });
+    }
+
+    const results = [];
+    const errors = [];
+    for (const farmId of farmIds) {
+      try {
+        // Get farm to use its acres
+        const farm = await farmService.getById(farmId, req.params.businessId);
+        if (!farm) {
+          errors.push({ farmId, error: 'Farm not found' });
+          continue;
+        }
+        const usage = await farmService.addChemicalUsage(req.params.businessId, {
+          farmId,
+          chemicalId,
+          ratePerAcre,
+          acresApplied: farm.acres
+        });
+        results.push(usage);
+      } catch (err: any) {
+        errors.push({ farmId, error: err.message });
+      }
+    }
+
+    res.status(201).json({ results, errors, totalAdded: results.length, totalErrors: errors.length });
+  } catch (error: any) {
+    console.error('Error bulk adding chemical usage:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/businesses/:businessId/farms/chemical-usage', async (req: AuthRequest, res: Response) => {
   try {
     const usage = await farmService.addChemicalUsage(req.params.businessId, req.body);

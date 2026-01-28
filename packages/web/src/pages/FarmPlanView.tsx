@@ -5,6 +5,7 @@ import { breakevenApi } from '../api/breakeven.api';
 import {
   FarmPlanView,
   Farm,
+  Chemical,
   TrialStatus,
   CommodityType,
   ChemicalCategory,
@@ -34,6 +35,19 @@ export default function FarmPlansPage() {
   } | null>(null);
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
+
+  // Bulk assign chemical state
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
+  const [bulkAssignData, setBulkAssignData] = useState({
+    chemicalId: '',
+    category: '' as string,
+    ratePerAcre: '',
+    targetCommodity: 'ALL' as 'ALL' | 'CORN' | 'SOYBEANS' | 'WHEAT',
+    selectedFarmIds: [] as string[]
+  });
+  const [bulkAssigning, setBulkAssigning] = useState(false);
+  const [bulkAssignResult, setBulkAssignResult] = useState<{ totalAdded: number; totalErrors: number } | null>(null);
 
   // Check if user is manager or owner
   const userRole = user?.businessMemberships.find(m => m.businessId === selectedBusinessId)?.role;
@@ -203,6 +217,60 @@ export default function FarmPlansPage() {
     }
   };
 
+  const openBulkAssignModal = async () => {
+    if (!selectedBusinessId) return;
+    try {
+      const chemicalsData = await breakevenApi.getChemicals(selectedBusinessId);
+      setChemicals(chemicalsData);
+    } catch (err) {
+      console.error('Failed to load chemicals:', err);
+    }
+    // Pre-select all farms matching current filter
+    const matchingFarmIds = farmPlans.map(p => p.farmId);
+    setBulkAssignData({
+      chemicalId: '',
+      category: '',
+      ratePerAcre: '',
+      targetCommodity: 'ALL',
+      selectedFarmIds: matchingFarmIds
+    });
+    setBulkAssignResult(null);
+    setShowBulkAssignModal(true);
+  };
+
+  const handleBulkAssignCommodityChange = (commodity: 'ALL' | 'CORN' | 'SOYBEANS' | 'WHEAT') => {
+    const matchingFarmIds = farmPlans
+      .filter(p => commodity === 'ALL' || p.commodityType === commodity)
+      .map(p => p.farmId);
+    setBulkAssignData(prev => ({ ...prev, targetCommodity: commodity, selectedFarmIds: matchingFarmIds }));
+  };
+
+  const handleBulkAssignSubmit = async () => {
+    if (!selectedBusinessId || !bulkAssignData.chemicalId || !bulkAssignData.ratePerAcre || bulkAssignData.selectedFarmIds.length === 0) return;
+    setBulkAssigning(true);
+    try {
+      const result = await breakevenApi.bulkAddChemicalUsage(selectedBusinessId, {
+        farmIds: bulkAssignData.selectedFarmIds,
+        chemicalId: bulkAssignData.chemicalId,
+        ratePerAcre: parseFloat(bulkAssignData.ratePerAcre)
+      });
+      setBulkAssignResult({ totalAdded: result.totalAdded, totalErrors: result.totalErrors });
+      // Refresh farm plans
+      await loadFarmPlans();
+      // Clear farm details cache so re-expanding shows updated data
+      setFarmDetails({});
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to bulk assign chemical');
+    } finally {
+      setBulkAssigning(false);
+    }
+  };
+
+  const getFilteredChemicals = () => {
+    if (!bulkAssignData.category) return chemicals.filter(c => c.isActive !== false);
+    return chemicals.filter(c => c.category === bulkAssignData.category && c.isActive !== false);
+  };
+
   const getCommodityColor = (type: CommodityType) => {
     switch (type) {
       case CommodityType.CORN: return 'bg-yellow-100 text-yellow-800 border-yellow-300';
@@ -236,6 +304,14 @@ export default function FarmPlansPage() {
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
+              {canApprove && (
+                <button
+                  onClick={openBulkAssignModal}
+                  className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md"
+                >
+                  Bulk Assign Chemical
+                </button>
+              )}
               <button
                 onClick={() => navigate('/dashboard')}
                 className="text-sm text-blue-600 hover:text-blue-700"
@@ -813,6 +889,169 @@ export default function FarmPlansPage() {
           </div>
         )}
       </main>
+
+      {/* Bulk Assign Chemical Modal */}
+      {showBulkAssignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Bulk Assign Chemical to Fields</h3>
+
+            {bulkAssignResult ? (
+              <div className="space-y-4">
+                <div className={`p-4 rounded-md ${bulkAssignResult.totalErrors > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+                  <p className="font-medium text-gray-900">
+                    Added chemical to {bulkAssignResult.totalAdded} field{bulkAssignResult.totalAdded !== 1 ? 's' : ''}
+                  </p>
+                  {bulkAssignResult.totalErrors > 0 && (
+                    <p className="text-sm text-amber-700 mt-1">
+                      {bulkAssignResult.totalErrors} field{bulkAssignResult.totalErrors !== 1 ? 's' : ''} had errors
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowBulkAssignModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Target Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Apply to Fields</label>
+                  <div className="flex space-x-2">
+                    {(['ALL', 'CORN', 'SOYBEANS', 'WHEAT'] as const).map(commodity => (
+                      <button
+                        key={commodity}
+                        onClick={() => handleBulkAssignCommodityChange(commodity)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md border ${
+                          bulkAssignData.targetCommodity === commodity
+                            ? commodity === 'CORN' ? 'bg-yellow-100 border-yellow-400 text-yellow-800'
+                            : commodity === 'SOYBEANS' ? 'bg-green-100 border-green-400 text-green-800'
+                            : commodity === 'WHEAT' ? 'bg-amber-100 border-amber-400 text-amber-800'
+                            : 'bg-blue-100 border-blue-400 text-blue-800'
+                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {commodity === 'ALL' ? 'All Fields' : commodity === 'SOYBEANS' ? 'Soybeans' : commodity.charAt(0) + commodity.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {bulkAssignData.selectedFarmIds.length} field{bulkAssignData.selectedFarmIds.length !== 1 ? 's' : ''} selected
+                  </p>
+                </div>
+
+                {/* Individual field checkboxes */}
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                  {farmPlans
+                    .filter(p => bulkAssignData.targetCommodity === 'ALL' || p.commodityType === bulkAssignData.targetCommodity)
+                    .map(plan => (
+                    <label key={plan.farmId} className="flex items-center text-sm">
+                      <input
+                        type="checkbox"
+                        checked={bulkAssignData.selectedFarmIds.includes(plan.farmId)}
+                        onChange={(e) => {
+                          setBulkAssignData(prev => ({
+                            ...prev,
+                            selectedFarmIds: e.target.checked
+                              ? [...prev.selectedFarmIds, plan.farmId]
+                              : prev.selectedFarmIds.filter(id => id !== plan.farmId)
+                          }));
+                        }}
+                        className="mr-2 rounded text-blue-600"
+                      />
+                      <span className="text-gray-900">{plan.farmName}</span>
+                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                        plan.commodityType === CommodityType.CORN ? 'bg-yellow-100 text-yellow-800' :
+                        plan.commodityType === CommodityType.SOYBEANS ? 'bg-green-100 text-green-800' :
+                        'bg-amber-100 text-amber-800'
+                      }`}>
+                        {plan.commodityType}
+                      </span>
+                      <span className="ml-auto text-gray-500">{plan.acres} ac</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Chemical Category Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Chemical Category</label>
+                  <select
+                    value={bulkAssignData.category}
+                    onChange={(e) => setBulkAssignData(prev => ({ ...prev, category: e.target.value, chemicalId: '' }))}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  >
+                    <option value="">All Categories</option>
+                    <option value="HERBICIDE">Herbicide</option>
+                    <option value="FUNGICIDE">Fungicide</option>
+                    <option value="INSECTICIDE">Insecticide</option>
+                    <option value="IN_FURROW">In-Furrow</option>
+                  </select>
+                </div>
+
+                {/* Chemical Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Chemical Product</label>
+                  <select
+                    value={bulkAssignData.chemicalId}
+                    onChange={(e) => setBulkAssignData(prev => ({ ...prev, chemicalId: e.target.value }))}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Chemical</option>
+                    {getFilteredChemicals().map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.category}) — ${c.pricePerUnit.toFixed(2)}/{c.unit}
+                      </option>
+                    ))}
+                  </select>
+                  {getFilteredChemicals().length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">No chemicals found. Add them in Product Setup.</p>
+                  )}
+                </div>
+
+                {/* Rate */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rate per Acre</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={bulkAssignData.ratePerAcre}
+                    onChange={(e) => setBulkAssignData(prev => ({ ...prev, ratePerAcre: e.target.value }))}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    placeholder="e.g. 0.5"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Each field will use its own acreage for the total amount calculation
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    onClick={() => setShowBulkAssignModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkAssignSubmit}
+                    disabled={bulkAssigning || !bulkAssignData.chemicalId || !bulkAssignData.ratePerAcre || bulkAssignData.selectedFarmIds.length === 0}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+                  >
+                    {bulkAssigning ? 'Assigning...' : `Assign to ${bulkAssignData.selectedFarmIds.length} Field${bulkAssignData.selectedFarmIds.length !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Completion Date Modal */}
       {showCompletionModal && (
