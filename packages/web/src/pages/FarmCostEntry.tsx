@@ -344,7 +344,7 @@ export default function FarmCostEntry() {
       await breakevenApi.updateSeedUsage(
         selectedBusinessId,
         editingSeed.id,
-        parseFloat(editingSeed.bagsUsed)
+        { bagsUsed: parseFloat(editingSeed.bagsUsed) }
       );
       setEditingSeed(null);
       await loadData();

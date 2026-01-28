@@ -161,8 +161,8 @@ export const breakevenApi = {
     return response.data;
   },
 
-  updateSeedUsage: async (businessId: string, id: string, bagsUsed: number) => {
-    const response = await apiClient.put(`/api/businesses/${businessId}/farms/seed-usage/${id}`, { bagsUsed });
+  updateSeedUsage: async (businessId: string, id: string, data: { bagsUsed?: number; ratePerAcre?: number; acresApplied?: number }) => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/farms/seed-usage/${id}`, data);
     return response.data;
   },
 

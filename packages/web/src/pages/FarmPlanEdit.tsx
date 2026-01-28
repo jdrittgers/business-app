@@ -41,6 +41,7 @@ export default function FarmPlanEdit() {
   const [newProductUnit, setNewProductUnit] = useState<UnitType>(UnitType.LB);
   const [newChemicalCategory, setNewChemicalCategory] = useState<ChemicalCategory>(ChemicalCategory.HERBICIDE);
   const [newProductRate, setNewProductRate] = useState('');
+  const [newProductAcres, setNewProductAcres] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
 
   // Trial form
@@ -48,6 +49,10 @@ export default function FarmPlanEdit() {
   const [trialType, setTrialType] = useState<TrialType>(TrialType.SEED);
   const [trialPlotLocation, setTrialPlotLocation] = useState('');
   const [trialNotes, setTrialNotes] = useState('');
+
+  // Inline acres editing
+  const [editingAcresId, setEditingAcresId] = useState<string | null>(null);
+  const [editingAcresValue, setEditingAcresValue] = useState('');
 
   // Completion modal
   const [showCompletionModal, setShowCompletionModal] = useState<{
@@ -144,7 +149,7 @@ export default function FarmPlanEdit() {
       // Add usage to farm
       if (productId && newProductRate) {
         const rate = parseFloat(newProductRate);
-        const acres = farm?.acres || 0;
+        const acres = newProductAcres ? parseFloat(newProductAcres) : (farm?.acres || 0);
 
         if (showAddProductModal === 'fertilizer') {
           await breakevenApi.addFertilizerUsage(selectedBusinessId, {
@@ -214,6 +219,7 @@ export default function FarmPlanEdit() {
     setNewProductUnit(UnitType.LB);
     setNewChemicalCategory(ChemicalCategory.HERBICIDE);
     setNewProductRate('');
+    setNewProductAcres('');
     setSelectedProductId('');
     setTrialName('');
     setTrialType(TrialType.SEED);
@@ -243,6 +249,21 @@ export default function FarmPlanEdit() {
       setCompletionDate(new Date().toISOString().split('T')[0]);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to mark complete');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateSeedAcres = async (usageId: string, newAcres: number) => {
+    if (!selectedBusinessId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await breakevenApi.updateSeedUsage(selectedBusinessId, usageId, { acresApplied: newAcres });
+      await loadFarmData();
+      setEditingAcresId(null);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update acres');
     } finally {
       setSaving(false);
     }
@@ -360,12 +381,30 @@ export default function FarmPlanEdit() {
                 Seed Plan
               </h3>
               <button
-                onClick={() => setShowAddProductModal('seed')}
+                onClick={() => {
+                  setNewProductAcres(farm?.acres?.toString() || '');
+                  setShowAddProductModal('seed');
+                }}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
                 + Add Seed
               </button>
             </div>
+            {farm?.seedUsage && farm.seedUsage.length > 0 && (
+              <div className="mb-3 text-xs text-gray-500 bg-purple-50 rounded px-3 py-1.5">
+                {(() => {
+                  const totalPlanned = farm.seedUsage.reduce((sum, u) => sum + (u.acresApplied || 0), 0);
+                  const farmAcres = farm.acres || 0;
+                  const isOver = totalPlanned > farmAcres;
+                  return (
+                    <span className={isOver ? 'text-orange-600 font-medium' : ''}>
+                      {totalPlanned.toLocaleString()} / {farmAcres.toLocaleString()} acres planned
+                      {isOver && ' (exceeds farm acres)'}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
             {farm?.seedUsage && farm.seedUsage.length > 0 ? (
               <div className="space-y-3">
                 {farm.seedUsage.map((usage) => (
@@ -402,7 +441,43 @@ export default function FarmPlanEdit() {
                           <span>{usage.ratePerAcre?.toLocaleString()} seeds/acre</span>
                         )}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">{usage.acresApplied} acres</p>
+                      {editingAcresId === usage.id ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editingAcresValue}
+                            onChange={(e) => setEditingAcresValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = parseFloat(editingAcresValue);
+                                if (val > 0) handleUpdateSeedAcres(usage.id, val);
+                              }
+                              if (e.key === 'Escape') setEditingAcresId(null);
+                            }}
+                            onBlur={() => {
+                              const val = parseFloat(editingAcresValue);
+                              if (val > 0) handleUpdateSeedAcres(usage.id, val);
+                              else setEditingAcresId(null);
+                            }}
+                            className="w-20 text-xs border rounded px-1 py-0.5"
+                            autoFocus
+                          />
+                          <span className="text-xs text-gray-500">acres</span>
+                        </div>
+                      ) : (
+                        <p
+                          className="text-xs text-gray-500 mt-1 cursor-pointer hover:text-blue-600 hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingAcresId(usage.id);
+                            setEditingAcresValue(usage.acresApplied?.toString() || '');
+                          }}
+                          title="Click to change acres"
+                        >
+                          {usage.acresApplied} acres
+                        </p>
+                      )}
                       {usage.completedAt && (
                         <p className="text-xs text-purple-600 mt-1">
                           Planted {formatCompletionDate(usage.completedAt)}
@@ -426,7 +501,10 @@ export default function FarmPlanEdit() {
                 Fertilizer Plan
               </h3>
               <button
-                onClick={() => setShowAddProductModal('fertilizer')}
+                onClick={() => {
+                  setNewProductAcres(farm?.acres?.toString() || '');
+                  setShowAddProductModal('fertilizer');
+                }}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
                 + Add Fertilizer
@@ -486,6 +564,7 @@ export default function FarmPlanEdit() {
               <button
                 onClick={() => {
                   setNewChemicalCategory(ChemicalCategory.IN_FURROW);
+                  setNewProductAcres(farm?.acres?.toString() || '');
                   setShowAddProductModal('chemical');
                 }}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -549,6 +628,7 @@ export default function FarmPlanEdit() {
               <button
                 onClick={() => {
                   setNewChemicalCategory(ChemicalCategory.HERBICIDE);
+                  setNewProductAcres(farm?.acres?.toString() || '');
                   setShowAddProductModal('chemical');
                 }}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -612,6 +692,7 @@ export default function FarmPlanEdit() {
               <button
                 onClick={() => {
                   setNewChemicalCategory(ChemicalCategory.FUNGICIDE);
+                  setNewProductAcres(farm?.acres?.toString() || '');
                   setShowAddProductModal('chemical');
                 }}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -805,6 +886,32 @@ export default function FarmPlanEdit() {
                   className="w-full border rounded-lg px-3 py-2"
                   placeholder={showAddProductModal === 'seed' ? '32000' : '0'}
                 />
+              </div>
+
+              {/* Acres */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Acres
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={newProductAcres}
+                  onChange={(e) => setNewProductAcres(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder={farm?.acres?.toString() || '0'}
+                />
+                {showAddProductModal === 'seed' && farm?.seedUsage && farm.seedUsage.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {(() => {
+                      const usedAcres = farm.seedUsage.reduce((sum, u) => sum + (u.acresApplied || 0), 0);
+                      const remaining = (farm.acres || 0) - usedAcres;
+                      return remaining > 0
+                        ? `${remaining.toLocaleString()} acres remaining of ${farm.acres?.toLocaleString()} total`
+                        : `${usedAcres.toLocaleString()} / ${farm.acres?.toLocaleString()} acres already planned`;
+                    })()}
+                  </p>
+                )}
               </div>
             </div>
 
