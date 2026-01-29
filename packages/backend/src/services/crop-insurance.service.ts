@@ -176,11 +176,12 @@ export class CropInsuranceService {
         countyRatio = countyYield.simulatedCountyYield / countyYield.expectedCountyYield;
       } else {
         // Revenue-based: compare county revenue ratio
-        // RP: expected county revenue uses max(projected, harvest)
-        // RP-HPE: expected county revenue uses projected price only
-        const expectedPrice = planType === 'RP' ? Math.max(projectedPrice, harvestPrice) : projectedPrice;
-        const expectedCountyRevenue = countyYield.expectedCountyYield * expectedPrice;
-        const actualCountyRevenue = countyYield.simulatedCountyYield * harvestPrice;
+        // Expected uses projected price; actual uses max(projected, harvest)
+        // For RP: harvest price increase provision applies to ACTUAL side (USDA RMA model)
+        // For RP-HPE: no harvest price increase, both sides use projected price
+        const expectedCountyRevenue = countyYield.expectedCountyYield * projectedPrice;
+        const actualPrice = planType === 'RP' ? Math.max(projectedPrice, harvestPrice) : harvestPrice;
+        const actualCountyRevenue = countyYield.simulatedCountyYield * actualPrice;
         countyRatio = actualCountyRevenue / expectedCountyRevenue;
       }
 
@@ -192,9 +193,10 @@ export class CropInsuranceService {
 
     // Fallback: farm-level (simplified)
     const topRevenue = aph * topPct * bandPrice;
+    const actualPrice = planType === 'RP' ? Math.max(projectedPrice, harvestPrice) : harvestPrice;
     const actualRevenue = planType === 'YP'
       ? actualYield / aph * (aph * bandPrice)  // yield ratio applied to expected crop value
-      : actualYield * harvestPrice;
+      : actualYield * actualPrice;
     const loss = Math.max(0, topRevenue - actualRevenue);
     return Math.min(loss, band);
   }
@@ -223,9 +225,10 @@ export class CropInsuranceService {
       if (planType === 'YP') {
         countyRatio = countyYield.simulatedCountyYield / countyYield.expectedCountyYield;
       } else {
-        const expectedPrice = planType === 'RP' ? Math.max(projectedPrice, harvestPrice) : projectedPrice;
-        const expectedCountyRevenue = countyYield.expectedCountyYield * expectedPrice;
-        const actualCountyRevenue = countyYield.simulatedCountyYield * harvestPrice;
+        // Expected uses projected price; actual uses max(projected, harvest) for RP
+        const expectedCountyRevenue = countyYield.expectedCountyYield * projectedPrice;
+        const actualPrice = planType === 'RP' ? Math.max(projectedPrice, harvestPrice) : harvestPrice;
+        const actualCountyRevenue = countyYield.simulatedCountyYield * actualPrice;
         countyRatio = actualCountyRevenue / expectedCountyRevenue;
       }
 
@@ -237,9 +240,10 @@ export class CropInsuranceService {
 
     // Fallback: farm-level (simplified)
     const topRevenue = aph * topPct * bandPrice;
+    const actualPrice = planType === 'RP' ? Math.max(projectedPrice, harvestPrice) : harvestPrice;
     const actualRevenue = planType === 'YP'
       ? actualYield / aph * (aph * bandPrice)
-      : actualYield * harvestPrice;
+      : actualYield * actualPrice;
     const loss = Math.max(0, topRevenue - actualRevenue);
     return Math.min(loss, band);
   }
