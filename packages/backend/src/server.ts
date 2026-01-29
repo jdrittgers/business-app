@@ -32,6 +32,7 @@ import loanRoutes from './controllers/loan.controller';
 import maintenanceRoutes from './controllers/maintenance.controller';
 import johnDeereRoutes from './controllers/john-deere.controller';
 import chemicalPlanTemplateRoutes from './controllers/chemical-plan-template.controller';
+import cropInsuranceRoutes from './controllers/crop-insurance.controller';
 import { initializeSocket } from './config/socket';
 import { GrainPriceJobService } from './services/grain-price-job.service';
 import { startMarketingAIJobs } from './services/marketing-ai-job.service';
@@ -133,6 +134,7 @@ app.use('/api', loanRoutes);
 app.use('/api', maintenanceRoutes);
 app.use('/api', johnDeereRoutes);
 app.use('/api', chemicalPlanTemplateRoutes);
+app.use('/api', cropInsuranceRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

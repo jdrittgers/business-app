@@ -45,6 +45,7 @@ import OperatingLoans from './pages/OperatingLoans';
 import EquipmentLoans from './pages/EquipmentLoans';
 import EquipmentMaintenance from './pages/EquipmentMaintenance';
 import ChemicalPlanTemplates from './pages/ChemicalPlanTemplates';
+import ProfitMatrix from './pages/ProfitMatrix';
 import Setup from './pages/Setup';
 import RequireRole from './components/RequireRole';
 
@@ -94,6 +95,7 @@ function App() {
       <Route path="/grain-contracts" element={<AuthRoute><GrainContracts /></AuthRoute>} />
       <Route path="/grain-contracts/dashboard" element={<AuthRoute><GrainDashboard /></AuthRoute>} />
       <Route path="/breakeven" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><BreakEven /></RequireRole></AuthRoute>} />
+      <Route path="/breakeven/profit-matrix" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProfitMatrix /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/products" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><ProductCatalog /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/farms" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmManagement /></RequireRole></AuthRoute>} />
       <Route path="/breakeven/farms/:farmId/costs" element={<AuthRoute><RequireRole allowedRoles={[UserRole.OWNER, UserRole.MANAGER]}><FarmCostEntry /></RequireRole></AuthRoute>} />

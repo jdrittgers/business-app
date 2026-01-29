@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
     ),
     children: [
       { label: 'Analysis', path: '/breakeven' },
+      { label: 'Profit Matrix', path: '/breakeven/profit-matrix' },
       { label: 'Farms', path: '/breakeven/farms' },
       { label: 'Products', path: '/breakeven/products' },
       { label: 'Land Loans', path: '/loans/land-parcels' },

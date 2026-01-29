@@ -709,6 +709,7 @@ model Farm {
   chemicalPlanApplications ChemicalPlanApplication[]
   invoices                 Invoice[]  // Field-specific invoices/bills
   landLoans                LandLoan[] // Land loans tied to this specific farm
+  insurancePolicy          CropInsurancePolicy?
 
   @@map("farms")
   @@index([grainEntityId])
@@ -861,6 +862,40 @@ model FarmOtherCost {
   @@map("farm_other_costs")
   @@index([farmId])
   @@index([costType])
+}
+
+// ===== Crop Insurance =====
+
+enum InsurancePlanType {
+  RP        // Revenue Protection
+  YP        // Yield Protection
+  RP_HPE    // Revenue Protection with Harvest Price Exclusion
+}
+
+model CropInsurancePolicy {
+  id                String            @id @default(uuid())
+  farmId            String            @unique @map("farm_id")
+  planType          InsurancePlanType @map("plan_type")
+  coverageLevel     Decimal           @db.Decimal(5, 2) // e.g., 80.00 for 80%
+  projectedPrice    Decimal           @db.Decimal(10, 4) @map("projected_price") // CBOT spring discovery price
+  volatilityFactor  Decimal           @default(0.20) @db.Decimal(5, 4) @map("volatility_factor")
+  premiumPerAcre    Decimal           @default(0) @db.Decimal(10, 2) @map("premium_per_acre")
+
+  // SCO/ECO endorsements
+  hasSco              Boolean   @default(false) @map("has_sco")
+  hasEco              Boolean   @default(false) @map("has_eco")
+  ecoLevel            Decimal?  @db.Decimal(5, 2) @map("eco_level") // 90 or 95
+  scoPremiumPerAcre   Decimal   @default(0) @db.Decimal(10, 2) @map("sco_premium_per_acre")
+  ecoPremiumPerAcre   Decimal   @default(0) @db.Decimal(10, 2) @map("eco_premium_per_acre")
+
+  deletedAt         DateTime?         @map("deleted_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  farm              Farm              @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@map("crop_insurance_policies")
+  @@index([farmId])
 }
 
 // ===== Farm Trial Tracking =====
