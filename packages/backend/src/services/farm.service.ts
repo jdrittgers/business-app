@@ -13,7 +13,7 @@ import {
   TrialType,
   TrialStatus
 } from '@business-app/shared';
-import { EquipmentLoanService } from './loan.service';
+import { EquipmentLoanService, LoanInterestService } from './loan.service';
 
 export class FarmService {
   async getAll(businessId: string, query?: GetFarmsQuery): Promise<Farm[]> {
@@ -951,24 +951,28 @@ export class FarmService {
       }
     }
 
-    // Calculate equipment loan costs (distributed per-acre across all farms)
-    let equipmentInterest = 0;
-    let equipmentPrincipal = 0;
+    // Calculate all loan costs (land, operating, equipment) using the same
+    // service as the break-even analytics page so numbers match
+    let landLoanInterest = 0;
+    let landLoanPrincipal = 0;
+    let operatingLoanInterest = 0;
+    let equipmentLoanInterest = 0;
+    let equipmentLoanPrincipal = 0;
+    let totalLoanCost = 0;
     try {
-      // Get business ID from the farm's grain entity
-      const farmEntity = await prisma.grainEntity.findFirst({ where: { id: farm.grainEntityId } });
-      if (farmEntity) {
-        const equipmentLoanService = new EquipmentLoanService();
-        const costPerAcreData = await equipmentLoanService.getEquipmentCostPerAcre(farmEntity.businessId, farm.year, farm.grainEntityId);
-        equipmentInterest = costPerAcreData.interestPerAcre * farm.acres;
-        equipmentPrincipal = costPerAcreData.principalPerAcre * farm.acres;
-      }
+      const loanInterestService = new LoanInterestService();
+      const loanAllocation = await loanInterestService.getFarmInterestAllocation(farm.id, farm.year);
+      landLoanInterest = loanAllocation.landLoanInterest;
+      landLoanPrincipal = loanAllocation.landLoanPrincipal;
+      operatingLoanInterest = loanAllocation.operatingLoanInterest;
+      equipmentLoanInterest = loanAllocation.equipmentLoanInterest;
+      equipmentLoanPrincipal = loanAllocation.equipmentLoanPrincipal;
+      totalLoanCost = loanAllocation.totalLoanCost;
     } catch (err) {
-      console.error('Error calculating equipment costs:', err);
+      console.error('Error calculating loan costs:', err);
     }
-    const equipmentCost = equipmentInterest + equipmentPrincipal;
 
-    const totalCost = fertilizerCost + chemicalCost + seedCost + otherCostsTotal + equipmentCost;
+    const totalCost = fertilizerCost + chemicalCost + seedCost + otherCostsTotal + totalLoanCost;
     const costPerAcre = farm.acres > 0 ? totalCost / farm.acres : 0;
     const breakEvenPrice = expectedBushels > 0 ? totalCost / expectedBushels : 0;
 
@@ -983,9 +987,12 @@ export class FarmService {
         chemical: chemicalCost,
         seed: seedCost,
         other: otherCostsTotal,
-        equipment: equipmentCost,
-        equipmentInterest,
-        equipmentPrincipal,
+        landLoanInterest,
+        landLoanPrincipal,
+        operatingLoanInterest,
+        equipmentInterest: equipmentLoanInterest,
+        equipmentPrincipal: equipmentLoanPrincipal,
+        totalLoanCost,
         total: totalCost
       },
       // Also expose at top level for easier access
