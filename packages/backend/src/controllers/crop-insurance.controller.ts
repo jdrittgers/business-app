@@ -62,13 +62,15 @@ router.delete('/businesses/:businessId/farms/:farmId/insurance', async (req: Aut
 // Get profit matrix for a farm
 router.get('/businesses/:businessId/farms/:farmId/profit-matrix', async (req: AuthRequest, res: Response) => {
   try {
-    const { yieldSteps, priceSteps } = req.query;
+    const { yieldSteps, priceSteps, expectedCountyYield, simulatedCountyYield } = req.query;
     const matrix = await profitMatrixService.getProfitMatrix(
       req.params.farmId,
       req.params.businessId,
       {
         yieldSteps: yieldSteps ? parseInt(yieldSteps as string) : undefined,
         priceSteps: priceSteps ? parseInt(priceSteps as string) : undefined,
+        expectedCountyYield: expectedCountyYield ? parseFloat(expectedCountyYield as string) : undefined,
+        simulatedCountyYield: simulatedCountyYield ? parseFloat(simulatedCountyYield as string) : undefined,
       }
     );
     res.json(matrix);

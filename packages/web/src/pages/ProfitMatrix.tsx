@@ -21,6 +21,13 @@ const DEFAULT_PRICES: Record<string, number> = {
   WHEAT: 5.50
 };
 
+// Average county yields (Iowa baseline for defaults)
+const DEFAULT_COUNTY_YIELDS: Record<string, number> = {
+  CORN: 200,
+  SOYBEANS: 58,
+  WHEAT: 55
+};
+
 function getCellColor(netProfit: number): string {
   if (netProfit > 100) return 'bg-green-100 text-green-800';
   if (netProfit > 50) return 'bg-green-50 text-green-700';
@@ -62,8 +69,14 @@ export default function ProfitMatrix() {
   });
   const [isSavingPolicy, setIsSavingPolicy] = useState(false);
 
+  // County yield simulation (for ECO/SCO area-based endorsements)
+  const [expectedCountyYield, setExpectedCountyYield] = useState<number | null>(null);
+  const [simulatedCountyYield, setSimulatedCountyYield] = useState<number | null>(null);
+  const [countyYieldEnabled, setCountyYieldEnabled] = useState(false);
+
   // Cell detail tooltip
   const [hoveredCell, setHoveredCell] = useState<ProfitMatrixCell | null>(null);
+  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
 
   // Set default business
   useEffect(() => {
@@ -97,56 +110,75 @@ export default function ProfitMatrix() {
   }, [selectedBusinessId, filterYear]);
 
   // Load matrix data when farm changes
+  const loadMatrix = async (countyOverrides?: { expectedCountyYield?: number; simulatedCountyYield?: number }) => {
+    if (!selectedBusinessId || !selectedFarmId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = countyOverrides?.expectedCountyYield && countyOverrides?.simulatedCountyYield
+        ? countyOverrides
+        : undefined;
+      const data = await insuranceApi.getProfitMatrix(selectedBusinessId, selectedFarmId, params);
+      setMatrixData(data);
+      // Update policy form from loaded policy
+      if (data.policy) {
+        setPolicyForm({
+          planType: data.policy.planType,
+          coverageLevel: data.policy.coverageLevel,
+          projectedPrice: data.policy.projectedPrice,
+          premiumPerAcre: data.policy.premiumPerAcre,
+          volatilityFactor: data.policy.volatilityFactor,
+          hasSco: data.policy.hasSco,
+          hasEco: data.policy.hasEco,
+          ecoLevel: data.policy.ecoLevel,
+          scoPremiumPerAcre: data.policy.scoPremiumPerAcre,
+          ecoPremiumPerAcre: data.policy.ecoPremiumPerAcre
+        });
+        // Set default county yields if ECO/SCO is on and not yet set
+        if ((data.policy.hasEco || data.policy.hasSco) && !countyYieldEnabled) {
+          const commodity = data.commodityType || 'CORN';
+          const defaultYield = DEFAULT_COUNTY_YIELDS[commodity] || 180;
+          setExpectedCountyYield(defaultYield);
+          setSimulatedCountyYield(defaultYield);
+          setCountyYieldEnabled(true);
+        }
+      } else {
+        // Set defaults based on commodity
+        const selectedFarm = farms.find(f => f.id === selectedFarmId);
+        const commodity = selectedFarm?.commodityType || 'CORN';
+        setPolicyForm(prev => ({
+          ...prev,
+          projectedPrice: DEFAULT_PRICES[commodity] || 4.66,
+          premiumPerAcre: commodity === 'CORN' ? 15 : commodity === 'SOYBEANS' ? 8 : 10
+        }));
+      }
+    } catch (err: any) {
+      console.error('Error loading profit matrix:', err);
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!selectedBusinessId || !selectedFarmId) return;
-    const loadMatrix = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await insuranceApi.getProfitMatrix(selectedBusinessId, selectedFarmId);
-        setMatrixData(data);
-        // Update policy form from loaded policy
-        if (data.policy) {
-          setPolicyForm({
-            planType: data.policy.planType,
-            coverageLevel: data.policy.coverageLevel,
-            projectedPrice: data.policy.projectedPrice,
-            premiumPerAcre: data.policy.premiumPerAcre,
-            volatilityFactor: data.policy.volatilityFactor,
-            hasSco: data.policy.hasSco,
-            hasEco: data.policy.hasEco,
-            ecoLevel: data.policy.ecoLevel,
-            scoPremiumPerAcre: data.policy.scoPremiumPerAcre,
-            ecoPremiumPerAcre: data.policy.ecoPremiumPerAcre
-          });
-        } else {
-          // Set defaults based on commodity
-          const selectedFarm = farms.find(f => f.id === selectedFarmId);
-          const commodity = selectedFarm?.commodityType || 'CORN';
-          setPolicyForm(prev => ({
-            ...prev,
-            projectedPrice: DEFAULT_PRICES[commodity] || 4.66,
-            premiumPerAcre: commodity === 'CORN' ? 15 : commodity === 'SOYBEANS' ? 8 : 10
-          }));
-        }
-      } catch (err: any) {
-        console.error('Error loading profit matrix:', err);
-        setError(err.response?.data?.error || err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     loadMatrix();
   }, [selectedBusinessId, selectedFarmId]);
+
+  const getCountyYieldParams = () => {
+    if (countyYieldEnabled && expectedCountyYield && simulatedCountyYield) {
+      return { expectedCountyYield, simulatedCountyYield };
+    }
+    return undefined;
+  };
 
   const handleSavePolicy = async () => {
     if (!selectedBusinessId || !selectedFarmId) return;
     setIsSavingPolicy(true);
     try {
       await insuranceApi.upsertPolicy(selectedBusinessId, selectedFarmId, policyForm);
-      // Reload matrix with new policy
-      const data = await insuranceApi.getProfitMatrix(selectedBusinessId, selectedFarmId);
-      setMatrixData(data);
+      // Reload matrix with new policy + county yield
+      await loadMatrix(getCountyYieldParams());
       setShowPolicyEditor(false);
     } catch (err: any) {
       console.error('Error saving policy:', err);
@@ -161,14 +193,18 @@ export default function ProfitMatrix() {
     setIsSavingPolicy(true);
     try {
       await insuranceApi.deletePolicy(selectedBusinessId, selectedFarmId);
-      const data = await insuranceApi.getProfitMatrix(selectedBusinessId, selectedFarmId);
-      setMatrixData(data);
+      await loadMatrix();
       setShowPolicyEditor(false);
+      setCountyYieldEnabled(false);
     } catch (err: any) {
       console.error('Error deleting policy:', err);
     } finally {
       setIsSavingPolicy(false);
     }
+  };
+
+  const handleSimulateCountyYield = () => {
+    loadMatrix(getCountyYieldParams());
   };
 
   const selectedFarm = farms.find(f => f.id === selectedFarmId);
@@ -484,6 +520,165 @@ export default function ProfitMatrix() {
             </div>
           </div>
 
+          {/* Cost Breakdown */}
+          {matrixData.costBreakdown && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setShowCostBreakdown(!showCostBreakdown)}
+                className="w-full px-6 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-sm font-semibold text-gray-900">
+                  Cost Breakdown — {formatCurrency(matrixData.totalCostPerAcre)}/ac
+                </span>
+                <svg className={`w-5 h-5 text-gray-400 transition-transform ${showCostBreakdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showCostBreakdown && (
+                <div className="px-6 pb-4 border-t border-gray-100">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                    {[
+                      { label: 'Fertilizer', value: matrixData.costBreakdown.fertilizerCostPerAcre, color: 'text-amber-700' },
+                      { label: 'Chemical', value: matrixData.costBreakdown.chemicalCostPerAcre, color: 'text-purple-700' },
+                      { label: 'Seed', value: matrixData.costBreakdown.seedCostPerAcre, color: 'text-green-700' },
+                      { label: 'Land Rent', value: matrixData.costBreakdown.landRentPerAcre, color: 'text-blue-700' },
+                      { label: 'Other Costs', value: matrixData.costBreakdown.otherCostsPerAcre, color: 'text-gray-700' },
+                      { label: 'Equipment Loans', value: matrixData.costBreakdown.equipmentLoanCostPerAcre, color: 'text-indigo-700' },
+                      { label: 'Land Loans', value: matrixData.costBreakdown.landLoanCostPerAcre, color: 'text-teal-700' },
+                      { label: 'Operating Loans', value: matrixData.costBreakdown.operatingLoanCostPerAcre, color: 'text-orange-700' },
+                    ].map(item => (
+                      <div key={item.label} className="flex justify-between items-center text-sm py-1">
+                        <span className="text-gray-600">{item.label}</span>
+                        <span className={`font-medium ${item.value > 0 ? item.color : 'text-gray-400'}`}>
+                          {item.value > 0 ? formatCurrency(item.value) : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {matrixData.costBreakdown.equipmentLoanCostPerAcre === 0 && matrixData.costBreakdown.landLoanCostPerAcre === 0 && (
+                    <p className="text-xs text-gray-400 mt-2 italic">
+                      No loan costs showing? Make sure equipment loans have "Include in Break-Even" enabled, and farms are linked to land parcels.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* County Yield Simulation (ECO/SCO) */}
+          {matrixData.policy && (matrixData.policy.hasEco || matrixData.policy.hasSco) && (
+            <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">County Yield Simulation</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    ECO/SCO are area-based — they pay when <em>county</em> revenue falls below trigger levels, not individual farm yield.
+                    Simulate different county outcomes to see how your ECO/SCO endorsements respond.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer ml-4 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={countyYieldEnabled}
+                    onChange={(e) => {
+                      setCountyYieldEnabled(e.target.checked);
+                      if (e.target.checked && !expectedCountyYield) {
+                        const commodity = matrixData.commodityType || 'CORN';
+                        const defaultYield = DEFAULT_COUNTY_YIELDS[commodity] || 180;
+                        setExpectedCountyYield(defaultYield);
+                        setSimulatedCountyYield(defaultYield);
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Enable</span>
+                </label>
+              </div>
+              {countyYieldEnabled && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Expected County Yield (bu/ac)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={expectedCountyYield || ''}
+                        onChange={(e) => setExpectedCountyYield(parseFloat(e.target.value) || null)}
+                        placeholder={`e.g. ${DEFAULT_COUNTY_YIELDS[matrixData.commodityType] || 180}`}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">RMA published expected yield for your county</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Simulated County Yield (bu/ac)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={simulatedCountyYield || ''}
+                        onChange={(e) => setSimulatedCountyYield(parseFloat(e.target.value) || null)}
+                        placeholder={`e.g. ${Math.round((DEFAULT_COUNTY_YIELDS[matrixData.commodityType] || 180) * 0.85)}`}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">What you think the county will actually produce</p>
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        onClick={handleSimulateCountyYield}
+                        disabled={!expectedCountyYield || !simulatedCountyYield || isLoading}
+                        className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {isLoading ? 'Simulating...' : 'Run Simulation'}
+                      </button>
+                    </div>
+                  </div>
+                  {expectedCountyYield && simulatedCountyYield && expectedCountyYield > 0 && (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <div>
+                          <span className="text-blue-600 font-medium">County Revenue Ratio: </span>
+                          <span className="font-bold text-blue-800">
+                            {((simulatedCountyYield / expectedCountyYield) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        {matrixData.policy.hasEco && (
+                          <div>
+                            <span className="text-blue-600 font-medium">ECO Trigger: </span>
+                            <span className={`font-bold ${
+                              (simulatedCountyYield / expectedCountyYield) < (matrixData.policy.ecoLevel || 90) / 100
+                                ? 'text-green-700' : 'text-gray-500'
+                            }`}>
+                              {(simulatedCountyYield / expectedCountyYield) < (matrixData.policy.ecoLevel || 90) / 100
+                                ? 'TRIGGERED' : 'Not triggered'}
+                            </span>
+                          </div>
+                        )}
+                        {matrixData.policy.hasSco && (
+                          <div>
+                            <span className="text-blue-600 font-medium">SCO Trigger: </span>
+                            <span className={`font-bold ${
+                              (simulatedCountyYield / expectedCountyYield) < 0.86
+                                ? 'text-green-700' : 'text-gray-500'
+                            }`}>
+                              {(simulatedCountyYield / expectedCountyYield) < 0.86
+                                ? 'TRIGGERED' : 'Not triggered'}
+                            </span>
+                          </div>
+                        )}
+                        <div className="text-blue-500 text-xs">
+                          Price scenarios in the matrix are used as harvest price
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Matrix Grid */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -497,6 +692,9 @@ export default function ProfitMatrix() {
                 Each cell shows net profit per acre {matrixData.policy ? 'including insurance' : '(no insurance policy set)'}.
                 {matrixData.marketedBushelsPerAcre > 0 && (
                   <> Marketed grain ({matrixData.marketedBushelsPerAcre.toFixed(1)} bu/ac @ {formatCurrency(matrixData.marketedAvgPrice)}) is locked in.</>
+                )}
+                {matrixData.countyYield && (
+                  <> County yield simulation active: {matrixData.countyYield.simulatedCountyYield} bu/ac of {matrixData.countyYield.expectedCountyYield} expected ({((matrixData.countyYield.simulatedCountyYield / matrixData.countyYield.expectedCountyYield) * 100).toFixed(0)}%).</>
                 )}
               </p>
             </div>
@@ -633,6 +831,8 @@ export default function ProfitMatrix() {
                   <li><strong>RP:</strong> Protects revenue — guarantee increases if harvest price rises above projected price</li>
                   <li><strong>YP:</strong> Protects yield only — pays if yield falls below APH x coverage %</li>
                   <li><strong>RP-HPE:</strong> Like RP but guarantee fixed at projected price (lower premium)</li>
+                  <li><strong>SCO:</strong> Area-based — covers 86% down to your base coverage level. Triggered by county yield loss.</li>
+                  <li><strong>ECO:</strong> Area-based — covers 90% or 95% down to 86%. Triggered by county yield loss.</li>
                 </ul>
               </div>
             </div>

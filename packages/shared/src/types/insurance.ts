@@ -42,6 +42,22 @@ export interface ProfitMatrixCell {
   netProfitPerAcre: number;
 }
 
+export interface CostBreakdown {
+  fertilizerCostPerAcre: number;
+  chemicalCostPerAcre: number;
+  seedCostPerAcre: number;
+  landRentPerAcre: number;
+  otherCostsPerAcre: number;
+  equipmentLoanCostPerAcre: number;
+  landLoanCostPerAcre: number;
+  operatingLoanCostPerAcre: number;
+}
+
+export interface CountyYieldSimulation {
+  expectedCountyYield: number;   // RMA expected county yield (bu/ac) — published before planting
+  simulatedCountyYield: number;  // What the farmer thinks county will actually produce (bu/ac)
+}
+
 export interface ProfitMatrixResponse {
   farmId: string;
   farmName: string;
@@ -52,9 +68,11 @@ export interface ProfitMatrixResponse {
   policy: CropInsurancePolicy | null;
   breakEvenPrice: number;
   totalCostPerAcre: number;
+  costBreakdown: CostBreakdown;
   marketedBushelsPerAcre: number;
   marketedAvgPrice: number;
   unmarketedBushelsPerAcre: number;
+  countyYield: CountyYieldSimulation | null;
   yieldScenarios: number[];
   priceScenarios: number[];
   matrix: ProfitMatrixCell[][];

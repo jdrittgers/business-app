@@ -26,7 +26,7 @@ export const insuranceApi = {
     await apiClient.delete(`/api/businesses/${businessId}/farms/${farmId}/insurance`);
   },
 
-  getProfitMatrix: async (businessId: string, farmId: string, params?: { yieldSteps?: number; priceSteps?: number }): Promise<ProfitMatrixResponse> => {
+  getProfitMatrix: async (businessId: string, farmId: string, params?: { yieldSteps?: number; priceSteps?: number; expectedCountyYield?: number; simulatedCountyYield?: number }): Promise<ProfitMatrixResponse> => {
     const response = await apiClient.get(`/api/businesses/${businessId}/farms/${farmId}/profit-matrix`, { params });
     return response.data;
   }

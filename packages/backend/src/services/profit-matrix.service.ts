@@ -1,7 +1,7 @@
 import { prisma } from '../prisma/client';
 import { CropInsuranceService } from './crop-insurance.service';
 import { LoanInterestService } from './loan.service';
-import { ProfitMatrixResponse, ProfitMatrixCell } from '@business-app/shared';
+import { ProfitMatrixResponse, ProfitMatrixCell, CostBreakdown, CountyYieldSimulation } from '@business-app/shared';
 
 const insuranceService = new CropInsuranceService();
 const loanInterestService = new LoanInterestService();
@@ -13,6 +13,8 @@ export class ProfitMatrixService {
     overrides?: {
       yieldSteps?: number;
       priceSteps?: number;
+      expectedCountyYield?: number;
+      simulatedCountyYield?: number;
     }
   ): Promise<ProfitMatrixResponse> {
     // 1. Load farm with all cost data
@@ -45,7 +47,9 @@ export class ProfitMatrixService {
     const projectedYield = Number(farm.projectedYield);
 
     // 2. Calculate total cost per acre (replicating breakeven logic)
-    const totalCostPerAcre = await this.calculateTotalCostPerAcre(farm, acres);
+    const costResult = await this.calculateTotalCostPerAcre(farm, acres);
+    const totalCostPerAcre = costResult.totalCostPerAcre;
+    const costBreakdown = costResult.breakdown;
 
     // 3. Load insurance policy
     const policy = await insuranceService.getByFarmId(farmId, businessId);
@@ -59,9 +63,6 @@ export class ProfitMatrixService {
       if (contract.deletedAt || !contract.isActive) continue;
       if (contract.year !== farm.year || contract.commodityType !== farm.commodityType) continue;
 
-      const allocBu = Number(alloc.allocatedBushels);
-      marketedBushels += allocBu;
-
       // Calculate effective price
       let effectivePrice = 0;
       if (contract.cashPrice) {
@@ -71,10 +72,15 @@ export class ProfitMatrixService {
       } else if (contract.futuresPrice) {
         effectivePrice = Number(contract.futuresPrice);
       } else if (contract.basisPrice) {
-        // Basis-only: will need to add futures later, use 0 for now
         effectivePrice = Number(contract.basisPrice);
       }
 
+      // Skip contracts with no effective price (e.g., accumulators not yet priced)
+      // These don't have a locked-in price and shouldn't drag down the marketed average
+      if (effectivePrice <= 0) continue;
+
+      const allocBu = Number(alloc.allocatedBushels);
+      marketedBushels += allocBu;
       marketedValue += allocBu * effectivePrice;
     }
 
@@ -93,7 +99,16 @@ export class ProfitMatrixService {
       farm.commodityType
     );
 
-    // 6. Build the matrix
+    // 6. Build county yield simulation data (if provided)
+    const countyYield: CountyYieldSimulation | null =
+      overrides?.expectedCountyYield && overrides?.simulatedCountyYield
+        ? {
+            expectedCountyYield: overrides.expectedCountyYield,
+            simulatedCountyYield: overrides.simulatedCountyYield
+          }
+        : null;
+
+    // 7. Build the matrix
     const matrix: ProfitMatrixCell[][] = [];
 
     const insurancePremium = policy
@@ -111,7 +126,6 @@ export class ProfitMatrixService {
         // Marketed bushels are locked in at their contracted prices
         // Unmarketed bushels are sold at the scenario price
         // If yield drops, unmarketed bushels decrease proportionally; marketed stays (contracts are obligations)
-        const yieldRatio = projectedYield > 0 ? scenarioYield / projectedYield : 0;
         const actualUnmarketedBuPerAcre = Math.max(0, scenarioYield - marketedBuPerAcre);
         // If yield < marketed, farmer still owes delivery but has to buy grain. Simplified: marketed capped at actual yield
         const actualMarketedBuPerAcre = Math.min(marketedBuPerAcre, scenarioYield);
@@ -120,12 +134,25 @@ export class ProfitMatrixService {
         const grossRevenuePerAcre = marketedRevenue + unmarketedRevenue;
 
         // Calculate insurance indemnity
+        // For ECO/SCO: if county yield simulation is provided, scale simulated county yield
+        // proportionally to the farm yield scenario so each cell reflects different severity
         let insuranceIndemnity = 0;
         let scoIndemnity = 0;
         let ecoIndemnity = 0;
         if (policy) {
+          let cellCountyYield = countyYield ? { ...countyYield } : undefined;
+          if (cellCountyYield && cellCountyYield.expectedCountyYield > 0) {
+            // Scale simulated county yield proportionally to the yield scenario
+            // If user set simulated = expected (no county loss), scale with farm yield ratio
+            // If user set simulated < expected (county drought), apply same farm yield ratio
+            const farmYieldRatio = aph > 0 ? scenarioYield / aph : 1;
+            cellCountyYield = {
+              expectedCountyYield: cellCountyYield.expectedCountyYield,
+              simulatedCountyYield: cellCountyYield.simulatedCountyYield * farmYieldRatio
+            };
+          }
           const indemnity = insuranceService.calculateIndemnity(
-            policy, aph, scenarioYield, scenarioPrice
+            policy, aph, scenarioYield, scenarioPrice, cellCountyYield
           );
           insuranceIndemnity = indemnity.base;
           scoIndemnity = indemnity.sco;
@@ -165,17 +192,24 @@ export class ProfitMatrixService {
       policy,
       breakEvenPrice: Math.round(breakEvenPrice * 100) / 100,
       totalCostPerAcre: Math.round(totalCostPerAcre * 100) / 100,
+      costBreakdown,
       marketedBushelsPerAcre: Math.round(marketedBuPerAcre * 100) / 100,
       marketedAvgPrice: Math.round(marketedAvgPrice * 100) / 100,
       unmarketedBushelsPerAcre: Math.round(unmarketedBuPerAcre * 100) / 100,
+      countyYield,
       yieldScenarios,
       priceScenarios,
       matrix
     };
   }
 
-  private async calculateTotalCostPerAcre(farm: any, acres: number): Promise<number> {
-    if (acres === 0) return 0;
+  private async calculateTotalCostPerAcre(farm: any, acres: number): Promise<{ totalCostPerAcre: number; breakdown: CostBreakdown }> {
+    const emptyBreakdown: CostBreakdown = {
+      fertilizerCostPerAcre: 0, chemicalCostPerAcre: 0, seedCostPerAcre: 0,
+      landRentPerAcre: 0, otherCostsPerAcre: 0, equipmentLoanCostPerAcre: 0,
+      landLoanCostPerAcre: 0, operatingLoanCostPerAcre: 0
+    };
+    if (acres === 0) return { totalCostPerAcre: 0, breakdown: emptyBreakdown };
 
     // Fertilizer costs
     let fertilizerCost = 0;
@@ -197,24 +231,48 @@ export class ProfitMatrixService {
     }
 
     // Other costs (excluding insurance to avoid double-counting with policy premium)
+    let landRent = 0;
     let otherCosts = 0;
     for (const cost of farm.otherCosts) {
       if (cost.costType === 'INSURANCE') continue; // Skip — handled by policy premium
       const amount = Number(cost.amount);
-      otherCosts += cost.isPerAcre ? amount * acres : amount;
+      const totalAmount = cost.isPerAcre ? amount * acres : amount;
+      if (cost.costType === 'LAND_RENT') {
+        landRent += totalAmount;
+      } else {
+        otherCosts += totalAmount;
+      }
     }
 
     // Loan costs (getFarmInterestAllocation returns total for the farm, not per-acre)
-    let totalLoanCost = 0;
+    let equipmentLoanCost = 0;
+    let landLoanCost = 0;
+    let operatingLoanCost = 0;
     try {
       const loanAllocation = await loanInterestService.getFarmInterestAllocation(farm.id, farm.year);
-      totalLoanCost = loanAllocation.totalLoanCost;
+      equipmentLoanCost = loanAllocation.equipmentLoanInterest + loanAllocation.equipmentLoanPrincipal;
+      landLoanCost = loanAllocation.landLoanInterest + loanAllocation.landLoanPrincipal;
+      operatingLoanCost = loanAllocation.operatingLoanInterest;
     } catch {
       // No loan data — that's fine
     }
 
-    const totalCost = fertilizerCost + chemicalCost + seedCost + otherCosts + totalLoanCost;
-    return totalCost / acres;
+    const totalLoanCost = equipmentLoanCost + landLoanCost + operatingLoanCost;
+    const totalCost = fertilizerCost + chemicalCost + seedCost + landRent + otherCosts + totalLoanCost;
+
+    const r = (v: number) => Math.round(v / acres * 100) / 100;
+    const breakdown: CostBreakdown = {
+      fertilizerCostPerAcre: r(fertilizerCost),
+      chemicalCostPerAcre: r(chemicalCost),
+      seedCostPerAcre: r(seedCost),
+      landRentPerAcre: r(landRent),
+      otherCostsPerAcre: r(otherCosts),
+      equipmentLoanCostPerAcre: r(equipmentLoanCost),
+      landLoanCostPerAcre: r(landLoanCost),
+      operatingLoanCostPerAcre: r(operatingLoanCost)
+    };
+
+    return { totalCostPerAcre: totalCost / acres, breakdown };
   }
 
   private buildYieldScenarios(aph: number, steps: number): number[] {

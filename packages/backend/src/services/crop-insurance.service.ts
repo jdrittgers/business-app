@@ -148,16 +148,36 @@ export class CropInsuranceService {
 
   /**
    * Supplemental Coverage Option (SCO) — covers 86% down to base coverage level.
-   * Area-triggered (simplified to farm-level for modeling).
+   * Area-triggered: uses county yield to determine payout ratio.
+   * If no county yield data provided, falls back to farm-level yield.
    */
   calculateSCOIndemnity(
     aph: number, baseCoverageLevel: number, projectedPrice: number,
-    actualYield: number, harvestPrice: number
+    actualYield: number, harvestPrice: number,
+    countyYield?: { expectedCountyYield: number; simulatedCountyYield: number }
   ): number {
     const maxPrice = Math.max(projectedPrice, harvestPrice);
-    const topRevenue = aph * 0.86 * maxPrice;
-    const bottomRevenue = aph * (baseCoverageLevel / 100) * maxPrice;
-    const band = topRevenue - bottomRevenue;
+    // Band: 86% down to base coverage level
+    const topPct = 0.86;
+    const bottomPct = baseCoverageLevel / 100;
+    const band = aph * (topPct - bottomPct) * maxPrice;
+
+    if (countyYield && countyYield.expectedCountyYield > 0) {
+      // Area-based: county revenue ratio determines payout
+      const expectedCountyRevenue = countyYield.expectedCountyYield * projectedPrice;
+      const actualCountyRevenue = countyYield.simulatedCountyYield * harvestPrice;
+      const countyRevenuePct = actualCountyRevenue / expectedCountyRevenue;
+
+      // SCO triggers when county revenue falls below 86% of expected
+      if (countyRevenuePct >= topPct) return 0;
+      // Loss ratio within the band
+      const lossPct = Math.min(topPct - countyRevenuePct, topPct - bottomPct);
+      const payoutRatio = lossPct / (topPct - bottomPct);
+      return payoutRatio * band;
+    }
+
+    // Fallback: farm-level (simplified)
+    const topRevenue = aph * topPct * maxPrice;
     const actualRevenue = actualYield * harvestPrice;
     const loss = Math.max(0, topRevenue - actualRevenue);
     return Math.min(loss, band);
@@ -165,16 +185,37 @@ export class CropInsuranceService {
 
   /**
    * Enhanced Coverage Option (ECO) — covers ecoLevel% down to 86%.
-   * Area-triggered (simplified to farm-level for modeling).
+   * Area-triggered: uses county yield to determine payout ratio.
+   * If no county yield data provided, falls back to farm-level yield.
    */
   calculateECOIndemnity(
     aph: number, ecoLevel: number, projectedPrice: number,
-    actualYield: number, harvestPrice: number
+    actualYield: number, harvestPrice: number,
+    countyYield?: { expectedCountyYield: number; simulatedCountyYield: number }
   ): number {
     const maxPrice = Math.max(projectedPrice, harvestPrice);
-    const topRevenue = aph * (ecoLevel / 100) * maxPrice;
-    const bottomRevenue = aph * 0.86 * maxPrice;
-    const band = topRevenue - bottomRevenue;
+    // Band: ecoLevel% down to 86%
+    const topPct = ecoLevel / 100;
+    const bottomPct = 0.86;
+    const band = aph * (topPct - bottomPct) * maxPrice;
+
+    if (countyYield && countyYield.expectedCountyYield > 0) {
+      // Area-based: county revenue ratio determines payout
+      const expectedCountyRevenue = countyYield.expectedCountyYield * projectedPrice;
+      const actualCountyRevenue = countyYield.simulatedCountyYield * harvestPrice;
+      const countyRevenuePct = actualCountyRevenue / expectedCountyRevenue;
+
+      // ECO triggers when county revenue falls below ecoLevel% of expected
+      if (countyRevenuePct >= topPct) return 0;
+      // Loss ratio within the band
+      const lossPct = Math.min(topPct - countyRevenuePct, topPct - bottomPct);
+      const payoutRatio = lossPct / (topPct - bottomPct);
+      return payoutRatio * band;
+    }
+
+    // Fallback: farm-level (simplified)
+    const topRevenue = aph * topPct * maxPrice;
+    const bottomRevenue = aph * bottomPct * maxPrice;
     const actualRevenue = actualYield * harvestPrice;
     const loss = Math.max(0, topRevenue - actualRevenue);
     return Math.min(loss, band);
@@ -185,7 +226,8 @@ export class CropInsuranceService {
    */
   calculateIndemnity(
     policy: { planType: string; coverageLevel: number; projectedPrice: number; hasSco: boolean; hasEco: boolean; ecoLevel: number | null },
-    aph: number, actualYield: number, harvestPrice: number
+    aph: number, actualYield: number, harvestPrice: number,
+    countyYield?: { expectedCountyYield: number; simulatedCountyYield: number }
   ): { base: number; sco: number; eco: number; total: number } {
     let base = 0;
     const coverageLevel = Number(policy.coverageLevel);
@@ -205,12 +247,12 @@ export class CropInsuranceService {
 
     let sco = 0;
     if (policy.hasSco) {
-      sco = this.calculateSCOIndemnity(aph, coverageLevel, projectedPrice, actualYield, harvestPrice);
+      sco = this.calculateSCOIndemnity(aph, coverageLevel, projectedPrice, actualYield, harvestPrice, countyYield);
     }
 
     let eco = 0;
     if (policy.hasEco && policy.ecoLevel) {
-      eco = this.calculateECOIndemnity(aph, Number(policy.ecoLevel), projectedPrice, actualYield, harvestPrice);
+      eco = this.calculateECOIndemnity(aph, Number(policy.ecoLevel), projectedPrice, actualYield, harvestPrice, countyYield);
     }
 
     return { base, sco, eco, total: base + sco + eco };
