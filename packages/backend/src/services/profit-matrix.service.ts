@@ -134,23 +134,13 @@ export class ProfitMatrixService {
         const grossRevenuePerAcre = marketedRevenue + unmarketedRevenue;
 
         // Calculate insurance indemnity
-        // For ECO/SCO: if county yield simulation is provided, scale simulated county yield
-        // proportionally to the farm yield scenario so each cell reflects different severity
+        // ECO/SCO are area-based: county yield is independent of farm yield.
+        // Pass the user's county yield simulation unchanged to every cell.
         let insuranceIndemnity = 0;
         let scoIndemnity = 0;
         let ecoIndemnity = 0;
         if (policy) {
-          let cellCountyYield = countyYield ? { ...countyYield } : undefined;
-          if (cellCountyYield && cellCountyYield.expectedCountyYield > 0) {
-            // Scale simulated county yield proportionally to the yield scenario
-            // If user set simulated = expected (no county loss), scale with farm yield ratio
-            // If user set simulated < expected (county drought), apply same farm yield ratio
-            const farmYieldRatio = aph > 0 ? scenarioYield / aph : 1;
-            cellCountyYield = {
-              expectedCountyYield: cellCountyYield.expectedCountyYield,
-              simulatedCountyYield: cellCountyYield.simulatedCountyYield * farmYieldRatio
-            };
-          }
+          const cellCountyYield = countyYield ? { ...countyYield } : undefined;
           const indemnity = insuranceService.calculateIndemnity(
             policy, aph, scenarioYield, scenarioPrice, cellCountyYield
           );
