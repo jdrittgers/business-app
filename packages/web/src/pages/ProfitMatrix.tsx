@@ -831,8 +831,8 @@ export default function ProfitMatrix() {
                   <li><strong>RP:</strong> Protects revenue — guarantee increases if harvest price rises above projected price</li>
                   <li><strong>YP:</strong> Protects yield only — pays if yield falls below APH x coverage %</li>
                   <li><strong>RP-HPE:</strong> Like RP but guarantee fixed at projected price (lower premium)</li>
-                  <li><strong>SCO:</strong> Area-based — covers 86% down to your base coverage level. Triggered by county yield loss.</li>
-                  <li><strong>ECO:</strong> Area-based — covers 90% or 95% down to 86%. Triggered by county yield loss.</li>
+                  <li><strong>SCO:</strong> Area-based — covers 86% down to your base coverage level. Triggered by county revenue loss (RP/RP-HPE) or county yield loss (YP).</li>
+                  <li><strong>ECO:</strong> Area-based — covers 90% or 95% down to 86%. Triggered by county revenue loss (RP/RP-HPE) or county yield loss (YP). Price drops alone can trigger under RP.</li>
                 </ul>
               </div>
             </div>
