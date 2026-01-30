@@ -81,6 +81,7 @@ export default function GrainContracts() {
   const [allocationMode, setAllocationMode] = useState<'PROPORTIONAL' | 'MANUAL'>('PROPORTIONAL');
   const [manualAllocations, setManualAllocations] = useState<Record<string, number>>({});
   const [allocationLoading, setAllocationLoading] = useState(false);
+  const [excludedFarmIds, setExcludedFarmIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -291,6 +292,7 @@ export default function GrainContracts() {
     setAllocatingContract(contract);
     setAllocationMode('PROPORTIONAL');
     setManualAllocations({});
+    setExcludedFarmIds(new Set());
     setAllocationLoading(true);
     setShowAllocationModal(true);
 
@@ -318,21 +320,73 @@ export default function GrainContracts() {
     setShowAllocationModal(false);
     setAllocatingContract(null);
     setAllocationCalculations([]);
+    setExcludedFarmIds(new Set());
+  };
+
+  const handleToggleFarmExclusion = (farmId: string) => {
+    setExcludedFarmIds(prev => {
+      const next = new Set(prev);
+      if (next.has(farmId)) {
+        next.delete(farmId);
+      } else {
+        next.add(farmId);
+        // Zero out manual allocation when excluding
+        setManualAllocations(ma => ({ ...ma, [farmId]: 0 }));
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAllFarms = () => {
+    if (excludedFarmIds.size === 0) {
+      // Exclude all
+      setExcludedFarmIds(new Set(allocationCalculations.map(c => c.farmId)));
+    } else {
+      // Include all
+      setExcludedFarmIds(new Set());
+    }
+  };
+
+  // Recalculate proportional allocations excluding excluded farms
+  const getIncludedAllocations = () => {
+    if (!allocatingContract) return allocationCalculations;
+    const included = allocationCalculations.filter(c => !excludedFarmIds.has(c.farmId));
+    const totalExpected = included.reduce((sum, c) => sum + c.expectedBushels, 0);
+    const contractBu = allocatingContract.totalBushels;
+    return allocationCalculations.map(calc => {
+      if (excludedFarmIds.has(calc.farmId)) {
+        return { ...calc, share: 0, allocatedBushels: 0 };
+      }
+      const share = totalExpected > 0 ? calc.expectedBushels / totalExpected : 0;
+      return {
+        ...calc,
+        share,
+        allocatedBushels: Math.round(share * contractBu * 100) / 100
+      };
+    });
   };
 
   const handleSaveAllocations = async () => {
     if (!allocatingContract || !selectedBusinessId) return;
 
+    const includedFarmIds = allocationCalculations
+      .filter(c => !excludedFarmIds.has(c.farmId))
+      .map(c => c.farmId);
+
     setAllocationLoading(true);
     try {
       if (allocationMode === 'PROPORTIONAL') {
-        await farmAllocationApi.autoAllocateContract(selectedBusinessId, allocatingContract.id);
+        await farmAllocationApi.autoAllocateContract(selectedBusinessId, allocatingContract.id, {
+          farmIds: includedFarmIds
+        });
       } else {
-        const allocations: CreateFarmAllocationRequest[] = allocationCalculations.map(calc => ({
-          farmId: calc.farmId,
-          allocationType: AllocationType.MANUAL,
-          allocatedBushels: manualAllocations[calc.farmId] || 0
-        }));
+        const allocations: CreateFarmAllocationRequest[] = allocationCalculations
+          .filter(calc => !excludedFarmIds.has(calc.farmId))
+          .map(calc => ({
+            farmId: calc.farmId,
+            allocationType: AllocationType.MANUAL,
+            allocatedBushels: manualAllocations[calc.farmId] || 0
+          }));
         await farmAllocationApi.setContractAllocations(selectedBusinessId, allocatingContract.id, {
           allocations
         });
@@ -355,10 +409,13 @@ export default function GrainContracts() {
   };
 
   const getTotalAllocated = () => {
+    const included = getIncludedAllocations();
     if (allocationMode === 'PROPORTIONAL') {
-      return allocationCalculations.reduce((sum, calc) => sum + calc.allocatedBushels, 0);
+      return included.reduce((sum, calc) => sum + calc.allocatedBushels, 0);
     }
-    return Object.values(manualAllocations).reduce((sum, val) => sum + (val || 0), 0);
+    return allocationCalculations
+      .filter(c => !excludedFarmIds.has(c.farmId))
+      .reduce((sum, c) => sum + (manualAllocations[c.farmId] || 0), 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1366,6 +1423,15 @@ export default function GrainContracts() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase w-12">
+                        <input
+                          type="checkbox"
+                          checked={excludedFarmIds.size === 0}
+                          onChange={handleToggleAllFarms}
+                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          title="Select all / Deselect all"
+                        />
+                      </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Farm</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Expected Bu</th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Share %</th>
@@ -1373,19 +1439,29 @@ export default function GrainContracts() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {allocationCalculations.map((calc) => (
-                      <tr key={calc.farmId}>
-                        <td className="px-4 py-2 text-sm text-gray-900">{calc.farmName}</td>
-                        <td className="px-4 py-2 text-sm text-gray-600 text-right">
+                    {getIncludedAllocations().map((calc) => {
+                      const isExcluded = excludedFarmIds.has(calc.farmId);
+                      return (
+                      <tr key={calc.farmId} className={isExcluded ? 'bg-gray-50 opacity-50' : ''}>
+                        <td className="px-2 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!isExcluded}
+                            onChange={() => handleToggleFarmExclusion(calc.farmId)}
+                            className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                        </td>
+                        <td className={`px-4 py-2 text-sm ${isExcluded ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{calc.farmName}</td>
+                        <td className={`px-4 py-2 text-sm text-right ${isExcluded ? 'text-gray-400' : 'text-gray-600'}`}>
                           {calc.expectedBushels.toLocaleString()}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-600 text-right">
+                        <td className={`px-4 py-2 text-sm text-right ${isExcluded ? 'text-gray-400' : 'text-gray-600'}`}>
                           {(calc.share * 100).toFixed(1)}%
                         </td>
                         <td className="px-4 py-2 text-right">
-                          {allocationMode === 'PROPORTIONAL' ? (
-                            <span className="text-sm text-gray-900">
-                              {calc.allocatedBushels.toLocaleString()}
+                          {allocationMode === 'PROPORTIONAL' || isExcluded ? (
+                            <span className={`text-sm ${isExcluded ? 'text-gray-400' : 'text-gray-900'}`}>
+                              {isExcluded ? '0' : calc.allocatedBushels.toLocaleString()}
                             </span>
                           ) : (
                             <input
@@ -1398,11 +1474,12 @@ export default function GrainContracts() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                   <tfoot className="bg-gray-50">
                     <tr>
-                      <td className="px-4 py-2 text-sm font-medium text-gray-900" colSpan={3}>
+                      <td className="px-4 py-2 text-sm font-medium text-gray-900" colSpan={4}>
                         Total Allocated
                       </td>
                       <td className="px-4 py-2 text-sm font-medium text-right">
