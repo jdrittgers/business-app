@@ -41,7 +41,7 @@ export class AuthController {
       res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -70,14 +70,16 @@ export class AuthController {
       const result = await authService.login(loginData);
 
       // Send refresh token as HTTP-only cookie
-      res.cookie('refreshToken', result.accessToken, {
+      res.cookie('refreshToken', result.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
-      res.json(result);
+      // Don't expose refresh token in JSON response — it's in the httpOnly cookie
+      const { refreshToken: _rt, ...responseData } = result;
+      res.json(responseData);
     } catch (error) {
       if (error instanceof Error && error.message === 'Invalid credentials') {
         res.status(401).json({ error: 'Invalid credentials' });

@@ -129,7 +129,7 @@ export class AuthService {
     };
   }
 
-  async login(loginData: LoginRequest): Promise<LoginResponse> {
+  async login(loginData: LoginRequest): Promise<LoginResponse & { refreshToken: string }> {
     const { email, password } = loginData;
 
     // Find user by email
@@ -200,7 +200,8 @@ export class AuthService {
 
     return {
       user: userResponse,
-      accessToken
+      accessToken,
+      refreshToken
     };
   }
 
