@@ -115,9 +115,17 @@ export class AuthController {
         return;
       }
 
-      const newAccessToken = await authService.refreshAccessToken(refreshToken);
+      const result = await authService.refreshAccessToken(refreshToken);
 
-      res.json({ accessToken: newAccessToken });
+      // Update the refresh token cookie with the rotated token
+      res.cookie('refreshToken', result.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
+      res.json({ accessToken: result.accessToken });
     } catch (error) {
       if (error instanceof Error && error.message.includes('Invalid') || error instanceof Error && error.message.includes('expired')) {
         res.clearCookie('refreshToken');

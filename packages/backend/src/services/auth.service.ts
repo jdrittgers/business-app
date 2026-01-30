@@ -212,7 +212,7 @@ export class AuthService {
     });
   }
 
-  async refreshAccessToken(refreshToken: string): Promise<string> {
+  async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
     // Verify refresh token
     let payload: AuthTokenPayload;
     try {
@@ -233,7 +233,7 @@ export class AuthService {
     // Generate new access token
     const newAccessToken = generateAccessToken(payload);
 
-    // Optional: Rotate refresh token for better security
+    // Rotate refresh token for better security
     await prisma.refreshToken.delete({
       where: { token: refreshToken }
     });
@@ -247,7 +247,7 @@ export class AuthService {
       }
     });
 
-    return newAccessToken;
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
   async getCurrentUser(userId: string): Promise<UserWithBusinesses> {
