@@ -33,6 +33,21 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Refresh queue: serialize concurrent 401 refresh attempts
+let isRefreshing = false;
+let refreshQueue: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = [];
+
+function processQueue(error: any, token: string | null) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token!);
+    }
+  });
+  refreshQueue = [];
+}
+
 // Response interceptor for token refresh
 apiClient.interceptors.response.use(
   (response) => response,
@@ -52,6 +67,21 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
       }
 
+      // If a refresh is already in progress, queue this request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({
+            resolve: (token: string) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(apiClient(originalRequest));
+            },
+            reject
+          });
+        });
+      }
+
+      isRefreshing = true;
+
       // For farmer endpoints, try to refresh
       try {
         const response = await axios.post(
@@ -63,14 +93,21 @@ apiClient.interceptors.response.use(
         const { accessToken } = response.data;
         localStorage.setItem('accessToken', accessToken);
 
+        // Process queued requests with new token
+        processQueue(null, accessToken);
+
         // Retry the original request with new token
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, clear auth state
+        // Refresh failed, reject all queued requests
+        processQueue(refreshError, null);
+
         localStorage.removeItem('accessToken');
         window.location.href = '/login';
         return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 

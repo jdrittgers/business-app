@@ -3,8 +3,8 @@ import { UserWithBusinesses } from '@business-app/shared';
 import { authApi } from '../api/auth.api';
 import { disconnectSocket } from '../config/socket';
 
-// Refresh token every hour to prevent session expiration during long data entry
-const TOKEN_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour in milliseconds
+// Refresh token every 10 minutes — access tokens expire at 15 minutes
+const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 let refreshIntervalId: NodeJS.Timeout | null = null;
 
@@ -95,14 +95,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Start proactive token refresh after loading user
       get().startTokenRefresh();
-    } catch (error) {
-      localStorage.removeItem('accessToken');
-      set({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null
-      });
+    } catch (error: any) {
+      // Only clear auth on 401 (actual auth failure), not on network/server errors
+      if (error.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null
+        });
+      } else {
+        // Network error or server error — keep token, just stop loading
+        set({ isLoading: false });
+      }
     }
   },
 

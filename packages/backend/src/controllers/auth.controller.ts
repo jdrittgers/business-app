@@ -42,6 +42,7 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -74,6 +75,7 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
@@ -98,7 +100,7 @@ export class AuthController {
         await authService.logout(refreshToken);
       }
 
-      res.clearCookie('refreshToken');
+      res.clearCookie('refreshToken', { path: '/' });
       res.json({ message: 'Logged out successfully' });
     } catch (error) {
       console.error('Logout error:', error);
@@ -122,13 +124,14 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
 
       res.json({ accessToken: result.accessToken });
     } catch (error) {
       if (error instanceof Error && error.message.includes('Invalid') || error instanceof Error && error.message.includes('expired')) {
-        res.clearCookie('refreshToken');
+        res.clearCookie('refreshToken', { path: '/' });
         res.status(401).json({ error: 'Invalid or expired refresh token' });
         return;
       }
