@@ -1391,33 +1391,44 @@ export class EquipmentService {
     };
   }
 
-  private calculateLoanAnnualInterest(loan: any): number {
+  private calculateLoanAnnualInterest(loan: any, year?: number): number {
     // Use override if provided
     if (loan.annualInterestOverride) {
       return Number(loan.annualInterestOverride);
     }
     if (loan.useSimpleMode || loan.financingType === 'LEASE') {
-      // Simple mode or lease: estimate 40% of annual payment is interest
       return Number(loan.annualPayment || 0) * 0.4;
     }
-    // Full amortization: remaining balance × interest rate
-    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualInterest;
   }
 
-  private calculateLoanAnnualPrincipal(loan: any): number {
+  private calculateLoanAnnualPrincipal(loan: any, year?: number): number {
     // Use override if provided
     if (loan.annualPrincipalOverride) {
       return Number(loan.annualPrincipalOverride);
     }
     if (loan.useSimpleMode || loan.financingType === 'LEASE') {
-      // Simple mode or lease: estimate 60% of annual payment is principal
       return Number(loan.annualPayment || 0) * 0.6;
     }
-    // Full amortization: annual payment - annual interest
-    const monthlyPayment = Number(loan.monthlyPayment || 0);
-    const annualPayment = monthlyPayment * 12;
-    const annualInterest = this.calculateLoanAnnualInterest(loan);
-    return Math.max(0, annualPayment - annualInterest);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualPrincipal;
   }
 
   private mapEquipmentLoan(loan: any): EquipmentLoan {
