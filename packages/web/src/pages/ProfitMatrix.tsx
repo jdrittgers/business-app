@@ -74,6 +74,14 @@ export default function ProfitMatrix() {
   const [simulatedCountyYield, setSimulatedCountyYield] = useState<number | null>(null);
   const [countyYieldEnabled, setCountyYieldEnabled] = useState(false);
 
+  // Matrix settings: basis and axis ranges
+  const [basis, setBasis] = useState<string>('');
+  const [yieldMin, setYieldMin] = useState<string>('');
+  const [yieldMax, setYieldMax] = useState<string>('');
+  const [priceMin, setPriceMin] = useState<string>('');
+  const [priceMax, setPriceMax] = useState<string>('');
+  const [showMatrixSettings, setShowMatrixSettings] = useState(false);
+
   // Cell detail tooltip
   const [hoveredCell, setHoveredCell] = useState<ProfitMatrixCell | null>(null);
   const [showCostBreakdown, setShowCostBreakdown] = useState(false);
@@ -109,15 +117,28 @@ export default function ProfitMatrix() {
     loadFarms();
   }, [selectedBusinessId, filterYear]);
 
+  // Build all matrix override params
+  const getMatrixParams = () => {
+    const params: Record<string, number> = {};
+    if (countyYieldEnabled && expectedCountyYield && simulatedCountyYield) {
+      params.expectedCountyYield = expectedCountyYield;
+      params.simulatedCountyYield = simulatedCountyYield;
+    }
+    if (basis) params.basis = parseFloat(basis);
+    if (yieldMin) params.yieldMin = parseFloat(yieldMin);
+    if (yieldMax) params.yieldMax = parseFloat(yieldMax);
+    if (priceMin) params.priceMin = parseFloat(priceMin);
+    if (priceMax) params.priceMax = parseFloat(priceMax);
+    return Object.keys(params).length > 0 ? params : undefined;
+  };
+
   // Load matrix data when farm changes
-  const loadMatrix = async (countyOverrides?: { expectedCountyYield?: number; simulatedCountyYield?: number }) => {
+  const loadMatrix = async (overrideParams?: Record<string, number>) => {
     if (!selectedBusinessId || !selectedFarmId) return;
     setIsLoading(true);
     setError(null);
     try {
-      const params = countyOverrides?.expectedCountyYield && countyOverrides?.simulatedCountyYield
-        ? countyOverrides
-        : undefined;
+      const params = overrideParams || getMatrixParams();
       const data = await insuranceApi.getProfitMatrix(selectedBusinessId, selectedFarmId, params);
       setMatrixData(data);
       // Update policy form from loaded policy
@@ -165,20 +186,13 @@ export default function ProfitMatrix() {
     loadMatrix();
   }, [selectedBusinessId, selectedFarmId]);
 
-  const getCountyYieldParams = () => {
-    if (countyYieldEnabled && expectedCountyYield && simulatedCountyYield) {
-      return { expectedCountyYield, simulatedCountyYield };
-    }
-    return undefined;
-  };
-
   const handleSavePolicy = async () => {
     if (!selectedBusinessId || !selectedFarmId) return;
     setIsSavingPolicy(true);
     try {
       await insuranceApi.upsertPolicy(selectedBusinessId, selectedFarmId, policyForm);
-      // Reload matrix with new policy + county yield
-      await loadMatrix(getCountyYieldParams());
+      // Reload matrix with all current params
+      await loadMatrix();
       setShowPolicyEditor(false);
     } catch (err: any) {
       console.error('Error saving policy:', err);
@@ -204,7 +218,11 @@ export default function ProfitMatrix() {
   };
 
   const handleSimulateCountyYield = () => {
-    loadMatrix(getCountyYieldParams());
+    loadMatrix();
+  };
+
+  const handleApplyMatrixSettings = () => {
+    loadMatrix();
   };
 
   const selectedFarm = farms.find(f => f.id === selectedFarmId);
@@ -679,6 +697,112 @@ export default function ProfitMatrix() {
             </div>
           )}
 
+          {/* Matrix Settings: Basis & Axis Ranges */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setShowMatrixSettings(!showMatrixSettings)}
+              className="w-full px-6 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+            >
+              <span className="text-sm font-semibold text-gray-900">
+                Matrix Settings
+                {(basis || yieldMin || yieldMax || priceMin || priceMax) && (
+                  <span className="ml-2 text-xs font-normal text-emerald-600">
+                    (custom{basis ? `, basis: ${basis}` : ''}{(yieldMin || yieldMax) ? ', yield range' : ''}{(priceMin || priceMax) ? ', price range' : ''})
+                  </span>
+                )}
+              </span>
+              <svg className={`w-5 h-5 text-gray-400 transition-transform ${showMatrixSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showMatrixSettings && (
+              <div className="px-6 pb-4 border-t border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Basis ($/bu)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={basis}
+                      onChange={(e) => setBasis(e.target.value)}
+                      placeholder="-0.30"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Applied to unmarketed grain</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Yield (bu/ac)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={yieldMin}
+                      onChange={(e) => setYieldMin(e.target.value)}
+                      placeholder={matrixData ? `${Math.round(matrixData.aph * 0.5)}` : '100'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Yield (bu/ac)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={yieldMax}
+                      onChange={(e) => setYieldMax(e.target.value)}
+                      placeholder={matrixData ? `${Math.round(matrixData.aph * 1.2)}` : '240'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Price ($/bu)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={priceMin}
+                      onChange={(e) => setPriceMin(e.target.value)}
+                      placeholder={matrixData?.priceScenarios ? `${matrixData.priceScenarios[0].toFixed(2)}` : '2.80'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Price ($/bu)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={priceMax}
+                      onChange={(e) => setPriceMax(e.target.value)}
+                      placeholder={matrixData?.priceScenarios ? `${matrixData.priceScenarios[matrixData.priceScenarios.length - 1].toFixed(2)}` : '6.50'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    onClick={handleApplyMatrixSettings}
+                    disabled={isLoading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isLoading ? 'Calculating...' : 'Apply Settings'}
+                  </button>
+                  {(basis || yieldMin || yieldMax || priceMin || priceMax) && (
+                    <button
+                      onClick={() => {
+                        setBasis('');
+                        setYieldMin('');
+                        setYieldMax('');
+                        setPriceMin('');
+                        setPriceMax('');
+                        setTimeout(() => loadMatrix(), 0);
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      Reset to Defaults
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Matrix Grid */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -692,6 +816,9 @@ export default function ProfitMatrix() {
                 Each cell shows net profit per acre {matrixData.policy ? 'including insurance' : '(no insurance policy set)'}.
                 {matrixData.marketedBushelsPerAcre > 0 && (
                   <> Marketed grain ({matrixData.marketedBushelsPerAcre.toFixed(1)} bu/ac @ {formatCurrency(matrixData.marketedAvgPrice)}) is locked in.</>
+                )}
+                {matrixData.basis !== 0 && (
+                  <> Basis: <strong>{matrixData.basis > 0 ? '+' : ''}{formatCurrency(matrixData.basis)}/bu</strong> on unmarketed grain.</>
                 )}
                 {matrixData.countyYield && (
                   <> County yield simulation active: {matrixData.countyYield.simulatedCountyYield} bu/ac of {matrixData.countyYield.expectedCountyYield} expected ({((matrixData.countyYield.simulatedCountyYield / matrixData.countyYield.expectedCountyYield) * 100).toFixed(0)}%).</>

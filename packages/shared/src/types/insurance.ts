@@ -73,6 +73,7 @@ export interface ProfitMatrixResponse {
   marketedBushelsPerAcre: number;
   marketedAvgPrice: number;
   unmarketedBushelsPerAcre: number;
+  basis: number;
   countyYield: CountyYieldSimulation | null;
   yieldScenarios: number[];
   priceScenarios: number[];

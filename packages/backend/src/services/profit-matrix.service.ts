@@ -15,6 +15,11 @@ export class ProfitMatrixService {
       priceSteps?: number;
       expectedCountyYield?: number;
       simulatedCountyYield?: number;
+      basis?: number;
+      yieldMin?: number;
+      yieldMax?: number;
+      priceMin?: number;
+      priceMax?: number;
     }
   ): Promise<ProfitMatrixResponse> {
     // 1. Load farm with all cost data
@@ -98,11 +103,13 @@ export class ProfitMatrixService {
     const steps = overrides?.yieldSteps || 7;
     const priceSteps = overrides?.priceSteps || 7;
 
-    const yieldScenarios = this.buildYieldScenarios(aph, steps);
+    const yieldScenarios = this.buildYieldScenarios(aph, steps, overrides?.yieldMin, overrides?.yieldMax);
     const priceScenarios = this.buildPriceScenarios(
       policy?.projectedPrice || this.getDefaultPrice(farm.commodityType),
       priceSteps,
-      farm.commodityType
+      farm.commodityType,
+      overrides?.priceMin,
+      overrides?.priceMax
     );
 
     // 6. Build county yield simulation data (if provided)
@@ -136,7 +143,8 @@ export class ProfitMatrixService {
         // If yield < marketed, farmer still owes delivery but has to buy grain. Simplified: marketed capped at actual yield
         const actualMarketedBuPerAcre = Math.min(marketedBuPerAcre, scenarioYield);
         const marketedRevenue = actualMarketedBuPerAcre * marketedAvgPrice;
-        const unmarketedRevenue = actualUnmarketedBuPerAcre * scenarioPrice;
+        const basis = overrides?.basis ?? 0;
+        const unmarketedRevenue = actualUnmarketedBuPerAcre * (scenarioPrice + basis);
         const grossRevenuePerAcre = marketedRevenue + unmarketedRevenue;
 
         // Calculate insurance indemnity
@@ -197,6 +205,7 @@ export class ProfitMatrixService {
       marketedBushelsPerAcre: Math.round(marketedBuPerAcre * 100) / 100,
       marketedAvgPrice: Math.round(marketedAvgPrice * 100) / 100,
       unmarketedBushelsPerAcre: Math.round(unmarketedBuPerAcre * 100) / 100,
+      basis: overrides?.basis ?? 0,
       countyYield,
       yieldScenarios,
       priceScenarios,
@@ -288,20 +297,28 @@ export class ProfitMatrixService {
     return business ? Number(business.defaultTruckingFeePerBushel) : 0;
   }
 
-  private buildYieldScenarios(aph: number, steps: number): number[] {
-    // Build scenarios from 50% to 120% of APH
-    const minPct = 0.50;
-    const maxPct = 1.20;
+  private buildYieldScenarios(aph: number, steps: number, minYield?: number, maxYield?: number): number[] {
     const scenarios: number[] = [];
 
+    if (minYield !== undefined && maxYield !== undefined) {
+      // Custom range: linearly space between min and max
+      const stepSize = (maxYield - minYield) / (steps - 1);
+      for (let i = 0; i < steps; i++) {
+        scenarios.push(Math.round(minYield + i * stepSize));
+      }
+      return scenarios;
+    }
+
+    // Default: 50% to 120% of APH
     if (aph <= 0) {
-      // Fallback if APH not set
       for (let i = 0; i < steps; i++) {
         scenarios.push(100 + i * 20);
       }
       return scenarios;
     }
 
+    const minPct = 0.50;
+    const maxPct = 1.20;
     const stepSize = (maxPct - minPct) / (steps - 1);
     for (let i = 0; i < steps; i++) {
       const pct = minPct + i * stepSize;
@@ -310,22 +327,28 @@ export class ProfitMatrixService {
     return scenarios;
   }
 
-  private buildPriceScenarios(basePrice: number, steps: number, commodityType: string): number[] {
-    // Build scenarios centered on base price, ±40%
+  private buildPriceScenarios(basePrice: number, steps: number, commodityType: string, minPrice?: number, maxPrice?: number): number[] {
     const scenarios: number[] = [];
+    const roundPrice = (p: number) =>
+      commodityType === 'SOYBEANS' ? Math.round(p * 10) / 10 : Math.round(p * 20) / 20;
+
+    if (minPrice !== undefined && maxPrice !== undefined) {
+      // Custom range: linearly space between min and max
+      const stepSize = (maxPrice - minPrice) / (steps - 1);
+      for (let i = 0; i < steps; i++) {
+        scenarios.push(roundPrice(minPrice + i * stepSize));
+      }
+      return scenarios;
+    }
+
+    // Default: ±40% of base price
     const minPct = 0.60;
     const maxPct = 1.40;
     const stepSize = (maxPct - minPct) / (steps - 1);
 
     for (let i = 0; i < steps; i++) {
       const pct = minPct + i * stepSize;
-      const price = basePrice * pct;
-      // Round to nearest nickel for corn/wheat, dime for soybeans
-      if (commodityType === 'SOYBEANS') {
-        scenarios.push(Math.round(price * 10) / 10);
-      } else {
-        scenarios.push(Math.round(price * 20) / 20);
-      }
+      scenarios.push(roundPrice(basePrice * pct));
     }
     return scenarios;
   }
