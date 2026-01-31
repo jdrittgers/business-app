@@ -542,25 +542,19 @@ export default function ProfitMatrix() {
                       { label: 'Chemical', value: matrixData.costBreakdown.chemicalCostPerAcre, color: 'text-purple-700' },
                       { label: 'Seed', value: matrixData.costBreakdown.seedCostPerAcre, color: 'text-green-700' },
                       { label: 'Land Rent', value: matrixData.costBreakdown.landRentPerAcre, color: 'text-blue-700' },
-                      { label: 'Trucking', value: matrixData.costBreakdown.truckingCostPerBushel, color: 'text-yellow-700', perBushel: true },
-                      { label: 'Other Costs', value: matrixData.costBreakdown.otherCostsPerAcre, color: 'text-gray-700' },
+                      { label: 'Other Costs', value: matrixData.costBreakdown.otherCostsPerAcre + (matrixData.costBreakdown.truckingCostPerBushel * matrixData.projectedYield), color: 'text-gray-700' },
                       { label: 'Equipment Loans', value: matrixData.costBreakdown.equipmentLoanCostPerAcre, color: 'text-indigo-700' },
                       { label: 'Land Loans', value: matrixData.costBreakdown.landLoanCostPerAcre, color: 'text-teal-700' },
                       { label: 'Operating Loans', value: matrixData.costBreakdown.operatingLoanCostPerAcre, color: 'text-orange-700' },
-                    ].map((item: { label: string; value: number; color: string; perBushel?: boolean }) => (
+                    ].map((item) => (
                       <div key={item.label} className="flex justify-between items-center text-sm py-1">
                         <span className="text-gray-600">{item.label}</span>
                         <span className={`font-medium ${item.value > 0 ? item.color : 'text-gray-400'}`}>
-                          {item.value > 0 ? `${formatCurrency(item.value)}${item.perBushel ? '/bu' : '/ac'}` : '—'}
+                          {item.value > 0 ? formatCurrency(item.value) : '—'}
                         </span>
                       </div>
                     ))}
                   </div>
-                  {matrixData.costBreakdown.truckingCostPerBushel > 0 && (
-                    <p className="text-xs text-gray-400 mt-2 italic">
-                      Trucking cost varies by yield scenario (${matrixData.costBreakdown.truckingCostPerBushel.toFixed(2)}/bu x scenario yield)
-                    </p>
-                  )}
                   {matrixData.costBreakdown.equipmentLoanCostPerAcre === 0 && matrixData.costBreakdown.landLoanCostPerAcre === 0 && (
                     <p className="text-xs text-gray-400 mt-2 italic">
                       No loan costs showing? Make sure equipment loans have "Include in Break-Even" enabled, and farms are linked to land parcels.
