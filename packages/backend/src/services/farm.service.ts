@@ -66,6 +66,7 @@ export class FarmService {
         fullAcres, // Include full acres for reference
         projectedYield: Number(f.projectedYield),
         aph: Number(f.aph),
+        truckingFeePerBushel: f.truckingFeePerBushel !== null ? Number(f.truckingFeePerBushel) : null,
         commodityType: f.commodityType as any,
         grainEntity: f.grainEntity,
         notes: f.notes || undefined,
@@ -120,6 +121,7 @@ export class FarmService {
       acres: Number(farm.acres),
       projectedYield: Number(farm.projectedYield),
       aph: Number(farm.aph),
+      truckingFeePerBushel: farm.truckingFeePerBushel !== null ? Number(farm.truckingFeePerBushel) : null,
       commodityType: farm.commodityType as any,
       grainEntity: farm.grainEntity,
       notes: farm.notes || undefined,
@@ -249,6 +251,7 @@ export class FarmService {
           commodityType: farmData.commodityType,
           projectedYield: farmData.projectedYield,
           aph: farmData.aph,
+          truckingFeePerBushel: farmData.truckingFeePerBushel ?? null,
           notes: farmData.notes
         },
         include: {
@@ -266,6 +269,7 @@ export class FarmService {
           year: farmData.year,
           projectedYield: farmData.projectedYield,
           aph: farmData.aph,
+          truckingFeePerBushel: farmData.truckingFeePerBushel ?? null,
           notes: farmData.notes
         },
         include: {
@@ -299,6 +303,7 @@ export class FarmService {
       acres: Number(farmWithSplits!.acres),
       projectedYield: Number(farmWithSplits!.projectedYield),
       aph: Number(farmWithSplits!.aph),
+      truckingFeePerBushel: farmWithSplits!.truckingFeePerBushel !== null ? Number(farmWithSplits!.truckingFeePerBushel) : null,
       commodityType: farmWithSplits!.commodityType as any,
       grainEntity: farmWithSplits!.grainEntity,
       notes: farmWithSplits!.notes || undefined,
@@ -374,6 +379,7 @@ export class FarmService {
       acres: Number(updatedFarm!.acres),
       projectedYield: Number(updatedFarm!.projectedYield),
       aph: Number(updatedFarm!.aph),
+      truckingFeePerBushel: updatedFarm!.truckingFeePerBushel !== null ? Number(updatedFarm!.truckingFeePerBushel) : null,
       commodityType: updatedFarm!.commodityType as any,
       grainEntity: updatedFarm!.grainEntity,
       notes: updatedFarm!.notes || undefined,

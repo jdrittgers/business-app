@@ -31,7 +31,8 @@ const COST_COLORS = {
   other: '#6b7280',      // gray
   landLoan: '#dc2626',   // red
   operatingLoan: '#f97316', // orange
-  equipmentLoan: '#0891b2'  // cyan
+  equipmentLoan: '#0891b2', // cyan
+  trucking: '#eab308'       // yellow
 };
 
 // Simple Pie Chart component
@@ -347,7 +348,7 @@ export default function BreakEven() {
   const costBreakdown = useMemo(() => {
     if (!summary || summary.byEntity.length === 0) return [];
 
-    let fertilizer = 0, chemical = 0, seed = 0, landRent = 0, insurance = 0, other = 0;
+    let fertilizer = 0, chemical = 0, seed = 0, landRent = 0, insurance = 0, other = 0, trucking = 0;
     let landLoan = 0, operatingLoan = 0, equipmentLoan = 0;
 
     summary.byEntity.forEach(entity => {
@@ -358,6 +359,7 @@ export default function BreakEven() {
         landRent += farm.landRent || 0;
         insurance += farm.insurance || 0;
         other += farm.otherCosts || 0;
+        trucking += farm.truckingCost || 0;
         // Loan costs (interest + principal)
         landLoan += (farm.landLoanInterest || 0) + (farm.landLoanPrincipal || 0);
         operatingLoan += farm.operatingLoanInterest || 0;
@@ -371,6 +373,7 @@ export default function BreakEven() {
       { label: 'Seed', value: seed, color: COST_COLORS.seed },
       { label: 'Land Rent', value: landRent, color: COST_COLORS.landRent },
       { label: 'Insurance', value: insurance, color: COST_COLORS.insurance },
+      { label: 'Trucking', value: trucking, color: COST_COLORS.trucking },
       { label: 'Other', value: other, color: COST_COLORS.other },
       { label: 'Land Loans', value: landLoan, color: COST_COLORS.landLoan },
       { label: 'Operating Loans', value: operatingLoan, color: COST_COLORS.operatingLoan },

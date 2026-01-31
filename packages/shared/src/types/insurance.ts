@@ -51,6 +51,7 @@ export interface CostBreakdown {
   equipmentLoanCostPerAcre: number;
   landLoanCostPerAcre: number;
   operatingLoanCostPerAcre: number;
+  truckingCostPerBushel: number;
 }
 
 export interface CountyYieldSimulation {

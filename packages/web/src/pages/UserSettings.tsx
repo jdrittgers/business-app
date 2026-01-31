@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { invitationApi } from '../api/invitation.api';
 import { userApi } from '../api/user.api';
 import { grainContractsApi } from '../api/grain-contracts.api';
+import { breakevenApi } from '../api/breakeven.api';
 import { GrainEntity } from '@business-app/shared';
 
 export default function UserSettings() {
@@ -29,6 +30,11 @@ export default function UserSettings() {
   const [editingBusinessId, setEditingBusinessId] = useState<string | null>(null);
   const [businessZipCode, setBusinessZipCode] = useState('');
 
+  // Trucking fee state
+  const [truckingFees, setTruckingFees] = useState<Record<string, number>>({});
+  const [editingTruckingBusinessId, setEditingTruckingBusinessId] = useState<string | null>(null);
+  const [truckingFeeInput, setTruckingFeeInput] = useState('');
+
   // Entities state
   const [entities, setEntities] = useState<GrainEntity[]>([]);
   const [showEntityModal, setShowEntityModal] = useState(false);
@@ -36,6 +42,33 @@ export default function UserSettings() {
   const [entityFormData, setEntityFormData] = useState({ name: '' });
 
   const businessId = user?.businessMemberships?.[0]?.businessId;
+
+  // Load trucking fees when businesses tab is active
+  useEffect(() => {
+    if (activeTab === 'businesses' && user?.businessMemberships) {
+      for (const m of user.businessMemberships) {
+        breakevenApi.getTruckingFee(m.businessId).then(data => {
+          setTruckingFees(prev => ({ ...prev, [m.businessId]: data.defaultTruckingFeePerBushel }));
+        }).catch(() => {});
+      }
+    }
+  }, [activeTab, user?.businessMemberships]);
+
+  const handleSaveTruckingFee = async (bid: string) => {
+    setIsLoading(true);
+    try {
+      const val = parseFloat(truckingFeeInput) || 0;
+      await breakevenApi.updateTruckingFee(bid, val);
+      setTruckingFees(prev => ({ ...prev, [bid]: val }));
+      setEditingTruckingBusinessId(null);
+      setSuccess('Trucking fee updated');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update trucking fee');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Load entities when tab changes to entities
   useEffect(() => {
@@ -471,6 +504,55 @@ export default function UserSettings() {
                                       + Set Location (required for grain marketplace)
                                     </button>
                                   )
+                                )}
+                              </div>
+                            )}
+
+                            {/* Trucking Fee */}
+                            {(membership.role === 'OWNER' || membership.role === 'MANAGER') && (
+                              <div className="mt-3 pt-3 border-t border-gray-100">
+                                {editingTruckingBusinessId === membership.businessId ? (
+                                  <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Default Trucking Fee ($/bu)</label>
+                                    <div className="flex gap-2 items-center">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={truckingFeeInput}
+                                        onChange={(e) => setTruckingFeeInput(e.target.value)}
+                                        className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                                        placeholder="0.00"
+                                      />
+                                      <button
+                                        onClick={() => handleSaveTruckingFee(membership.businessId)}
+                                        disabled={isLoading}
+                                        className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingTruckingBusinessId(null)}
+                                        className="px-3 py-2 border border-gray-300 text-sm rounded hover:bg-gray-50"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                    <p className="text-xs text-gray-400">Applies to all farms unless overridden per-farm</p>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <span>Trucking: ${(truckingFees[membership.businessId] || 0).toFixed(2)}/bu</span>
+                                    <button
+                                      onClick={() => {
+                                        setEditingTruckingBusinessId(membership.businessId);
+                                        setTruckingFeeInput((truckingFees[membership.businessId] || 0).toString());
+                                      }}
+                                      className="text-green-600 hover:text-green-700"
+                                    >
+                                      Edit
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             )}

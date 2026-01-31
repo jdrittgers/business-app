@@ -186,6 +186,9 @@ model Business {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // Business-wide defaults
+  defaultTruckingFeePerBushel Decimal @default(0) @map("default_trucking_fee_per_bushel") @db.Decimal(10, 4)
+
   // Relations
   members              BusinessMember[]
   calendarEvents       CalendarEvent[]
@@ -685,6 +688,7 @@ model Farm {
   year          Int           // Crop year
   projectedYield Decimal      @default(0) @map("projected_yield") @db.Decimal(10, 2) // Projected bushels per acre
   aph           Decimal       @default(0) @db.Decimal(10, 2) // Actual Production History (APH)
+  truckingFeePerBushel Decimal? @map("trucking_fee_per_bushel") @db.Decimal(10, 4) // Override business default; null = use default
   notes         String?
   deletedAt     DateTime?     @map("deleted_at")
   createdAt     DateTime      @default(now()) @map("created_at")

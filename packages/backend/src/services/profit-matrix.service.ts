@@ -46,10 +46,16 @@ export class ProfitMatrixService {
     const aph = Number(farm.aph);
     const projectedYield = Number(farm.projectedYield);
 
-    // 2. Calculate total cost per acre (replicating breakeven logic)
+    // 2. Resolve effective trucking fee per bushel
+    const truckingFeePerBushel = await this.getEffectiveTruckingFee(farm, businessId);
+
+    // 3. Calculate total cost per acre (replicating breakeven logic, excluding trucking — it's yield-dependent)
     const costResult = await this.calculateTotalCostPerAcre(farm, acres);
     const totalCostPerAcre = costResult.totalCostPerAcre;
-    const costBreakdown = costResult.breakdown;
+    const costBreakdown: CostBreakdown = {
+      ...costResult.breakdown,
+      truckingCostPerBushel: Math.round(truckingFeePerBushel * 10000) / 10000
+    };
 
     // 3. Load insurance policy
     const policy = await insuranceService.getByFarmId(farmId, businessId);
@@ -150,14 +156,19 @@ export class ProfitMatrixService {
         }
 
         const totalInsurancePayout = insuranceIndemnity + scoIndemnity + ecoIndemnity;
-        const profitWithoutInsurance = grossRevenuePerAcre - totalCostPerAcre;
-        const netProfitPerAcre = grossRevenuePerAcre - totalCostPerAcre - insurancePremium + totalInsurancePayout;
+
+        // Trucking cost scales with yield — more bushels = more hauling
+        const truckingCostPerAcre = truckingFeePerBushel * scenarioYield;
+        const scenarioTotalCostPerAcre = totalCostPerAcre + truckingCostPerAcre;
+
+        const profitWithoutInsurance = grossRevenuePerAcre - scenarioTotalCostPerAcre;
+        const netProfitPerAcre = grossRevenuePerAcre - scenarioTotalCostPerAcre - insurancePremium + totalInsurancePayout;
 
         row.push({
           yieldBuAcre: scenarioYield,
           priceBu: scenarioPrice,
           grossRevenuePerAcre: Math.round(grossRevenuePerAcre * 100) / 100,
-          totalCostPerAcre: Math.round(totalCostPerAcre * 100) / 100,
+          totalCostPerAcre: Math.round(scenarioTotalCostPerAcre * 100) / 100,
           profitWithoutInsurance: Math.round(profitWithoutInsurance * 100) / 100,
           insuranceIndemnity: Math.round(insuranceIndemnity * 100) / 100,
           scoIndemnity: Math.round(scoIndemnity * 100) / 100,
@@ -170,7 +181,7 @@ export class ProfitMatrixService {
       matrix.push(row);
     }
 
-    const breakEvenPrice = projectedYield > 0 ? totalCostPerAcre / projectedYield : 0;
+    const breakEvenPrice = projectedYield > 0 ? (totalCostPerAcre / projectedYield) + truckingFeePerBushel : 0;
 
     return {
       farmId,
@@ -181,7 +192,7 @@ export class ProfitMatrixService {
       projectedYield,
       policy,
       breakEvenPrice: Math.round(breakEvenPrice * 100) / 100,
-      totalCostPerAcre: Math.round(totalCostPerAcre * 100) / 100,
+      totalCostPerAcre: Math.round((totalCostPerAcre + truckingFeePerBushel * projectedYield) * 100) / 100,
       costBreakdown,
       marketedBushelsPerAcre: Math.round(marketedBuPerAcre * 100) / 100,
       marketedAvgPrice: Math.round(marketedAvgPrice * 100) / 100,
@@ -197,7 +208,7 @@ export class ProfitMatrixService {
     const emptyBreakdown: CostBreakdown = {
       fertilizerCostPerAcre: 0, chemicalCostPerAcre: 0, seedCostPerAcre: 0,
       landRentPerAcre: 0, otherCostsPerAcre: 0, equipmentLoanCostPerAcre: 0,
-      landLoanCostPerAcre: 0, operatingLoanCostPerAcre: 0
+      landLoanCostPerAcre: 0, operatingLoanCostPerAcre: 0, truckingCostPerBushel: 0
     };
     if (acres === 0) return { totalCostPerAcre: 0, breakdown: emptyBreakdown };
 
@@ -259,10 +270,22 @@ export class ProfitMatrixService {
       otherCostsPerAcre: r(otherCosts),
       equipmentLoanCostPerAcre: r(equipmentLoanCost),
       landLoanCostPerAcre: r(landLoanCost),
-      operatingLoanCostPerAcre: r(operatingLoanCost)
+      operatingLoanCostPerAcre: r(operatingLoanCost),
+      truckingCostPerBushel: 0
     };
 
     return { totalCostPerAcre: totalCost / acres, breakdown };
+  }
+
+  private async getEffectiveTruckingFee(farm: any, businessId: string): Promise<number> {
+    if (farm.truckingFeePerBushel !== null && farm.truckingFeePerBushel !== undefined) {
+      return Number(farm.truckingFeePerBushel);
+    }
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { defaultTruckingFeePerBushel: true }
+    });
+    return business ? Number(business.defaultTruckingFeePerBushel) : 0;
   }
 
   private buildYieldScenarios(aph: number, steps: number): number[] {

@@ -76,9 +76,12 @@ export default function FarmManagement() {
     projectedYield: '200',
     aph: '200',
     notes: '',
+    truckingFeePerBushel: '' as string,
     entitySplits: [] as CreateEntitySplitRequest[]
   });
   const [useEntitySplits, setUseEntitySplits] = useState(false);
+  const [useBusinessDefaultTrucking, setUseBusinessDefaultTrucking] = useState(true);
+  const [businessDefaultTruckingFee, setBusinessDefaultTruckingFee] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -106,6 +109,15 @@ export default function FarmManagement() {
       loadData();
     }
   }, [selectedBusinessId, filterEntity, filterYear, filterCommodity]);
+
+  // Load business default trucking fee
+  useEffect(() => {
+    if (selectedBusinessId) {
+      breakevenApi.getTruckingFee(selectedBusinessId).then(data => {
+        setBusinessDefaultTruckingFee(data.defaultTruckingFeePerBushel);
+      }).catch(() => {});
+    }
+  }, [selectedBusinessId]);
 
   // Fetch futures prices when year changes
   useEffect(() => {
@@ -263,9 +275,11 @@ export default function FarmManagement() {
       projectedYield: '200',
       aph: '200',
       notes: '',
+      truckingFeePerBushel: '',
       entitySplits: []
     });
     setUseEntitySplits(false);
+    setUseBusinessDefaultTrucking(true);
     setShowModal(true);
   };
 
@@ -282,11 +296,13 @@ export default function FarmManagement() {
       projectedYield: farm.projectedYield.toString(),
       aph: farm.aph.toString(),
       notes: farm.notes || '',
+      truckingFeePerBushel: farm.truckingFeePerBushel != null ? farm.truckingFeePerBushel.toString() : '',
       entitySplits: hasEntitySplits
         ? farm.entitySplits!.map(s => ({ grainEntityId: s.grainEntityId, percentage: s.percentage }))
         : []
     });
     setUseEntitySplits(hasEntitySplits);
+    setUseBusinessDefaultTrucking(farm.truckingFeePerBushel == null);
     setShowModal(true);
   };
 
@@ -325,6 +341,7 @@ export default function FarmManagement() {
         year: formData.year,
         projectedYield: parseFloat(formData.projectedYield),
         aph: parseFloat(formData.aph),
+        truckingFeePerBushel: useBusinessDefaultTrucking ? null : (parseFloat(formData.truckingFeePerBushel) || 0),
         notes: formData.notes || undefined,
         entitySplits: useEntitySplits && formData.entitySplits.length > 0
           ? formData.entitySplits
@@ -980,6 +997,42 @@ export default function FarmManagement() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Trucking Fee Override */}
+                <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useBusinessDefaultTrucking}
+                      onChange={(e) => {
+                        setUseBusinessDefaultTrucking(e.target.checked);
+                        if (e.target.checked) {
+                          setFormData({ ...formData, truckingFeePerBushel: '' });
+                        } else {
+                          setFormData({ ...formData, truckingFeePerBushel: businessDefaultTruckingFee.toString() });
+                        }
+                      }}
+                      className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Use business default trucking (${businessDefaultTruckingFee.toFixed(2)}/bu)
+                    </span>
+                  </label>
+                  {!useBusinessDefaultTrucking && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Trucking Fee ($/bu)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.truckingFeePerBushel}
+                        onChange={(e) => setFormData({ ...formData, truckingFeePerBushel: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>

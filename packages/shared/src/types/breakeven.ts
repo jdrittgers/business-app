@@ -191,6 +191,7 @@ export interface Farm {
   year: number;
   projectedYield: number;
   aph: number;
+  truckingFeePerBushel?: number | null;
   notes?: string;
   planApproved: boolean;
   planApprovedAt?: Date;
@@ -219,6 +220,7 @@ export interface CreateFarmRequest {
   year: number;
   projectedYield: number;
   aph: number;
+  truckingFeePerBushel?: number | null;
   notes?: string;
   entitySplits?: CreateEntitySplitRequest[];
 }
@@ -231,6 +233,7 @@ export interface UpdateFarmRequest {
   commodityType?: CommodityType;
   projectedYield?: number;
   aph?: number;
+  truckingFeePerBushel?: number | null;
   notes?: string;
   entitySplits?: CreateEntitySplitRequest[];
 }
@@ -387,6 +390,7 @@ export interface FarmBreakEven {
   landRent: number;
   insurance: number;
   otherCosts: number;
+  truckingCost: number;
 
   // Interest expense (from loans)
   landLoanInterest: number;

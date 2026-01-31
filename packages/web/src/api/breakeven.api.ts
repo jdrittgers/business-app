@@ -472,5 +472,16 @@ export const breakevenApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     return response.data;
+  },
+
+  // Trucking fee
+  getTruckingFee: async (businessId: string): Promise<{ defaultTruckingFeePerBushel: number }> => {
+    const response = await apiClient.get(`/api/businesses/${businessId}/settings/trucking-fee`);
+    return response.data;
+  },
+
+  updateTruckingFee: async (businessId: string, defaultTruckingFeePerBushel: number): Promise<{ defaultTruckingFeePerBushel: number }> => {
+    const response = await apiClient.put(`/api/businesses/${businessId}/settings/trucking-fee`, { defaultTruckingFeePerBushel });
+    return response.data;
   }
 };

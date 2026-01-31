@@ -251,6 +251,17 @@ export class BreakEvenAnalyticsService {
     };
   }
 
+  private async getEffectiveTruckingFee(farm: any): Promise<number> {
+    if (farm.truckingFeePerBushel !== null && farm.truckingFeePerBushel !== undefined) {
+      return Number(farm.truckingFeePerBushel);
+    }
+    const business = await prisma.business.findUnique({
+      where: { id: farm.grainEntity.businessId },
+      select: { defaultTruckingFeePerBushel: true }
+    });
+    return business ? Number(business.defaultTruckingFeePerBushel) : 0;
+  }
+
   private async calculateFarmBreakEven(
     farm: any,
     productionMap: Map<string, any>,
@@ -395,8 +406,13 @@ export class BreakEvenAnalyticsService {
     const totalPrincipalExpense = landLoanPrincipal + equipmentLoanPrincipal;
     const totalLoanCost = totalInterestExpense + totalPrincipalExpense;
 
+    // Calculate trucking cost
+    const truckingFeePerBushel = await this.getEffectiveTruckingFee(farm);
+    const expectedYieldForTrucking = Number(farm.projectedYield) || 0;
+    const truckingCost = truckingFeePerBushel * expectedYieldForTrucking * acres;
+
     // Total costs
-    const totalCostExcludingInterest = fertilizerCost + chemicalCost + seedCost + landRent + insurance + otherCosts;
+    const totalCostExcludingInterest = fertilizerCost + chemicalCost + seedCost + landRent + insurance + otherCosts + truckingCost;
     const totalCost = totalCostExcludingInterest + totalLoanCost;
     const costPerAcre = acres > 0 ? totalCost / acres : 0;
 
@@ -430,6 +446,7 @@ export class BreakEvenAnalyticsService {
       landRent,
       insurance,
       otherCosts,
+      truckingCost,
       landLoanInterest,
       landLoanPrincipal,
       operatingLoanInterest,

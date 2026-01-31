@@ -806,4 +806,37 @@ router.post('/businesses/:businessId/seed-hybrids/worker', async (req: AuthReque
   }
 });
 
+// ===== Business Trucking Fee Settings =====
+router.get('/businesses/:businessId/settings/trucking-fee', async (req: AuthRequest, res: Response) => {
+  try {
+    const business = await prisma.business.findUnique({
+      where: { id: req.params.businessId },
+      select: { defaultTruckingFeePerBushel: true }
+    });
+    if (!business) {
+      res.status(404).json({ error: 'Business not found' });
+      return;
+    }
+    res.json({ defaultTruckingFeePerBushel: Number(business.defaultTruckingFeePerBushel) });
+  } catch (error: any) {
+    console.error('Error getting trucking fee:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.put('/businesses/:businessId/settings/trucking-fee', async (req: AuthRequest, res: Response) => {
+  try {
+    const { defaultTruckingFeePerBushel } = req.body;
+    const business = await prisma.business.update({
+      where: { id: req.params.businessId },
+      data: { defaultTruckingFeePerBushel: defaultTruckingFeePerBushel || 0 },
+      select: { defaultTruckingFeePerBushel: true }
+    });
+    res.json({ defaultTruckingFeePerBushel: Number(business.defaultTruckingFeePerBushel) });
+  } catch (error: any) {
+    console.error('Error updating trucking fee:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
