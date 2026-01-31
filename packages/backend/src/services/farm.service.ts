@@ -996,6 +996,7 @@ export class FarmService {
         landLoanInterest,
         landLoanPrincipal,
         operatingLoanInterest,
+        equipment: equipmentLoanInterest + equipmentLoanPrincipal,
         equipmentInterest: equipmentLoanInterest,
         equipmentPrincipal: equipmentLoanPrincipal,
         totalLoanCost,
