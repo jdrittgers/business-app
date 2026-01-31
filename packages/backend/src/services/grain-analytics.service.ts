@@ -325,22 +325,9 @@ export class GrainAnalyticsService {
       return futuresPrice + basis;
     }
 
-    // ACCUMULATOR contract
+    // ACCUMULATOR contract — all bushels priced at the double-up (board) price + basis
     if (contractType === 'ACCUMULATOR' && contract.accumulatorDetails) {
       const details = contract.accumulatorDetails;
-      const entries = details.dailyEntries || [];
-
-      // If we have daily entries, calculate actual weighted average
-      if (entries.length > 0) {
-        const totalMarketed = entries.reduce((sum: number, e: any) =>
-          sum + Number(e.bushelsMarketed), 0);
-        const totalValue = entries.reduce((sum: number, e: any) =>
-          sum + Number(e.bushelsMarketed) * Number(e.marketPrice), 0);
-
-        return totalMarketed > 0 ? totalValue / totalMarketed : null;
-      }
-
-      // No daily entries yet - estimate using doubleUpPrice minus basis
       const doubleUpPrice = details.doubleUpPrice ? Number(details.doubleUpPrice) : null;
       if (!doubleUpPrice) return null;
 

@@ -1080,7 +1080,7 @@ export default function GrainContracts() {
                         }`}
                       >
                         <div className="font-semibold">Daily Double</div>
-                        <div className="text-xs mt-1 text-gray-500">Doubles each day price is below trigger</div>
+                        <div className="text-xs mt-1 text-gray-500">Doubles each day close is above trigger</div>
                       </button>
                       <button
                         type="button"
@@ -1092,7 +1092,7 @@ export default function GrainContracts() {
                         }`}
                       >
                         <div className="font-semibold">Weekly Double</div>
-                        <div className="text-xs mt-1 text-gray-500">Doubles weekly if Friday close is below trigger</div>
+                        <div className="text-xs mt-1 text-gray-500">Doubles weekly if Friday close is above trigger</div>
                       </button>
                       <button
                         type="button"
@@ -1104,7 +1104,7 @@ export default function GrainContracts() {
                         }`}
                       >
                         <div className="font-semibold">Euro (End Double)</div>
-                        <div className="text-xs mt-1 text-gray-500">Entire contract doubles at expiration</div>
+                        <div className="text-xs mt-1 text-gray-500">Entire contract doubles if above trigger at expiration</div>
                       </button>
                     </div>
                   </div>
@@ -1203,6 +1203,22 @@ export default function GrainContracts() {
                     </div>
                   )}
 
+                  {/* Basis Price Input — shown when basis is locked */}
+                  {formData.basisLocked && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Basis ($/bu)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.basisPrice}
+                        onChange={(e) => setFormData({ ...formData, basisPrice: e.target.value })}
+                        className="w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder="e.g., -0.45"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Locked basis applied to the double-up (board) price. Cash price = double-up price + basis.</p>
+                    </div>
+                  )}
+
                   {/* Bushels Calculation Display */}
                   {formData.deliveryStartDate && formData.totalBushels && (
                     <div className="mt-4 p-4 bg-green-50 rounded-md border border-green-200">
@@ -1233,13 +1249,13 @@ export default function GrainContracts() {
                       <div className="mt-3 pt-3 border-t border-green-200">
                         <p className="text-sm text-gray-700">
                           {formData.accumulatorType === 'DAILY' && (
-                            <>Each day market price is below <strong>${formData.doubleUpPrice || '?'}</strong>, that day's {calculateDailyBushels().toFixed(2)} bu doubles to {(calculateDailyBushels() * 2).toFixed(2)} bu.</>
+                            <>If daily close is above <strong>${formData.doubleUpPrice || '?'}</strong>, that day's {calculateDailyBushels().toFixed(2)} bu doubles to {(calculateDailyBushels() * 2).toFixed(2)} bu. Below, bushels accumulate normally. All priced at the double-up price.</>
                           )}
                           {formData.accumulatorType === 'WEEKLY' && (
-                            <>If Friday close is below <strong>${formData.doubleUpPrice || '?'}</strong>, that week's {(calculateDailyBushels() * 5).toFixed(2)} bu doubles to {(calculateDailyBushels() * 10).toFixed(2)} bu.</>
+                            <>If Friday close is above <strong>${formData.doubleUpPrice || '?'}</strong>, that week's {(calculateDailyBushels() * 5).toFixed(2)} bu doubles to {(calculateDailyBushels() * 10).toFixed(2)} bu. Below, bushels accumulate normally. All priced at the double-up price.</>
                           )}
                           {formData.accumulatorType === 'EURO' && (
-                            <>Bushels accumulate daily. At contract end, if price is below <strong>${formData.doubleUpPrice || '?'}</strong>, the entire contract ({parseFloat(formData.totalBushels).toLocaleString()} bu) doubles.</>
+                            <>Bushels accumulate daily. At contract end, if price is above <strong>${formData.doubleUpPrice || '?'}</strong>, the entire contract ({parseFloat(formData.totalBushels).toLocaleString()} bu) doubles. All priced at the double-up price.</>
                           )}
                         </p>
                       </div>
@@ -1249,15 +1265,15 @@ export default function GrainContracts() {
                   <div className="mt-3 p-3 bg-blue-50 rounded-md">
                     <p className="text-sm text-gray-700">
                       <strong>Knockout Price:</strong> If market drops to this price, contract stops accumulating.<br/>
-                      <strong>Double Up Price:</strong> Price trigger for doubling bushels.<br/>
+                      <strong>Double Up Price:</strong> The board price for all accumulated bushels. Also the trigger for doubling.<br/>
                       {formData.accumulatorType === 'DAILY' && (
-                        <><strong>Daily Double:</strong> Each day price is below trigger, that day's bushels double.<br/></>
+                        <><strong>Daily Double:</strong> Each day close is above trigger, that day's bushels double. Below, bushels accumulate normally.<br/></>
                       )}
                       {formData.accumulatorType === 'WEEKLY' && (
-                        <><strong>Weekly Double:</strong> If Friday close is below trigger, that week's bushels double.<br/></>
+                        <><strong>Weekly Double:</strong> If Friday close is above trigger, that week's bushels double. Below, bushels accumulate normally.<br/></>
                       )}
                       {formData.accumulatorType === 'EURO' && (
-                        <><strong>Euro (End Double):</strong> If price is below trigger at contract end, entire contract doubles.<br/></>
+                        <><strong>Euro (End Double):</strong> If price is above trigger at contract end, entire contract doubles.<br/></>
                       )}
                       <strong>Basis Locked:</strong> If unchecked, accumulator acts as HTA until basis is locked.
                     </p>
