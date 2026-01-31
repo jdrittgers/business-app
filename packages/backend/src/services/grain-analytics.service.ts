@@ -36,7 +36,7 @@ export class GrainAnalyticsService {
           }
         },
         contracts: {
-          where: { year },
+          where: { year, deletedAt: null },
           include: {
             accumulatorDetails: {
               include: {
@@ -246,10 +246,10 @@ export class GrainAnalyticsService {
     };
   }
 
-  // Helper to calculate bushels delivered (auto-calculates for accumulators and counts full amount for HTA)
+  // Helper to calculate bushels marketed for dashboard (contracted = marketed, not physical delivery)
   private calculateBushelsDelivered(contract: any): number {
-    // HTA contracts count full amount as marketed (price is locked even if not delivered)
-    if (contract.contractType === 'HTA') {
+    // CASH, BASIS, and HTA contracts count full amount as marketed (price is locked even if not physically delivered)
+    if (contract.contractType === 'CASH' || contract.contractType === 'BASIS' || contract.contractType === 'HTA') {
       return Number(contract.totalBushels);
     }
 

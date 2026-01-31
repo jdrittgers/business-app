@@ -34,7 +34,8 @@ export class GrainContractService {
   // Get all contracts with optional filters
   async getContracts(businessId: string, query: GetGrainContractsQuery): Promise<GrainContract[]> {
     const whereClause: any = {
-      grainEntity: { businessId }
+      grainEntity: { businessId },
+      deletedAt: null
     };
 
     if (query.grainEntityId) {
@@ -154,6 +155,18 @@ export class GrainContractService {
       await this.getContract(contractId, businessId);
     }
 
+    // Check if grainEntityId is changing — need to clear farm allocations if so
+    let entityChanging = false;
+    if (data.grainEntityId !== undefined) {
+      const existing = await prisma.grainContract.findUnique({
+        where: { id: contractId },
+        select: { grainEntityId: true }
+      });
+      if (existing && existing.grainEntityId !== data.grainEntityId) {
+        entityChanging = true;
+      }
+    }
+
     const updateData: any = {};
 
     // Core fields
@@ -185,6 +198,8 @@ export class GrainContractService {
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
+    console.log(`[Contract Update] id=${contractId}, fields=${Object.keys(updateData).join(',')}`);
+
     const contract = await prisma.grainContract.update({
       where: { id: contractId },
       data: updateData,
@@ -195,6 +210,14 @@ export class GrainContractService {
         }
       }
     });
+
+    // If entity changed, clear old farm allocations (they belonged to the previous entity's farms)
+    if (entityChanging) {
+      await prisma.farmContractAllocation.deleteMany({
+        where: { contractId }
+      });
+      console.log(`[Contract Update] Entity changed — cleared farm allocations for contract ${contractId}`);
+    }
 
     return this.mapContractToResponse(contract);
   }
