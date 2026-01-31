@@ -198,6 +198,50 @@ export class GrainContractService {
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
+    // Handle accumulator details update
+    if (data.accumulatorDetails) {
+      const accDetails = data.accumulatorDetails;
+      const accUpdateData: any = {};
+
+      if (accDetails.accumulatorType !== undefined) accUpdateData.accumulatorType = accDetails.accumulatorType;
+      if (accDetails.knockoutPrice !== undefined) accUpdateData.knockoutPrice = accDetails.knockoutPrice;
+      if (accDetails.doubleUpPrice !== undefined) accUpdateData.doubleUpPrice = accDetails.doubleUpPrice;
+      if (accDetails.dailyBushels !== undefined) accUpdateData.dailyBushels = accDetails.dailyBushels;
+      if (accDetails.weeklyBushels !== undefined) accUpdateData.weeklyBushels = accDetails.weeklyBushels;
+      if (accDetails.startDate !== undefined) accUpdateData.startDate = new Date(accDetails.startDate);
+      if (accDetails.endDate !== undefined) accUpdateData.endDate = accDetails.endDate ? new Date(accDetails.endDate) : null;
+      if (accDetails.isDailyDouble !== undefined) accUpdateData.isDailyDouble = accDetails.isDailyDouble;
+      if (accDetails.basisLocked !== undefined) accUpdateData.basisLocked = accDetails.basisLocked;
+
+      if (Object.keys(accUpdateData).length > 0) {
+        // Upsert: update existing or create new accumulator details
+        const existing = await prisma.accumulatorDetails.findUnique({
+          where: { contractId }
+        });
+
+        if (existing) {
+          await prisma.accumulatorDetails.update({
+            where: { contractId },
+            data: accUpdateData
+          });
+        } else {
+          // Create new accumulator details if contract is being changed to ACCUMULATOR
+          await prisma.accumulatorDetails.create({
+            data: {
+              contractId,
+              knockoutPrice: accDetails.knockoutPrice || 0,
+              doubleUpPrice: accDetails.doubleUpPrice || 0,
+              dailyBushels: accDetails.dailyBushels || 0,
+              startDate: accDetails.startDate ? new Date(accDetails.startDate) : new Date(),
+              ...accUpdateData
+            }
+          });
+        }
+
+        console.log(`[Contract Update] accumulatorDetails updated: ${Object.keys(accUpdateData).join(',')}`);
+      }
+    }
+
     console.log(`[Contract Update] id=${contractId}, fields=${Object.keys(updateData).join(',')}`);
 
     const contract = await prisma.grainContract.update({

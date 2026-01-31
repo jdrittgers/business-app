@@ -153,6 +153,18 @@ export interface UpdateGrainContractRequest {
   bushelsDelivered?: number;
   isActive?: boolean;
   notes?: string;
+  // Accumulator details (for updating accumulator-specific fields)
+  accumulatorDetails?: {
+    accumulatorType?: AccumulatorType;
+    knockoutPrice?: number;
+    doubleUpPrice?: number;
+    dailyBushels?: number;
+    weeklyBushels?: number;
+    startDate?: string;
+    endDate?: string;
+    isDailyDouble?: boolean;
+    basisLocked?: boolean;
+  };
 }
 
 export interface CreateAccumulatorEntryRequest {
