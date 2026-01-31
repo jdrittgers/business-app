@@ -191,13 +191,8 @@ export class CropInsuranceService {
       return payoutRatio * band;
     }
 
-    // Fallback: farm-level (simplified)
-    const topRevenue = aph * topPct * bandPrice;
-    const actualRevenue = planType === 'YP'
-      ? actualYield / aph * (aph * bandPrice)  // yield ratio applied to expected crop value
-      : actualYield * harvestPrice;
-    const loss = Math.max(0, topRevenue - actualRevenue);
-    return Math.min(loss, band);
+    // SCO is area-based — cannot be calculated without county yield data
+    return 0;
   }
 
   /**
@@ -237,13 +232,8 @@ export class CropInsuranceService {
       return payoutRatio * band;
     }
 
-    // Fallback: farm-level (simplified)
-    const topRevenue = aph * topPct * bandPrice;
-    const actualRevenue = planType === 'YP'
-      ? actualYield / aph * (aph * bandPrice)
-      : actualYield * harvestPrice;
-    const loss = Math.max(0, topRevenue - actualRevenue);
-    return Math.min(loss, band);
+    // ECO is area-based — cannot be calculated without county yield data
+    return 0;
   }
 
   /**
