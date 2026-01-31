@@ -29,6 +29,104 @@ import {
   EquipmentFinancingType
 } from '@business-app/shared';
 
+// ===== Amortization Utility =====
+
+/**
+ * Calculate the exact interest and principal paid in a specific year
+ * by walking the full amortization schedule from loan origination.
+ */
+function calculateAmortizationForYear(
+  originalPrincipal: number,
+  annualRate: number,
+  termMonths: number,
+  startDate: Date,
+  targetYear: number,
+  paymentFrequency: string // MONTHLY, QUARTERLY, SEMI_ANNUAL, ANNUAL
+): { annualInterest: number; annualPrincipal: number; periodicPayment: number } {
+  if (!originalPrincipal || !termMonths || originalPrincipal <= 0 || termMonths <= 0) {
+    return { annualInterest: 0, annualPrincipal: 0, periodicPayment: 0 };
+  }
+
+  // Determine periods per year
+  const periodsPerYear: Record<string, number> = {
+    MONTHLY: 12, QUARTERLY: 4, SEMI_ANNUAL: 2, ANNUAL: 1
+  };
+  const ppYear = periodsPerYear[paymentFrequency] || 12;
+  const monthsPerPeriod = 12 / ppYear;
+
+  // Periodic rate
+  const periodicRate = annualRate / ppYear;
+
+  // Total periods
+  const totalPeriods = Math.ceil(termMonths / monthsPerPeriod);
+
+  // Calculate periodic payment: P * r * (1+r)^n / ((1+r)^n - 1)
+  let periodicPayment: number;
+  if (periodicRate === 0) {
+    periodicPayment = originalPrincipal / totalPeriods;
+  } else {
+    const factor = Math.pow(1 + periodicRate, totalPeriods);
+    periodicPayment = originalPrincipal * periodicRate * factor / (factor - 1);
+  }
+
+  // Walk the schedule to find interest/principal for the target year
+  let balance = originalPrincipal;
+  let yearInterest = 0;
+  let yearPrincipal = 0;
+
+  const loanStart = new Date(startDate);
+
+  for (let period = 0; period < totalPeriods; period++) {
+    // Determine which year this payment falls in
+    const paymentDate = new Date(loanStart);
+    paymentDate.setMonth(paymentDate.getMonth() + (period + 1) * monthsPerPeriod);
+    const paymentYear = paymentDate.getFullYear();
+
+    // Calculate this period's interest and principal
+    const interestPortion = balance * periodicRate;
+    const principalPortion = Math.min(periodicPayment - interestPortion, balance);
+
+    if (paymentYear === targetYear) {
+      yearInterest += interestPortion;
+      yearPrincipal += principalPortion;
+    }
+
+    balance -= principalPortion;
+    if (balance <= 0.01) break; // Account for floating point
+    if (paymentYear > targetYear) break; // No need to continue past target year
+  }
+
+  return { annualInterest: yearInterest, annualPrincipal: yearPrincipal, periodicPayment };
+}
+
+/**
+ * Auto-calculate periodic payment from loan terms.
+ * Returns the periodic payment amount (typically monthly).
+ */
+function calculatePeriodicPayment(
+  principal: number,
+  annualRate: number,
+  termMonths: number,
+  paymentFrequency: string
+): number {
+  if (!principal || !termMonths || principal <= 0 || termMonths <= 0) return 0;
+
+  const periodsPerYear: Record<string, number> = {
+    MONTHLY: 12, QUARTERLY: 4, SEMI_ANNUAL: 2, ANNUAL: 1
+  };
+  const ppYear = periodsPerYear[paymentFrequency] || 12;
+  const monthsPerPeriod = 12 / ppYear;
+  const periodicRate = annualRate / ppYear;
+  const totalPeriods = Math.ceil(termMonths / monthsPerPeriod);
+
+  if (periodicRate === 0) {
+    return principal / totalPeriods;
+  }
+
+  const factor = Math.pow(1 + periodicRate, totalPeriods);
+  return principal * periodicRate * factor / (factor - 1);
+}
+
 // ===== Land Parcel Service =====
 
 export class LandParcelService {
@@ -186,13 +284,20 @@ export class LandParcelService {
     };
   }
 
-  private calculateLoanAnnualInterest(loan: any): number {
+  private calculateLoanAnnualInterest(loan: any, year?: number): number {
     if (loan.useSimpleMode) {
-      // Simple mode: estimate 40% of annual payment is interest
       return Number(loan.annualPayment || 0) * 0.4;
     }
-    // Full amortization: remaining balance × interest rate
-    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualInterest;
   }
 
   private mapLandLoan(loan: any): LandLoan {
@@ -279,6 +384,17 @@ export class LandLoanService {
   }
 
   async create(parcelId: string, data: CreateLandLoanRequest): Promise<LandLoan> {
+    // Auto-calculate periodic payment if in full amortization mode and not provided
+    let monthlyPayment = data.monthlyPayment;
+    if (!data.useSimpleMode && (!monthlyPayment || monthlyPayment === 0) && data.principal && data.interestRate !== undefined && data.termMonths) {
+      monthlyPayment = calculatePeriodicPayment(
+        data.principal,
+        data.interestRate,
+        data.termMonths,
+        data.paymentFrequency || 'MONTHLY'
+      );
+    }
+
     // Create the loan with entity/farm linking
     const loan = await prisma.landLoan.create({
       data: {
@@ -293,7 +409,7 @@ export class LandLoanService {
         termMonths: data.termMonths,
         startDate: data.startDate ? new Date(data.startDate) : null,
         paymentFrequency: data.paymentFrequency,
-        monthlyPayment: data.monthlyPayment,
+        monthlyPayment: monthlyPayment,
         remainingBalance: data.remainingBalance ?? data.principal,
         annualPayment: data.annualPayment,
         nextPaymentDate: data.nextPaymentDate ? new Date(data.nextPaymentDate) : null,
@@ -332,6 +448,24 @@ export class LandLoanService {
       if (!existing) throw new Error('Land loan not found');
     }
 
+    // Auto-recalculate periodic payment if switching to full amortization or key fields change
+    let autoMonthlyPayment: number | undefined;
+    if (data.useSimpleMode === false || data.principal !== undefined || data.interestRate !== undefined || data.termMonths !== undefined || data.paymentFrequency !== undefined) {
+      // Fetch current loan to merge with incoming data
+      const current = await prisma.landLoan.findUnique({ where: { id } });
+      if (current) {
+        const useSimple = data.useSimpleMode !== undefined ? data.useSimpleMode : current.useSimpleMode;
+        const principal = data.principal !== undefined ? data.principal : Number(current.principal);
+        const rate = data.interestRate !== undefined ? data.interestRate : Number(current.interestRate);
+        const term = data.termMonths !== undefined ? data.termMonths : current.termMonths;
+        const freq = data.paymentFrequency !== undefined ? data.paymentFrequency : (current.paymentFrequency || 'MONTHLY');
+
+        if (!useSimple && principal && rate !== undefined && term) {
+          autoMonthlyPayment = calculatePeriodicPayment(principal, rate, term, freq);
+        }
+      }
+    }
+
     // If nextPaymentDate is being changed, reset the reminder flag
     const resetReminder = data.nextPaymentDate !== undefined;
 
@@ -348,7 +482,7 @@ export class LandLoanService {
         ...(data.termMonths !== undefined && { termMonths: data.termMonths }),
         ...(data.startDate !== undefined && { startDate: data.startDate ? new Date(data.startDate) : null }),
         ...(data.paymentFrequency !== undefined && { paymentFrequency: data.paymentFrequency }),
-        ...(data.monthlyPayment !== undefined && { monthlyPayment: data.monthlyPayment }),
+        ...(data.monthlyPayment !== undefined ? { monthlyPayment: data.monthlyPayment } : autoMonthlyPayment !== undefined ? { monthlyPayment: autoMonthlyPayment } : {}),
         ...(data.remainingBalance !== undefined && { remainingBalance: data.remainingBalance }),
         ...(data.annualPayment !== undefined && { annualPayment: data.annualPayment }),
         ...(data.nextPaymentDate !== undefined && { nextPaymentDate: data.nextPaymentDate ? new Date(data.nextPaymentDate) : null }),
@@ -453,25 +587,36 @@ export class LandLoanService {
     };
   }
 
-  private calculateAnnualInterest(loan: any): number {
+  private calculateAnnualInterest(loan: any, year?: number): number {
     if (loan.useSimpleMode) {
-      // Simple mode: estimate 40% of annual payment is interest
       return Number(loan.annualPayment || 0) * 0.4;
     }
-    // Full amortization: remaining balance × interest rate
-    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualInterest;
   }
 
-  private calculateAnnualPrincipal(loan: any): number {
+  private calculateAnnualPrincipal(loan: any, year?: number): number {
     if (loan.useSimpleMode) {
-      // Simple mode: estimate 60% of annual payment is principal
       return Number(loan.annualPayment || 0) * 0.6;
     }
-    // Full amortization: annual payment - annual interest
-    const monthlyPayment = Number(loan.monthlyPayment || 0);
-    const annualPayment = monthlyPayment * 12;
-    const annualInterest = this.calculateAnnualInterest(loan);
-    return Math.max(0, annualPayment - annualInterest);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualPrincipal;
   }
 
   private mapLoan(loan: any): LandLoan {
@@ -788,21 +933,36 @@ export class LoanInterestService {
   private landParcelService = new LandParcelService();
   private operatingLoanService = new OperatingLoanService();
 
-  private calculateLandLoanAnnualInterest(loan: any): number {
+  private calculateLandLoanAnnualInterest(loan: any, year?: number): number {
     if (loan.useSimpleMode) {
       return Number(loan.annualPayment || 0) * 0.4;
     }
-    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualInterest;
   }
 
-  private calculateLandLoanAnnualPrincipal(loan: any): number {
+  private calculateLandLoanAnnualPrincipal(loan: any, year?: number): number {
     if (loan.useSimpleMode) {
       return Number(loan.annualPayment || 0) * 0.6;
     }
-    const monthlyPayment = Number(loan.monthlyPayment || 0);
-    const annualPayment = monthlyPayment * 12;
-    const annualInterest = this.calculateLandLoanAnnualInterest(loan);
-    return Math.max(0, annualPayment - annualInterest);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualPrincipal;
   }
 
   // Calculate operating loan YTD interest using average daily balance from transactions
@@ -991,10 +1151,7 @@ export class LoanInterestService {
 
     const landLoanInterest = parcels.map(p => {
       const annualInterest = p.landLoans.reduce((sum, loan) => {
-        if (loan.useSimpleMode) {
-          return sum + Number(loan.annualPayment || 0) * 0.4;
-        }
-        return sum + Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+        return sum + this.calculateLandLoanAnnualInterest(loan, year);
       }, 0);
 
       return {
@@ -1361,6 +1518,17 @@ export class EquipmentLoanService {
       nextPaymentDate = this.calculateNextPaymentDate(startDate, data.paymentFrequency);
     }
 
+    // Auto-calculate periodic payment if in full amortization mode and not provided
+    let monthlyPayment = data.monthlyPayment;
+    if (!data.useSimpleMode && data.financingType !== 'LEASE' && (!monthlyPayment || monthlyPayment === 0) && data.principal && data.interestRate !== undefined && data.termMonths) {
+      monthlyPayment = calculatePeriodicPayment(
+        data.principal,
+        data.interestRate,
+        data.termMonths,
+        data.paymentFrequency || 'MONTHLY'
+      );
+    }
+
     const loan = await prisma.equipmentLoan.create({
       data: {
         equipmentId,
@@ -1373,7 +1541,7 @@ export class EquipmentLoanService {
         termMonths: data.termMonths,
         startDate,
         paymentFrequency: data.paymentFrequency,
-        monthlyPayment: data.monthlyPayment,
+        monthlyPayment: monthlyPayment,
         remainingBalance: data.remainingBalance ?? data.principal,
         annualPayment: data.annualPayment,
         leaseEndDate: data.leaseEndDate ? new Date(data.leaseEndDate) : null,
@@ -1416,6 +1584,24 @@ export class EquipmentLoanService {
       if (!existing) throw new Error('Equipment loan not found');
     }
 
+    // Auto-recalculate periodic payment if switching to full amortization or key fields change
+    let autoMonthlyPayment: number | undefined;
+    if (data.useSimpleMode === false || data.principal !== undefined || data.interestRate !== undefined || data.termMonths !== undefined || data.paymentFrequency !== undefined) {
+      const current = await prisma.equipmentLoan.findUnique({ where: { id } });
+      if (current) {
+        const useSimple = data.useSimpleMode !== undefined ? data.useSimpleMode : current.useSimpleMode;
+        const finType = data.financingType !== undefined ? data.financingType : current.financingType;
+        const principal = data.principal !== undefined ? data.principal : Number(current.principal);
+        const rate = data.interestRate !== undefined ? data.interestRate : Number(current.interestRate);
+        const term = data.termMonths !== undefined ? data.termMonths : current.termMonths;
+        const freq = data.paymentFrequency !== undefined ? data.paymentFrequency : (current.paymentFrequency || 'MONTHLY');
+
+        if (!useSimple && finType !== 'LEASE' && principal && rate !== undefined && term) {
+          autoMonthlyPayment = calculatePeriodicPayment(principal, rate, term, freq);
+        }
+      }
+    }
+
     // If nextPaymentDate is being changed, reset the reminder flag
     const resetReminder = data.nextPaymentDate !== undefined;
 
@@ -1431,7 +1617,7 @@ export class EquipmentLoanService {
         ...(data.termMonths !== undefined && { termMonths: data.termMonths }),
         ...(data.startDate !== undefined && { startDate: data.startDate ? new Date(data.startDate) : null }),
         ...(data.paymentFrequency !== undefined && { paymentFrequency: data.paymentFrequency }),
-        ...(data.monthlyPayment !== undefined && { monthlyPayment: data.monthlyPayment }),
+        ...(data.monthlyPayment !== undefined ? { monthlyPayment: data.monthlyPayment } : autoMonthlyPayment !== undefined ? { monthlyPayment: autoMonthlyPayment } : {}),
         ...(data.remainingBalance !== undefined && { remainingBalance: data.remainingBalance }),
         ...(data.annualPayment !== undefined && { annualPayment: data.annualPayment }),
         ...(data.leaseEndDate !== undefined && { leaseEndDate: data.leaseEndDate ? new Date(data.leaseEndDate) : null }),
@@ -1515,7 +1701,7 @@ export class EquipmentLoanService {
     };
   }
 
-  private calculateAnnualInterest(loan: any): number {
+  private calculateAnnualInterest(loan: any, year?: number): number {
     // Use override if provided
     if (loan.annualInterestOverride) {
       return Number(loan.annualInterestOverride);
@@ -1523,10 +1709,19 @@ export class EquipmentLoanService {
     if (loan.useSimpleMode || loan.financingType === 'LEASE') {
       return Number(loan.annualPayment || 0) * 0.4;
     }
-    return Number(loan.remainingBalance || 0) * Number(loan.interestRate || 0);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualInterest;
   }
 
-  private calculateAnnualPrincipal(loan: any): number {
+  private calculateAnnualPrincipal(loan: any, year?: number): number {
     // Use override if provided
     if (loan.annualPrincipalOverride) {
       return Number(loan.annualPrincipalOverride);
@@ -1534,10 +1729,16 @@ export class EquipmentLoanService {
     if (loan.useSimpleMode || loan.financingType === 'LEASE') {
       return Number(loan.annualPayment || 0) * 0.6;
     }
-    const monthlyPayment = Number(loan.monthlyPayment || 0);
-    const annualPayment = monthlyPayment * 12;
-    const annualInterest = this.calculateAnnualInterest(loan);
-    return Math.max(0, annualPayment - annualInterest);
+    const targetYear = year || new Date().getFullYear();
+    const result = calculateAmortizationForYear(
+      Number(loan.principal),
+      Number(loan.interestRate),
+      loan.termMonths,
+      new Date(loan.startDate),
+      targetYear,
+      loan.paymentFrequency || 'MONTHLY'
+    );
+    return result.annualPrincipal;
   }
 
   private mapLoan(loan: any): EquipmentLoan {
