@@ -643,27 +643,29 @@ export default function FarmCostEntry() {
         {/* Read-only banner for employees */}
         {isEmployee && <ReadOnlyBanner />}
 
+        {/* Cost View Toggle - applies to all sections */}
+        <div className="flex justify-center mb-4">
+          <div className="flex rounded-md overflow-hidden border border-gray-300 shadow-sm">
+            <button
+              onClick={() => setCostView('total')}
+              className={`px-4 py-1.5 text-sm font-medium ${costView === 'total' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Total $
+            </button>
+            <button
+              onClick={() => setCostView('perAcre')}
+              className={`px-4 py-1.5 text-sm font-medium ${costView === 'perAcre' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              $/Acre
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Fertilizer Section */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-gray-900">Fertilizer Usage</h2>
-                <div className="flex rounded-md overflow-hidden border border-gray-300">
-                  <button
-                    onClick={() => setCostView('total')}
-                    className={`px-2 py-1 text-xs ${costView === 'total' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    Total
-                  </button>
-                  <button
-                    onClick={() => setCostView('perAcre')}
-                    className={`px-2 py-1 text-xs ${costView === 'perAcre' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    $/Acre
-                  </button>
-                </div>
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900">Fertilizer Usage</h2>
               {canEdit() && (
                 <button
                   onClick={() => setShowScanBillModal(true)}
@@ -1806,7 +1808,10 @@ export default function FarmCostEntry() {
                             </div>
                             <div className="flex items-center space-x-3">
                               <span className="font-semibold">
-                                ${(cost.isPerAcre ? cost.amount * farm.acres : cost.amount).toFixed(2)}
+                                ${costView === 'total'
+                                  ? (cost.isPerAcre ? cost.amount * farm.acres : cost.amount).toFixed(2)
+                                  : (cost.isPerAcre ? cost.amount : farm.acres > 0 ? (cost.amount / farm.acres) : 0).toFixed(2)}
+                                {costView === 'perAcre' && <span className="text-xs font-normal">/ac</span>}
                               </span>
                               {canEdit() && (
                                 <div className="flex space-x-1">
