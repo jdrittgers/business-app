@@ -218,27 +218,42 @@ export class AuthService {
     try {
       payload = verifyRefreshToken(refreshToken);
     } catch (error) {
+      console.log('[Auth] Refresh failed: invalid JWT for user');
       throw new Error('Invalid refresh token');
     }
 
-    // Check if refresh token exists in database and not expired
-    const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken }
+    // Atomically find and delete the refresh token to prevent race conditions
+    // If two requests try to use the same token, only one will succeed
+    const deleted = await prisma.refreshToken.deleteMany({
+      where: {
+        token: refreshToken,
+        expiresAt: { gt: new Date() }
+      }
     });
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
+    if (deleted.count === 0) {
+      // Token was already used by another request or expired
+      // Try to find if this user has any valid refresh token (from the winning request)
+      const existingToken = await prisma.refreshToken.findFirst({
+        where: { userId: payload.userId, expiresAt: { gt: new Date() } }
+      });
+
+      if (existingToken) {
+        // Another refresh request already rotated the token — generate a fresh access token
+        // but don't rotate the refresh token again (return the existing one)
+        console.log('[Auth] Refresh race condition handled: returning fresh access token for user', payload.userId);
+        const newAccessToken = generateAccessToken(payload);
+        return { accessToken: newAccessToken, refreshToken: existingToken.token };
+      }
+
+      console.log('[Auth] Refresh failed: token not found or expired for user', payload.userId);
       throw new Error('Refresh token expired or invalid');
     }
 
-    // Generate new access token
+    // Generate new tokens
     const newAccessToken = generateAccessToken(payload);
-
-    // Rotate refresh token for better security
-    await prisma.refreshToken.delete({
-      where: { token: refreshToken }
-    });
-
     const newRefreshToken = generateRefreshToken(payload);
+
     await prisma.refreshToken.create({
       data: {
         userId: payload.userId,
@@ -247,6 +262,7 @@ export class AuthService {
       }
     });
 
+    console.log('[Auth] Token rotated successfully for user', payload.userId);
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 

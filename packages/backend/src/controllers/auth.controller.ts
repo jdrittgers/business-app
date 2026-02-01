@@ -5,6 +5,18 @@ import { LoginRequest } from '@business-app/shared';
 
 const authService = new AuthService();
 
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'strict') as 'none' | 'strict',
+  path: '/'
+};
+
+const REFRESH_COOKIE_OPTIONS = {
+  ...COOKIE_OPTIONS,
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+};
+
 export class AuthController {
   async register(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -38,13 +50,7 @@ export class AuthController {
       const result = await authService.registerFarmer(registerData);
 
       // Send refresh token as HTTP-only cookie
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
+      res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
 
       res.status(201).json(result);
     } catch (error) {
@@ -71,13 +77,7 @@ export class AuthController {
       const result = await authService.login(loginData);
 
       // Send refresh token as HTTP-only cookie
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
+      res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
 
       // Don't expose refresh token in JSON response — it's in the httpOnly cookie
       const { refreshToken: _rt, ...responseData } = result;
@@ -100,7 +100,7 @@ export class AuthController {
         await authService.logout(refreshToken);
       }
 
-      res.clearCookie('refreshToken', { path: '/' });
+      res.clearCookie('refreshToken', COOKIE_OPTIONS);
       res.json({ message: 'Logged out successfully' });
     } catch (error) {
       console.error('Logout error:', error);
@@ -113,6 +113,7 @@ export class AuthController {
       const refreshToken = req.cookies.refreshToken;
 
       if (!refreshToken) {
+        console.log('[Auth] Refresh attempt with no cookie');
         res.status(401).json({ error: 'No refresh token provided' });
         return;
       }
@@ -120,22 +121,17 @@ export class AuthController {
       const result = await authService.refreshAccessToken(refreshToken);
 
       // Update the refresh token cookie with the rotated token
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
+      res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
 
       res.json({ accessToken: result.accessToken });
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Invalid') || error instanceof Error && error.message.includes('expired')) {
-        res.clearCookie('refreshToken', { path: '/' });
+      if (error instanceof Error && (error.message.includes('Invalid') || error.message.includes('expired'))) {
+        console.log('[Auth] Refresh rejected:', error.message);
+        res.clearCookie('refreshToken', COOKIE_OPTIONS);
         res.status(401).json({ error: 'Invalid or expired refresh token' });
         return;
       }
-      console.error('Refresh error:', error);
+      console.error('[Auth] Refresh error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
